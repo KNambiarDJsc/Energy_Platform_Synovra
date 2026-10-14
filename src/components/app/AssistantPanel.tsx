@@ -110,7 +110,7 @@ export function AssistantPanel({
                   <p className="whitespace-pre-line text-ink">{t.response.answer}</p>
                   {t.response.citations.length > 0 && (
                     <div className="mt-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted">Records cited</p>
+                      <p className="text-[13px] font-medium text-muted">Records cited</p>
                       <ul className="mt-1 space-y-1">
                         {t.response.citations.map((c) => {
                           const href = citationHref(c);

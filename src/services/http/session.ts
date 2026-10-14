@@ -2,15 +2,16 @@
  * API session for HTTP mode: holds the bearer token and the actor the server resolved for it.
  *
  * With the API's dev auth, choosing a user on the sign-in page requests a token for that user.
- * With OIDC, the token comes from the identity provider's sign-in flow (not wired in this build;
- * see server/README.md) and is passed to `setToken`.
+ * With OIDC, the token comes from the identity provider's sign-in flow (./oidc.ts, /auth/callback)
+ * and is passed to `setToken`. Tokens live in sessionStorage: they end with the browser tab and
+ * are dropped as soon as they expire.
  */
 import { API_BASE_URL } from '@/lib/runtime';
 import type { Actor } from '@/domain/types';
 
 const KEY = 'synovra-api-session';
 
-interface ApiSession { userId: string; token: string; actor: Actor }
+interface ApiSession { userId: string; token: string; actor: Actor; expiresAt?: number; idToken?: string | null }
 type State = { status: 'idle' } | { status: 'loading'; userId: string } | { status: 'ready'; session: ApiSession } | { status: 'error'; userId: string; message: string };
 
 let state: State = { status: 'idle' };
@@ -21,10 +22,13 @@ function emit(next: State) {
   listeners.forEach((l) => l());
 }
 
+const expired = (s: ApiSession) => s.expiresAt !== undefined && s.expiresAt <= Date.now() + 15_000;
+
 function restore(): ApiSession | null {
   try {
     const raw = typeof window !== 'undefined' ? window.sessionStorage.getItem(KEY) : null;
-    return raw ? (JSON.parse(raw) as ApiSession) : null;
+    const s = raw ? (JSON.parse(raw) as ApiSession) : null;
+    return s && !expired(s) ? s : null;
   } catch {
     return null;
   }
@@ -55,7 +59,19 @@ export function subscribeApiSession(fn: () => void): () => void {
 
 export function currentToken(): string | null {
   const s = getApiSessionState();
-  return s.status === 'ready' ? s.session.token : null;
+  if (s.status !== 'ready') return null;
+  if (expired(s.session)) {
+    // Sign-in has lapsed: return to the sign-in page rather than sending a token the API will refuse.
+    clearApiSession();
+    return null;
+  }
+  return s.session.token;
+}
+
+/** The ID token from company sign-in, used as a hint when ending the provider session. */
+export function currentIdToken(): string | null {
+  const s = getApiSessionState();
+  return s.status === 'ready' ? s.session.idToken ?? null : null;
 }
 
 export function currentActor(): Actor | null {
@@ -93,12 +109,13 @@ export function ensureApiSession(userId: string): void {
   });
 }
 
-/** Uses a token from an identity provider (OIDC mode). */
-export async function setToken(token: string): Promise<void> {
+/** Uses a token from an identity provider (OIDC mode). Resolves the platform account behind it via /me. */
+export async function setToken(token: string, opts: { expiresAt?: number; idToken?: string | null } = {}): Promise<Actor> {
   const actor = await fetchActor(token);
-  const session = { userId: actor.userId, token, actor };
+  const session: ApiSession = { userId: actor.userId, token, actor, expiresAt: opts.expiresAt, idToken: opts.idToken ?? null };
   persist(session);
   emit({ status: 'ready', session });
+  return actor;
 }
 
 export function clearApiSession(): void {

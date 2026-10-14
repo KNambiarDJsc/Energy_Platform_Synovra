@@ -236,7 +236,7 @@ function TestDrawer({ id, onClose }: { id: string | null; onClose: () => void })
             </div>
 
             <div className="rounded-md border border-line p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Measured capacity</p>
+              <p className="text-[13px] font-medium text-muted">Measured capacity</p>
               <p className="mt-1 text-3xl font-semibold text-navy">{formatNumber(t.result.capacityAh, 0, 'Ah')}</p>
               {t.level === 'battery' ? (
                 <p className="text-sm text-muted">
@@ -274,7 +274,7 @@ function TestDrawer({ id, onClose }: { id: string | null; onClose: () => void })
 
             {t.evidence.length > 0 && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Evidence</p>
+                <p className="text-[13px] font-medium text-muted">Evidence</p>
                 <ul className="mt-1 space-y-2 text-sm">
                   {t.evidence.map((e) => (
                     <li key={e.id} className="flex flex-wrap items-center gap-2">

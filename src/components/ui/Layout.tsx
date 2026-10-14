@@ -9,8 +9,8 @@ export function PageHeader({
   return (
     <header className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
       <div className="min-w-0">
-        {eyebrow && <div className="eyebrow mb-1">{eyebrow}</div>}
-        <h1 className="text-2xl font-semibold leading-tight text-navy md:text-[28px]">{title}</h1>
+        <h1 className="text-2xl font-semibold leading-tight tracking-tight text-navy md:text-[30px]">{title}</h1>
+        {eyebrow && <div className="mt-1 text-sm font-medium text-teal-800">{eyebrow}</div>}
         {description && <p className="mt-1 max-w-3xl text-sm text-muted md:text-base">{description}</p>}
       </div>
       {actions && <div className="no-print flex flex-wrap items-center gap-2">{actions}</div>}
@@ -32,7 +32,7 @@ export function Section({
   return (
     <section id={id} aria-labelledby={id ? `${id}-h` : undefined} className={cn('card', className)}>
       {(title || actions) && (
-        <div className="flex flex-col gap-2 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between md:px-5">
+        <div className="flex flex-col gap-2 px-4 pt-4 sm:flex-row sm:items-center sm:justify-between md:px-5">
           <div>
             {title && (
               <h2 id={id ? `${id}-h` : undefined} className="text-base font-semibold text-navy">
@@ -60,9 +60,9 @@ export function Stat({
       {hint && <div className="mt-2 text-xs text-muted">{hint}</div>}
     </>
   );
-  const cls = 'card block p-4';
+  const cls = 'card block p-4 transition-colors';
   return href ? (
-    <Link href={href} className={cn(cls, 'transition-colors hover:border-teal')}>
+    <Link href={href} className={cn(cls, 'hover:border-teal active:bg-canvas')}>
       {body}
     </Link>
   ) : (
@@ -78,7 +78,7 @@ export function KeyValue({
     <dl className={cn('grid gap-x-8 gap-y-4', grid)}>
       {items.map((i) => (
         <div key={i.label} className="min-w-0">
-          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{i.label}</dt>
+          <dt className="text-[13px] font-medium text-muted">{i.label}</dt>
           <dd className="mt-0.5 break-words text-sm text-ink">
             {i.value}
             {i.hint && <span className="mt-0.5 block text-xs text-muted">{i.hint}</span>}
@@ -102,7 +102,7 @@ export function Notice({
   }[tone];
   const iconStyle = { info: 'text-teal-800', warn: 'text-amber-700', danger: 'text-critical-700', synthetic: 'text-amber-700' }[tone];
   return (
-    <div className={cn('flex items-start gap-3 rounded-md border p-3 text-sm', style, className)}>
+    <div className={cn('flex items-start gap-3 rounded-md p-3 text-sm', style, className)}>
       <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', iconStyle)} aria-hidden />
       <div className="min-w-0 text-ink">
         {title && <p className="font-semibold">{title}</p>}

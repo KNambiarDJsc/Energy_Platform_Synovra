@@ -2,7 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useSyncExternalStore } from 'react';
 import { getStore } from '@/data/store';
-import type { Role, User } from '@/domain/types';
+import type { Actor, Role, User } from '@/domain/types';
 import { can, type Permission } from '@/domain/permissions';
 import { DATA_SOURCE, getRuntime, getServerRuntime, loadRuntime, subscribeRuntime, type FeatureName, type RuntimeInfo } from '@/lib/runtime';
 import { getServices } from '@/services';
@@ -35,7 +35,9 @@ export function useRuntime(): RuntimeInfo {
   return info;
 }
 
-const idleApi = () => ({ status: 'idle' as const });
+// Must return the same object every time (React compares snapshots by identity).
+const IDLE_API = { status: 'idle' as const };
+const idleApi = () => IDLE_API;
 
 export function useSession(): Session {
   const hydrated = useHydrated();
@@ -44,19 +46,27 @@ export function useSession(): Session {
   const api = useSyncExternalStore(subscribeApiSession, getApiSessionState, idleApi);
   const http = DATA_SOURCE === 'http';
 
+  // Development sign-in picks a user; company sign-in (OIDC) gets its session from /auth/callback instead.
+  const devAuth = http && runtime.loaded && runtime.authMode === 'dev';
+  const oidcAuth = http && runtime.loaded && runtime.authMode === 'oidc';
   useEffect(() => {
-    if (http && hydrated && id) ensureApiSession(id);
-  }, [http, hydrated, id]);
+    if (devAuth && hydrated && id) ensureApiSession(id);
+  }, [devAuth, hydrated, id]);
 
   let user: User | null = null;
   let ready = hydrated;
   let error: string | null = null;
+  const fromActor = (a: Actor): User => ({ id: a.userId, name: a.name, role: a.role, tenantId: a.tenantId, siteScope: a.siteScope, title: '', email: '', active: true });
   if (!http) {
     user = hydrated && id ? (getStore().db.users.find((u) => u.id === id && u.active) ?? null) : null;
+  } else if (hydrated && !runtime.loaded) {
+    ready = false; // learning how this deployment signs people in
+  } else if (oidcAuth) {
+    if (api.status === 'ready') user = fromActor(api.session.actor);
+    else if (api.status === 'error') error = api.message;
   } else if (hydrated && id) {
     if (api.status === 'ready' && api.session.userId === id) {
-      const a = api.session.actor;
-      user = { id: a.userId, name: a.name, role: a.role, tenantId: a.tenantId, siteScope: a.siteScope, title: '', email: '', active: true };
+      user = fromActor(api.session.actor);
     } else if (api.status === 'error' && api.userId === id) {
       error = api.message;
     } else {

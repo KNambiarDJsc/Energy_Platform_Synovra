@@ -19,10 +19,10 @@ const config: Config = {
         approved: { DEFAULT: '#2E7D5B', 50: '#E6F3EC', 700: '#1F5C42' },
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        sans: ['var(--font-inter)', 'Inter', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
-      borderRadius: { DEFAULT: '6px', md: '8px', lg: '10px' },
+      borderRadius: { DEFAULT: '4px', md: '4px', lg: '6px' },
       boxShadow: { card: '0 1px 2px rgba(17,43,64,0.05)', pop: '0 8px 24px rgba(17,43,64,0.14)' },
     },
   },

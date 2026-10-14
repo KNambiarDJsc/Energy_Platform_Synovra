@@ -167,15 +167,15 @@ function AttemptCard({ a, onDialog }: { a: AttemptView; onDialog: (d: Dialog) =>
       </div>
       <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
         <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Before</dt>
+          <dt className="text-[13px] font-medium text-muted">Before</dt>
           <dd>{a.before ? `${formatNumber(a.before.result.capacityAh, 0, 'Ah')} (${a.before.pctOfRated === null ? 'unknown' : `${formatNumber(a.before.pctOfRated, 0)}%`})` : 'No test linked'}</dd>
         </div>
         <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">After</dt>
+          <dt className="text-[13px] font-medium text-muted">After</dt>
           <dd>{a.after ? `${formatNumber(a.after.result.capacityAh, 0, 'Ah')} (${a.after.pctOfRated === null ? 'unknown' : `${formatNumber(a.after.pctOfRated, 0)}%`})` : 'No test linked yet'}</dd>
         </div>
         <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Started</dt>
+          <dt className="text-[13px] font-medium text-muted">Started</dt>
           <dd>{formatDate(a.startedAt)}</dd>
         </div>
       </dl>

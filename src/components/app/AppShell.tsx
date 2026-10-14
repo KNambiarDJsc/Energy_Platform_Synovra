@@ -12,6 +12,8 @@ import { can as canRole, ROLE_LABELS, ROLE_SUMMARIES } from '@/domain/permission
 import type { Role } from '@/domain/types';
 import { cn } from '@/lib/format';
 import { useRuntime, useSession, useSvcQuery } from '@/lib/hooks';
+import { signOutUrl } from '@/services/http/oidc';
+import { clearApiSession, currentIdToken } from '@/services/http/session';
 import { DEMO_USER_FOR_ROLE, setSessionUserId } from '@/services/session';
 import { AssistantPanel } from './AssistantPanel';
 import { Brand } from './Brand';
@@ -27,7 +29,7 @@ function useVisibleNav(): NavItem[] {
 
 function NotEnabled({ item }: { item: NavItem }) {
   return (
-    <div role="alert" className="mx-auto max-w-xl rounded-lg border border-line bg-white p-6">
+    <div role="alert" className="mx-auto max-w-xl rounded-lg bg-white p-6">
       <h1 className="text-xl font-semibold text-navy">{item.label} is not enabled on this deployment</h1>
       <p className="mt-2 text-sm text-ink">
         {item.purpose} This area needs an integration that this deployment does not have yet, so it is switched off rather than shown with empty data.
@@ -89,6 +91,39 @@ function NavList({ items, pathname, alertCount, onNavigate }: { items: NavItem[]
   );
 }
 
+/** Demo: back to the role picker. Company sign-in: end the platform session, then the provider's if it supports that. */
+function SignOut() {
+  const runtime = useRuntime();
+  const cls = 'rounded-md p-2 text-muted transition-colors hover:bg-canvas hover:text-ink';
+  if (runtime.authMode === 'oidc' && runtime.oidc) {
+    const cfg = runtime.oidc;
+    return (
+      <button
+        type="button"
+        className={cls}
+        aria-label="Sign out"
+        onClick={async () => {
+          const url = await signOutUrl(cfg, currentIdToken(), `${window.location.origin}/signin`);
+          clearApiSession();
+          window.location.assign(url ?? '/signin');
+        }}
+      >
+        <LogOut className="h-5 w-5" aria-hidden />
+      </button>
+    );
+  }
+  return (
+    <Link
+      href="/signin"
+      className={cls}
+      aria-label="Switch demo user or leave the demo"
+      onClick={() => { setSessionUserId(null); clearApiSession(); }}
+    >
+      <LogOut className="h-5 w-5" aria-hidden />
+    </Link>
+  );
+}
+
 function RoleSwitcher({ id, className, showLabel }: { id: string; className?: string; showLabel?: boolean }) {
   const { role } = useSession();
   const runtime = useRuntime();
@@ -97,7 +132,7 @@ function RoleSwitcher({ id, className, showLabel }: { id: string; className?: st
   if (!role || runtime.authMode === 'oidc') return null;
   return (
     <div className={cn('min-w-0', className)}>
-      <label htmlFor={id} className={showLabel ? 'mb-1 block text-xs font-semibold uppercase tracking-wide text-muted' : 'sr-only'}>
+      <label htmlFor={id} className={showLabel ? 'mb-1 block text-[13px] font-medium text-muted' : 'sr-only'}>
         Demo role
       </label>
       <select
@@ -124,7 +159,7 @@ function AccessRestricted({ item }: { item: NavItem }) {
   const { role } = useSession();
   const allowed = ROLES.filter((r) => canRole(r, item.permission));
   return (
-    <div role="alert" className="mx-auto max-w-xl rounded-lg border border-line bg-white p-6">
+    <div role="alert" className="mx-auto max-w-xl rounded-lg bg-white p-6">
       <h1 className="text-xl font-semibold text-navy">{item.label} is not available to your role</h1>
       <p className="mt-2 text-sm text-ink">
         You are viewing as <strong>{role ? ROLE_LABELS[role] : 'unknown'}</strong>. {item.purpose}
@@ -185,7 +220,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen">
       <div className="no-print sticky top-0 z-40">
         <DemoBanner />
-        <header className="flex h-14 items-center gap-3 border-b border-line bg-white px-3 md:px-5">
+        <header className="flex h-14 items-center gap-3 bg-white px-3 md:px-5">
           <button
             type="button"
             className="-ml-1 rounded-md p-2 text-ink hover:bg-canvas lg:hidden"
@@ -230,20 +265,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="hidden w-56 sm:block">
               <RoleSwitcher id="role-switch" />
             </div>
-            <Link
-              href="/signin"
-              className="rounded-md p-2 text-muted hover:bg-canvas hover:text-ink"
-              aria-label="Switch demo user or leave the demo"
-              onClick={() => setSessionUserId(null)}
-            >
-              <LogOut className="h-5 w-5" aria-hidden />
-            </Link>
+            <SignOut />
           </div>
         </header>
       </div>
 
       <aside
-        className="no-print fixed bottom-0 left-0 top-[88px] z-30 hidden w-[248px] overflow-y-auto border-r border-line bg-white px-3 py-4 lg:block"
+        className="no-print fixed bottom-0 left-0 top-[88px] z-30 hidden w-[248px] overflow-y-auto bg-white px-3 py-4 lg:block"
         aria-label="Sidebar"
       >
         <div className="mb-5 px-3">
@@ -263,7 +291,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="mx-auto max-w-[1280px]">
           {/* Role switcher also on phones, where the top bar is crowded */}
           <RoleSwitcher id="role-switch-m" showLabel className="no-print mb-4 sm:hidden" />
-          {disabled ? <NotEnabled item={disabled} /> : restricted ? <AccessRestricted item={restricted} /> : <Suspense fallback={<LoadingBlock />}>{children}</Suspense>}
+          {disabled ? <NotEnabled item={disabled} /> : restricted ? <AccessRestricted item={restricted} /> : <Suspense fallback={<LoadingBlock />}><div key={pathname} className="app-enter">{children}</div></Suspense>}
         </div>
       </main>
 

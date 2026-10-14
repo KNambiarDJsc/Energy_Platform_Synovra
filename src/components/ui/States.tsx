@@ -25,7 +25,7 @@ export function EmptyState({
   title, description, action, icon: Icon = Inbox,
 }: { title: string; description?: ReactNode; action?: ReactNode; icon?: typeof Inbox }) {
   return (
-    <div className="flex flex-col items-center rounded-lg border border-dashed border-[#9FB2BD] bg-white px-6 py-10 text-center">
+    <div className="flex flex-col items-center rounded-lg bg-[#E2ECF0]/60 px-6 py-10 text-center">
       <Icon className="h-8 w-8 text-muted" aria-hidden />
       <h3 className="mt-3 text-base font-semibold text-navy">{title}</h3>
       {description && <p className="mt-1 max-w-md text-sm text-muted">{description}</p>}
@@ -53,7 +53,7 @@ export function ErrorState({ error, onRetry, title }: { error: unknown; onRetry?
   const heading =
     title ?? (forbidden ? 'Your role cannot open this' : missing ? 'Record not found' : 'This could not be loaded');
   return (
-    <div role="alert" className="rounded-lg border border-[#EBC4C4] bg-critical-50 p-5">
+    <div role="alert" className="rounded-lg bg-critical-50 p-5">
       <div className="flex items-start gap-3">
         <Icon className="mt-0.5 h-5 w-5 shrink-0 text-critical-700" aria-hidden />
         <div className="min-w-0 flex-1">

@@ -13,6 +13,7 @@
     "test:e2e": "playwright test",
     "test:server": "vitest run server/tests --no-file-parallelism",
     "server:dev": "tsx watch server/src/index.ts",
+    "oidc:mock": "tsx server/scripts/mock-oidc.ts",
     "server:build": "tsup server/src/index.ts server/src/cli.ts --format esm --platform node --target node20 --out-dir server/dist --clean",
     "server:start": "node server/dist/index.mjs",
     "db:generate": "drizzle-kit generate --config server/drizzle.config.ts",

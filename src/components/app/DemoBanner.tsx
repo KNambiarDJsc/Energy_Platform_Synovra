@@ -17,7 +17,7 @@ export function DemoBanner() {
     <div
       role="note"
       data-testid="demo-banner"
-      className="no-print flex items-center justify-center gap-2 border-b border-[#E8D6A8] bg-amber-50 px-4 py-1.5 text-center text-xs font-medium text-amber-700"
+      className="no-print flex items-center justify-center gap-2 bg-amber-50 px-4 py-1.5 text-center text-[13px] font-medium text-amber-700"
     >
       <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
       <span>{pilot ? PILOT_NOTICE : DEMO_NOTICE}</span>
@@ -33,7 +33,7 @@ export function DebugBanner() {
     <div
       role="note"
       data-testid="demo-banner"
-      className="no-print flex items-center justify-center gap-2 border-b border-[#E8D6A8] bg-amber-50 px-4 py-1.5 text-center text-xs font-medium text-amber-700"
+      className="no-print flex items-center justify-center gap-2 bg-amber-50 px-4 py-1.5 text-center text-[13px] font-medium text-amber-700"
     >
       <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
       <span>{pilot ? PILOT_NOTICE : DEMO_NOTICE}</span>

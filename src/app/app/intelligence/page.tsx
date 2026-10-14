@@ -38,7 +38,7 @@ function PredictionCard({ p }: { p: PredictionView }) {
       </div>
 
       <div className="mt-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{p.output.label}</p>
+        <p className="text-[13px] font-medium text-muted">{p.output.label}</p>
         <p className="text-xl font-semibold text-navy">
           {p.output.value}
           {p.output.range && <span className="ml-2 text-base font-normal text-muted">({p.output.range})</span>}
@@ -53,20 +53,20 @@ function PredictionCard({ p }: { p: PredictionView }) {
       <details className="mt-3 rounded-md border border-line">
         <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-teal-800">How this output was produced</summary>
       <dl className="grid gap-x-8 gap-y-3 border-t border-line p-3 text-sm sm:grid-cols-2">
-        <div><dt className="text-xs font-semibold uppercase tracking-wide text-muted">Model</dt><dd>{p.modelName} <span className="mono">{p.modelVersion}</span></dd></div>
-        <div><dt className="text-xs font-semibold uppercase tracking-wide text-muted">Applicability</dt><dd>{p.applicability.note}</dd></div>
-        <div><dt className="text-xs font-semibold uppercase tracking-wide text-muted">Input data as of</dt><dd>{formatDateTime(p.inputAt)}</dd></div>
-        <div><dt className="text-xs font-semibold uppercase tracking-wide text-muted">Prediction made</dt><dd>{formatDateTime(p.predictedAt)}</dd></div>
-        <div className="sm:col-span-2"><dt className="text-xs font-semibold uppercase tracking-wide text-muted">Inputs used</dt><dd>{p.inputsUsed}</dd></div>
-        <div className="sm:col-span-2"><dt className="text-xs font-semibold uppercase tracking-wide text-muted">Compared against the simple rule</dt><dd>{p.baseline}</dd></div>
+        <div><dt className="text-[13px] font-medium text-muted">Model</dt><dd>{p.modelName} <span className="mono">{p.modelVersion}</span></dd></div>
+        <div><dt className="text-[13px] font-medium text-muted">Applicability</dt><dd>{p.applicability.note}</dd></div>
+        <div><dt className="text-[13px] font-medium text-muted">Input data as of</dt><dd>{formatDateTime(p.inputAt)}</dd></div>
+        <div><dt className="text-[13px] font-medium text-muted">Prediction made</dt><dd>{formatDateTime(p.predictedAt)}</dd></div>
+        <div className="sm:col-span-2"><dt className="text-[13px] font-medium text-muted">Inputs used</dt><dd>{p.inputsUsed}</dd></div>
+        <div className="sm:col-span-2"><dt className="text-[13px] font-medium text-muted">Compared against the simple rule</dt><dd>{p.baseline}</dd></div>
         {p.factors.length > 0 && (
           <div className="sm:col-span-2">
-            <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Factors shown to the reviewer</dt>
+            <dt className="text-[13px] font-medium text-muted">Factors shown to the reviewer</dt>
             <dd><ul className="list-disc pl-5">{p.factors.map((f) => <li key={f}>{f}</li>)}</ul></dd>
           </div>
         )}
         <div className="sm:col-span-2">
-          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Source records</dt>
+          <dt className="text-[13px] font-medium text-muted">Source records</dt>
           <dd className="mt-0.5 flex flex-wrap gap-1.5">{p.sourceRecordIds.map((id) => <span key={id} className="mono rounded-full border border-line px-2 py-0.5 text-xs">{id}</span>)}</dd>
         </div>
       </dl>

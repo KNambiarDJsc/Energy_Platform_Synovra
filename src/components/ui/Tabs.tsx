@@ -17,12 +17,12 @@ export function Tabs({
   return (
     <RadixTabs.Root value={value} onValueChange={onValueChange}>
       <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
-        <RadixTabs.List aria-label={label} className="flex min-w-max gap-1 border-b border-line md:min-w-0 md:flex-wrap">
+        <RadixTabs.List aria-label={label} className="flex min-w-max gap-1 md:min-w-0 md:flex-wrap">
           {tabs.map((t) => (
             <RadixTabs.Trigger
               key={t.value}
               value={t.value}
-              className="relative -mb-px flex min-h-[44px] items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 text-sm font-medium text-muted hover:text-ink data-[state=active]:border-teal data-[state=active]:text-navy"
+              className="relative -mb-px flex min-h-[44px] items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 text-sm font-medium text-muted transition-colors hover:text-ink data-[state=active]:border-teal data-[state=active]:text-navy"
             >
               {t.label}
               {t.badge}

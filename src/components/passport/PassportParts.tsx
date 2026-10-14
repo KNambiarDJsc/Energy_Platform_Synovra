@@ -164,7 +164,7 @@ export function IdentityCard({ p }: { p: BatteryPassport }) {
       />
       {p.aliases.length > 0 && (
         <div className="mt-5 border-t border-line pt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Aliases</p>
+          <p className="text-[13px] font-medium text-muted">Aliases</p>
           <ul className="mt-2 space-y-1 text-sm">
             {p.aliases.map((a) => (
               <li key={a.id}>
@@ -176,7 +176,7 @@ export function IdentityCard({ p }: { p: BatteryPassport }) {
       )}
       {p.retiredRefs.length > 0 && (
         <div className="mt-4 border-t border-line pt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Retired QR references</p>
+          <p className="text-[13px] font-medium text-muted">Retired QR references</p>
           <ul className="mt-2 space-y-1 text-sm">
             {p.retiredRefs.map((a) => (
               <li key={a.id}>
@@ -188,7 +188,7 @@ export function IdentityCard({ p }: { p: BatteryPassport }) {
       )}
       {p.relatedBatteries.length > 0 && (
         <div className="mt-4 border-t border-line pt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Linked records (not merged)</p>
+          <p className="text-[13px] font-medium text-muted">Linked records (not merged)</p>
           <ul className="mt-2 space-y-1 text-sm">
             {p.relatedBatteries.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center gap-2">
@@ -414,7 +414,7 @@ export function TelemetryPanel({ p }: { p: BatteryPassport }) {
             ],
           ].map(([label, value, kind]) => (
             <div key={label} className="rounded-md border border-line p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
+              <p className="text-[13px] font-medium text-muted">{label}</p>
               <p className="mt-1 text-xl font-semibold text-navy">{value}</p>
               <div className="mt-2">
                 <ValueKindBadge kind={kind as 'measured' | 'inferred' | 'unknown'} />
@@ -422,7 +422,7 @@ export function TelemetryPanel({ p }: { p: BatteryPassport }) {
             </div>
           ))}
           <div className="rounded-md border border-line p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Freshness</p>
+            <p className="text-[13px] font-medium text-muted">Freshness</p>
             <p className="mt-1 text-sm text-ink">{t.lastReadingAt ? formatDateTime(t.lastReadingAt) : 'No reading'}</p>
             <div className="mt-2">
               <FreshnessBadge freshness={t.freshness} />
@@ -569,7 +569,7 @@ export function CostsPanel({ p }: { p: BatteryPassport }) {
     <div className="space-y-4">
       <div className="card flex flex-wrap items-baseline gap-x-6 gap-y-1 p-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Known costs listed</p>
+          <p className="text-[13px] font-medium text-muted">Known costs listed</p>
           <p className="text-2xl font-semibold text-navy">{formatAed(total)}</p>
         </div>
         {unknown > 0 && (
@@ -617,11 +617,11 @@ export function WarrantyPanel({ p }: { p: BatteryPassport }) {
                 <p className="mt-1 text-xs text-muted">Opened {formatDate(c.openedOn)}</p>
                 <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
                   <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Finding</dt>
+                    <dt className="text-[13px] font-medium text-muted">Finding</dt>
                     <dd>{c.finding}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Confirmed cause</dt>
+                    <dt className="text-[13px] font-medium text-muted">Confirmed cause</dt>
                     <dd>{c.confirmedCause ?? <span className="text-muted">Not confirmed</span>}</dd>
                   </div>
                 </dl>

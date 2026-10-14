@@ -31,16 +31,16 @@ export function Modal({ open, onOpenChange, title, description, children, footer
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="no-print fixed inset-0 z-50 bg-navy/50" />
+        <Dialog.Overlay className="anim-overlay no-print fixed inset-0 z-50 bg-navy/50" />
         <Dialog.Content
           {...(description ? {} : { 'aria-describedby': undefined })}
           className={cn(
-            'no-print fixed z-50 flex max-h-[92vh] w-full flex-col bg-white shadow-pop',
+            'anim-sheet no-print fixed z-50 flex max-h-[92vh] w-full flex-col bg-white shadow-pop',
             'bottom-0 left-0 rounded-t-lg md:bottom-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-lg',
             sizes[size],
           )}
         >
-          <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+          <div className="flex items-start justify-between gap-4 px-5 pb-2 pt-5">
             <div>
               <Dialog.Title className="text-lg font-semibold text-navy">{title}</Dialog.Title>
               {description ? (
@@ -50,7 +50,7 @@ export function Modal({ open, onOpenChange, title, description, children, footer
             <CloseButton />
           </div>
           <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
-          {footer && <div className="flex flex-col-reverse gap-2 border-t border-line px-5 py-3 sm:flex-row sm:justify-end">{footer}</div>}
+          {footer && <div className="flex flex-col-reverse gap-2 bg-canvas px-5 py-3 sm:flex-row sm:justify-end">{footer}</div>}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -61,9 +61,9 @@ export function Drawer({ open, onOpenChange, title, description, children, foote
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="no-print fixed inset-0 z-50 bg-navy/40" />
-        <Dialog.Content {...(description ? {} : { 'aria-describedby': undefined })} className="no-print fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-white shadow-pop">
-          <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+        <Dialog.Overlay className="anim-overlay no-print fixed inset-0 z-50 bg-navy/40" />
+        <Dialog.Content {...(description ? {} : { 'aria-describedby': undefined })} className="anim-drawer no-print fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-white shadow-pop">
+          <div className="flex items-start justify-between gap-4 px-5 pb-2 pt-5">
             <div>
               <Dialog.Title className="text-lg font-semibold text-navy">{title}</Dialog.Title>
               {description ? (
@@ -73,7 +73,7 @@ export function Drawer({ open, onOpenChange, title, description, children, foote
             <CloseButton />
           </div>
           <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
-          {footer && <div className="flex gap-2 border-t border-line px-5 py-3">{footer}</div>}
+          {footer && <div className="flex gap-2 bg-canvas px-5 py-3">{footer}</div>}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

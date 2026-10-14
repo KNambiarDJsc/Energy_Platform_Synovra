@@ -4,10 +4,10 @@ export type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type Size = 'sm' | 'md';
 
 const base =
-  'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-teal';
+  'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-[transform,background-color,color] duration-150 ease-out active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 focus-visible:outline-teal';
 const variants: Record<Variant, string> = {
   primary: 'bg-teal text-white hover:bg-teal-700 active:bg-teal-800',
-  secondary: 'border border-[#9FB2BD] bg-white text-ink hover:bg-canvas',
+  secondary: 'bg-[#E2ECF0] text-navy hover:bg-[#D3DEE4] active:bg-[#C7D6DD]',
   ghost: 'text-ink hover:bg-canvas',
   danger: 'bg-critical text-white hover:bg-critical-700',
 };

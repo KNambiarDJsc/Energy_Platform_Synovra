@@ -13,7 +13,7 @@ export function Brand({ href = '/', tone = 'dark', className }: { href?: string;
       </svg>
       <span className="leading-tight">
         <span className={cn('block text-[15px] font-semibold tracking-tight', tone === 'dark' ? 'text-navy' : 'text-white')}>Synovra</span>
-        <span className={cn('block text-[11px] font-medium', tone === 'dark' ? 'text-muted' : 'text-[#B9CBD5]')}>Battery Intelligence</span>
+        <span className={cn('block text-[13px] font-medium', tone === 'dark' ? 'text-muted' : 'text-[#B9CBD5]')}>Battery Intelligence</span>
       </span>
     </Link>
   );

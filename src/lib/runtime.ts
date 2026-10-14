@@ -6,6 +6,8 @@
  *   at GET /api/v1/meta; areas without a server implementation (monitoring, alerts, assistant)
  *   are hidden rather than shown empty.
  */
+import type { OidcClientConfig } from '@/services/http/oidc';
+
 export type DataSource = 'mock' | 'http';
 export type FeatureName = 'monitoring' | 'alerts' | 'intelligence' | 'assistant';
 
@@ -18,17 +20,19 @@ export interface RuntimeInfo {
   dataMode: 'demo' | 'pilot';
   authMode: 'dev' | 'oidc' | 'none';
   features: Record<FeatureName, boolean>;
+  /** Company sign-in settings published by the API (OIDC mode with a client ID configured). */
+  oidc: OidcClientConfig | null;
   /** Set when the API could not be reached. */
   error: string | null;
 }
 
 const MOCK: RuntimeInfo = {
-  loaded: true, dataMode: 'demo', authMode: 'none', error: null,
+  loaded: true, dataMode: 'demo', authMode: 'none', error: null, oidc: null,
   features: { monitoring: true, alerts: true, intelligence: true, assistant: true },
 };
 // Until /meta answers, assume the most conservative server profile.
 const HTTP_DEFAULT: RuntimeInfo = {
-  loaded: false, dataMode: 'pilot', authMode: 'dev', error: null,
+  loaded: false, dataMode: 'pilot', authMode: 'dev', error: null, oidc: null,
   features: { monitoring: false, alerts: false, intelligence: false, assistant: false },
 };
 
@@ -56,9 +60,11 @@ export function loadRuntime(): Promise<void> {
     loading = fetch(`${API_BASE_URL}/api/v1/meta`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`status ${res.status}`);
-        const meta = (await res.json()) as { dataMode: RuntimeInfo['dataMode']; authMode: 'dev' | 'oidc'; features: Partial<Record<FeatureName, boolean>> };
+        const meta = (await res.json()) as {
+          dataMode: RuntimeInfo['dataMode']; authMode: 'dev' | 'oidc'; features: Partial<Record<FeatureName, boolean>>; oidc?: OidcClientConfig | null;
+        };
         info = {
-          loaded: true, dataMode: meta.dataMode, authMode: meta.authMode, error: null,
+          loaded: true, dataMode: meta.dataMode, authMode: meta.authMode, error: null, oidc: meta.oidc ?? null,
           features: { monitoring: !!meta.features.monitoring, alerts: !!meta.features.alerts, intelligence: !!meta.features.intelligence, assistant: !!meta.features.assistant },
         };
       })

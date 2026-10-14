@@ -83,7 +83,7 @@ export function DataTable<T>({ columns, rows, rowKey, caption, rowHref, pageSize
                     key={c.key}
                     scope="col"
                     aria-sort={ariaSort}
-                    className={cn('whitespace-nowrap px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted', c.align === 'right' && 'text-right', c.hideBelow && HIDE_CLASS[c.hideBelow], c.className)}
+                    className={cn('whitespace-nowrap px-3 py-2.5 text-[13px] font-medium text-muted', c.align === 'right' && 'text-right', c.hideBelow && HIDE_CLASS[c.hideBelow], c.className)}
                   >
                     {c.sort ? (
                       <button type="button" onClick={() => toggle(c.key)} className="inline-flex items-center gap-1 rounded hover:text-ink">
@@ -138,7 +138,7 @@ export function DataTable<T>({ columns, rows, rowKey, caption, rowHref, pageSize
                   .filter((c) => c !== titleCol && c.mobile !== 'hide')
                   .map((c) => (
                     <div key={c.key} className="min-w-0">
-                      <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted">{c.header}</dt>
+                      <dt className="text-[13px] font-medium text-muted">{c.header}</dt>
                       <dd className="mt-0.5 break-words text-sm text-ink">{c.cell(row)}</dd>
                     </div>
                   ))}

@@ -59,7 +59,7 @@ function ReportView({ r }: { r: Report }) {
               <div className="mt-2 overflow-x-auto rounded-md border border-line">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-canvas">
-                    <tr>{s.columns.map((c) => <th key={c} scope="col" className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">{c}</th>)}</tr>
+                    <tr>{s.columns.map((c) => <th key={c} scope="col" className="px-3 py-2 text-[13px] font-medium text-muted">{c}</th>)}</tr>
                   </thead>
                   <tbody>
                     {s.rows.map((row, i) => (

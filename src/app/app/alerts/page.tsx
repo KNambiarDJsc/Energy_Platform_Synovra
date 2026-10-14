@@ -131,7 +131,7 @@ function AlertDrawer({ id, onClose }: { id: string | null; onClose: () => void }
             />
             {a.evidence.length > 0 && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Evidence</p>
+                <p className="text-[13px] font-medium text-muted">Evidence</p>
                 <dl className="mt-1 divide-y divide-line rounded-md border border-line text-sm">
                   {a.evidence.map((e) => (
                     <div key={e.label} className="flex justify-between gap-3 px-3 py-2"><dt className="text-muted">{e.label}</dt><dd className="text-right">{e.value}</dd></div>
@@ -142,7 +142,7 @@ function AlertDrawer({ id, onClose }: { id: string | null; onClose: () => void }
             {a.resolutionReason && <p className="rounded-md bg-canvas p-3 text-sm"><span className="font-medium">Resolution:</span> {a.resolutionReason}</p>}
             {a.history.length > 0 && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted">History</p>
+                <p className="text-[13px] font-medium text-muted">History</p>
                 <ul className="mt-1 space-y-1.5 text-sm">
                   {a.history.map((h, i) => (
                     <li key={i}><span className="text-muted">{formatDateTime(h.at)} · {h.actorName}:</span> {h.from ? `${titleCase(h.from)} → ` : ''}{titleCase(h.to)}{h.note ? ` — ${h.note}` : ''}</li>

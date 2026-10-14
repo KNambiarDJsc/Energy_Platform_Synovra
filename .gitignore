@@ -16,3 +16,6 @@ next-env.d.ts
 
 .next-http
 
+
+# Taste Skill working files (direction sheet, inspector screenshots)
+.taste-skill/
