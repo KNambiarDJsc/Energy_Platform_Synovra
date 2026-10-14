@@ -1,0 +1,9 @@
+node_modules
+.next
+.next-e2e
+.next-http
+.data
+server/dist
+test-results
+playwright-report
+*.log

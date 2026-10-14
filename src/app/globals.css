@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --navy: #112b40;
+  --teal: #007e83;
+  --canvas: #eff5f7;
+  --ink: #243b4b;
+  --muted: #566b79;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-feature-settings: 'cv11', 'ss01';
+  font-variant-numeric: tabular-nums;
+}
+
+/* Visible focus for keyboard users on every interactive element */
+:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@layer components {
+  .card {
+    @apply rounded-lg border border-line bg-white shadow-card;
+  }
+  .label {
+    @apply mb-1 block text-sm font-medium text-ink;
+  }
+  .input {
+    @apply block w-full rounded-md border border-[#9FB2BD] bg-white px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 disabled:bg-canvas disabled:text-muted;
+    min-height: 40px;
+  }
+  .input[aria-invalid='true'] {
+    @apply border-critical;
+  }
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-wider text-muted;
+  }
+  .mono {
+    @apply font-mono text-[13px];
+  }
+}
+
+/* Print: reports render as a clean document */
+@media print {
+  body {
+    background: #fff;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-area {
+    box-shadow: none !important;
+    border: none !important;
+  }
+  @page {
+    margin: 16mm;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

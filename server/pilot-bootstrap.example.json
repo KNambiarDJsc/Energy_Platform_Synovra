@@ -1,0 +1,31 @@
+{
+  "_readme": "Example reference data for a pilot database (npm run db:bootstrap -- server/pilot-bootstrap.json). Copy this file, replace every REPLACE value with real information, and delete entries you do not need. It loads reference data only; batteries arrive through intake and CSV import. Test protocols stay 'placeholder' until engineering approves a protocol and acceptance criteria.",
+  "tenants": [
+    { "id": "t_ops", "name": "Synovra", "kind": "operator" }
+  ],
+  "users": [
+    { "id": "u_admin", "tenantId": "t_ops", "name": "REPLACE admin name", "title": "Platform administrator", "email": "REPLACE-admin@example.invalid", "role": "platform_admin", "siteScope": "all", "active": true },
+    { "id": "u_eng1", "tenantId": "t_ops", "name": "REPLACE engineer 1", "title": "Battery engineer", "email": "REPLACE-eng1@example.invalid", "role": "battery_engineer", "siteScope": "all", "active": true },
+    { "id": "u_eng2", "tenantId": "t_ops", "name": "REPLACE engineer 2 (independent reviewer)", "title": "Battery engineer", "email": "REPLACE-eng2@example.invalid", "role": "battery_engineer", "siteScope": "all", "active": true },
+    { "id": "u_lab1", "tenantId": "t_ops", "name": "REPLACE lab operator", "title": "Lab operator", "email": "REPLACE-lab1@example.invalid", "role": "lab_operator", "siteScope": "all", "active": true }
+  ],
+  "families": [
+    { "id": "fam_1", "manufacturer": "REPLACE manufacturer", "model": "REPLACE model", "chemistry": "VRLA AGM", "unitType": "12V block", "ratedVoltageV": 12, "ratedCapacityAh": 100, "ratingConditions": "REPLACE e.g. C10 to 1.80 V/cell at 25 °C, from the datasheet", "rateHours": 10, "ratedTempC": 25, "endVoltagePerUnitV": 10.8 }
+  ],
+  "protocols": [
+    { "id": "proto_intake", "name": "Intake inspection", "revision": "draft", "status": "placeholder", "summary": "REPLACE with the engineering-approved intake procedure reference. Do not store chemical recipes or safety procedures here." },
+    { "id": "proto_capacity", "name": "Capacity test", "revision": "draft", "status": "placeholder", "summary": "REPLACE with the engineering-approved capacity test reference and acceptance criterion." }
+  ],
+  "importTemplates": [
+    { "id": "tpl_std", "name": "Synovra standard intake", "version": "v1.0", "description": "One row per physical battery, canonical column names.",
+      "columns": { "serial": ["serial", "manufacturer_serial"], "manufacturer": ["manufacturer", "make"], "model": ["model"], "voltage": ["rated_voltage", "voltage_v"], "capacity": ["rated_capacity", "capacity_ah"], "manufactured": ["manufacture_date", "mfg_date"], "location": ["location"], "acquisition_cost": ["acquisition_cost_aed", "cost_aed"], "legacy_id": ["legacy_id"] } }
+  ],
+  "notifications": [
+    { "id": "n_test_review", "label": "Test submitted for review", "channel": "in_app", "enabled": true }
+  ],
+  "sites": [],
+  "banks": [],
+  "strings": [],
+  "slots": [],
+  "batches": []
+}

@@ -1,0 +1,43 @@
+# Local stack: PostgreSQL + the Synovra API. The web app runs separately (npm run build && npm start)
+# with NEXT_PUBLIC_DATA_SOURCE=http. Development settings only: dev sign-in and a fixed local password.
+#
+#   docker compose up --build            demo data (synthetic seed loaded on first start)
+#   DATA_MODE=pilot docker compose up    empty pilot database; load reference data with db:bootstrap
+services:
+  db:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_USER: synovra
+      POSTGRES_PASSWORD: synovra-local-only
+      POSTGRES_DB: synovra
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synovra -d synovra"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://synovra:synovra-local-only@db:5432/synovra
+      DATA_MODE: ${DATA_MODE:-demo}
+      AUTH_MODE: dev
+      # Dev sign-in is refused in production unless explicitly allowed; this compose file is local only.
+      NODE_ENV: development
+      DEV_JWT_SECRET: local-development-secret-change-me
+      CORS_ORIGINS: http://localhost:3000
+      PORT: "4000"
+    ports:
+      - "4000:4000"
+
+volumes:
+  pgdata:
