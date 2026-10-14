@@ -5,6 +5,9 @@ import { createApp } from './app';
 import { loadConfig } from './config';
 import { connect } from './db/client';
 import { insertAll, isEmpty, loadSnapshotCached } from './db/snapshot';
+import { createErrorNotifier } from './observability';
+
+const log = (e: Record<string, unknown>) => console.log(JSON.stringify({ at: new Date().toISOString(), ...e }));
 
 async function main() {
   const config = loadConfig();
@@ -19,7 +22,17 @@ async function main() {
   // Warm the record cache so the first user request does not pay for the initial load.
   await handle.db.transaction((tx) => loadSnapshotCached(tx, handle.db, { predictions: config.features.intelligence }));
 
-  const app = createApp({ db: handle.db, config });
+  // Faults outside a request (a rejected promise nobody awaited) are logged and alerted, not lost.
+  const notifier = createErrorNotifier({ url: config.errorWebhookUrl, log });
+  process.on('unhandledRejection', (reason) => {
+    log({ level: 'error', msg: 'unhandled rejection', error: String(reason), stack: (reason as Error)?.stack });
+    void notifier.notify({ requestId: 'none', method: '-', path: 'process', status: 500, error: `Unhandled rejection: ${String(reason)}` });
+  });
+  if (config.evidence.scan.kind === 'none') log({ level: 'warn', msg: 'Evidence uploads are not malware-scanned (EVIDENCE_SCAN=none).' });
+  if (config.metricsToken === null) log({ level: 'info', msg: 'GET /metrics is disabled; set METRICS_TOKEN to enable it.' });
+  if (!config.errorWebhookUrl) log({ level: 'info', msg: 'No ERROR_WEBHOOK_URL: server errors are logged but not alerted.' });
+
+  const app = createApp({ db: handle.db, config, log });
   const server = serve({ fetch: app.fetch, port: config.port }, (info) => {
     console.log(JSON.stringify({
       at: new Date().toISOString(), msg: 'Synovra API listening', port: info.port, database: handle.kind,

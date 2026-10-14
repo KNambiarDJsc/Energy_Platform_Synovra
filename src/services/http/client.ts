@@ -7,7 +7,7 @@ import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@
 import { API_BASE_URL } from '@/lib/runtime';
 import { clearApiSession, currentToken } from './session';
 
-interface ErrorBody { error?: { code?: string; message?: string; details?: string[] } }
+interface ErrorBody { error?: { code?: string; message?: string; details?: string[]; requestId?: string } }
 
 function toError(status: number, body: ErrorBody | null): Error {
   const code = body?.error?.code;
@@ -20,9 +20,10 @@ function toError(status: number, body: ErrorBody | null): Error {
     case 'VALIDATION': err = new ValidationError(message, details); break;
     case 'CONFLICT':
     case 'FEATURE_DISABLED': err = new ConflictError(message); break;
-    default: err = new Error(message);
+    // Server faults carry a reference that matches the API log line and any error alert.
+    default: err = new Error(body?.error?.requestId && status >= 500 ? `${message} Reference: ${body.error.requestId}` : message);
   }
-  err.message = message;
+  if (code !== 'INTERNAL' && code !== undefined) err.message = message;
   return err;
 }
 

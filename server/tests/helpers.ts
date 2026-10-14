@@ -37,15 +37,25 @@ export interface Client {
  * Uses in-memory PGlite, or a throwaway database on a real PostgreSQL server when
  * TEST_DATABASE_URL is set (e.g. postgres://synovra:synovra-local-only@localhost:5432/synovra).
  */
-export async function startServer(opts: { env?: Record<string, string>; seed?: boolean; evidence?: AppDeps['evidence'] } = {}): Promise<Server> {
+export async function startServer(opts: {
+  env?: Record<string, string>; seed?: boolean; evidence?: AppDeps['evidence'];
+  alertFetch?: AppDeps['alertFetch']; limiterClock?: AppDeps['limiterClock']; log?: AppDeps['log'];
+} = {}): Promise<Server> {
   const real = await createTestDatabase();
   const inner = await connect({ databaseUrl: real?.url ?? null, pgliteDir: 'memory://' });
   const handle: DbHandle = { ...inner, close: async () => { await inner.close(); await real?.drop(); } };
   await handle.migrate();
   if (opts.seed !== false) await handle.db.transaction((tx) => insertAll(tx, buildSeed()));
-  const config = loadConfig({ DATA_MODE: 'demo', AUTH_MODE: 'dev', DEV_JWT_SECRET: 'test-secret-not-for-production', ...opts.env });
+  // Rate limits are off unless a test turns them on (0 disables a limit).
+  const config = loadConfig({
+    DATA_MODE: 'demo', AUTH_MODE: 'dev', DEV_JWT_SECRET: 'test-secret-not-for-production',
+    RATE_LIMIT_PER_MINUTE: '0', RATE_LIMIT_WRITES_PER_MINUTE: '0', RATE_LIMIT_ANONYMOUS_PER_MINUTE: '0', ...opts.env,
+  });
   let t = Date.parse(DEMO_NOW) + 3_600_000;
-  const app = createApp({ db: handle.db, config, clock: () => (t += 1000), log: () => {}, evidence: opts.evidence });
+  const app = createApp({
+    db: handle.db, config, clock: () => (t += 1000), log: opts.log ?? (() => {}), evidence: opts.evidence,
+    alertFetch: opts.alertFetch, limiterClock: opts.limiterClock,
+  });
 
   const raw = (path: string, init?: RequestInit) => Promise.resolve(app.request(path, init));
   const call = async (token: string, method: string, path: string, body?: unknown) => {

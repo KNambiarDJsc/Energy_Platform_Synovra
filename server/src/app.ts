@@ -15,13 +15,14 @@ import { createAuthenticator, issueDevToken, type Principal } from './auth';
 import type { Config } from './config';
 import type { Database } from './db/client';
 import { users } from './db/schema';
-import { AuthError, FeatureDisabledError, toHttpError } from './errors';
+import { AuthError, FeatureDisabledError, RateLimitError, toHttpError } from './errors';
 import { inspectUpload, MAX_BYTES } from './evidence/inspect';
 import { createScanner, type Scanner } from './evidence/scan';
 import { createBlobStore, readVerified, type BlobStore } from './evidence/storage';
+import { clientAddress, createErrorNotifier, Metrics, RateLimiter, requestIdFrom, routeLabel, tokenMatches } from './observability';
 import { withServices, type Timing } from './uow';
 
-type Env = { Variables: { principal: Principal; timing: Timing } };
+type Env = { Variables: { principal: Principal; timing: Timing; requestId: string } };
 
 export interface AppDeps {
   db: Database;
@@ -30,6 +31,9 @@ export interface AppDeps {
   log?: (entry: Record<string, unknown>) => void;
   /** Injected by tests; built from config otherwise. */
   evidence?: { store: BlobStore; scanner: Scanner };
+  /** Injected by tests: the error-alert transport and the rate limiter's clock. */
+  alertFetch?: typeof fetch;
+  limiterClock?: () => number;
 }
 
 const API_VERSION = '1';
@@ -40,8 +44,18 @@ export function createApp(deps: AppDeps) {
   const log = deps.log ?? ((e) => console.log(JSON.stringify(e)));
   const blobs = deps.evidence?.store ?? createBlobStore(config.evidence.store);
   const scanner = deps.evidence?.scanner ?? createScanner(config.evidence.scan);
+  const metrics = new Metrics();
+  const limiter = new RateLimiter(deps.limiterClock);
+  const notifier = createErrorNotifier({ url: config.errorWebhookUrl, log, fetchImpl: deps.alertFetch });
   const app = new Hono<Env>();
 
+  // Request ID first, so every log line, error body and alert can be correlated.
+  app.use('*', async (c, next) => {
+    const id = requestIdFrom(c.req.header('X-Request-Id'));
+    c.set('requestId', id);
+    await next();
+    c.header('X-Request-Id', id);
+  });
   app.use('*', secureHeaders());
   app.use('/api/*', cors({
     origin: config.corsOrigins, allowHeaders: ['Authorization', 'Content-Type', 'X-Request-Id'], allowMethods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
@@ -53,23 +67,49 @@ export function createApp(deps: AppDeps) {
   app.use('/api/*', (c, next) => ((c.req.header('Content-Type') ?? '').startsWith('multipart/form-data') ? uploadLimit(c, next) : jsonLimit(c, next)));
 
   app.use('*', async (c, next) => {
-    const started = Date.now();
+    const started = performance.now();
     const timing: Timing = {};
     c.set('timing', timing);
     await next();
-    if (c.req.path !== '/health') log({ at: new Date().toISOString(), method: c.req.method, path: c.req.path, status: c.res.status, ms: Date.now() - started, ...timing });
+    const seconds = (performance.now() - started) / 1000;
+    const route = routeLabel(c);
+    if (route !== '/metrics') {
+      metrics.inc('synovra_http_requests_total', { method: c.req.method, route, status: String(c.res.status) });
+      metrics.observe('synovra_http_request_duration_seconds', { method: c.req.method, route }, seconds);
+      if (timing.cache) metrics.inc('synovra_record_cache_total', { result: timing.cache });
+    }
+    if (c.req.path === '/health' || c.req.path === '/metrics') return;
+    const principal = c.get('principal');
+    log({
+      at: new Date().toISOString(), requestId: c.get('requestId'), method: c.req.method, path: c.req.path, status: c.res.status,
+      ms: Math.round(seconds * 1000), user: principal ? (principal.kind === 'dev' ? principal.userId : principal.subject) : undefined, ...timing,
+    });
   });
 
   app.onError((err, c) => {
     const { status, body } = toHttpError(err);
-    if (status >= 500) log({ at: new Date().toISOString(), level: 'error', path: c.req.path, error: String(err), stack: (err as Error).stack });
-    return c.json(body, status as 400);
+    const requestId = c.get('requestId');
+    if (err instanceof RateLimitError) c.header('Retry-After', String(err.retryAfterSeconds));
+    if (status >= 500) {
+      metrics.inc('synovra_server_errors_total');
+      log({ at: new Date().toISOString(), level: 'error', requestId, method: c.req.method, path: c.req.path, error: String(err), stack: (err as Error).stack });
+      void notifier.notify({ requestId, method: c.req.method, path: c.req.path, status, error: String(err) });
+    }
+    return c.json({ error: { ...body.error, requestId } }, status as 400);
   });
-  app.notFound((c) => c.json({ error: { code: 'NOT_FOUND', message: `No route for ${c.req.method} ${c.req.path}`, details: [] } }, 404));
+  app.notFound((c) => c.json({ error: { code: 'NOT_FOUND', message: `No route for ${c.req.method} ${c.req.path}`, details: [], requestId: c.get('requestId') } }, 404));
 
   /* ------------------------------ Unauthenticated ------------------------------ */
 
   app.get('/health', (c) => c.json({ status: 'ok' }));
+  // Prometheus scrape endpoint. Off unless METRICS_TOKEN is set (open without a token outside production).
+  app.get('/metrics', (c) => {
+    if (config.metricsToken === null) return c.json({ error: { code: 'NOT_FOUND', message: 'Metrics are not enabled.', details: [] } }, 404);
+    if (config.metricsToken && !tokenMatches(c.req.header('Authorization'), config.metricsToken)) {
+      return c.json({ error: { code: 'UNAUTHENTICATED', message: 'A metrics token is required.', details: [] } }, 401);
+    }
+    return c.body(metrics.render(), 200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+  });
   app.get('/ready', async (c) => {
     await deps.db.execute(sql`SELECT 1`);
     await blobs.check();
@@ -79,9 +119,30 @@ export function createApp(deps: AppDeps) {
 
   const api = new Hono<Env>();
 
+  // Rate limits. Requests without a token (meta, sign-in) count per client address; signed-in
+  // requests count per user, with a tighter limit on writes. Failed sign-ins count per address too.
+  const countRequest = (c: Context<Env>, scope: 'anonymous' | 'user' | 'write', key: string, limit: number) => {
+    try {
+      limiter.hit(`${scope}:${key}`, limit);
+    } catch (e) {
+      metrics.inc('synovra_rate_limited_total', { scope });
+      throw e;
+    }
+  };
+  api.use('*', async (c, next) => {
+    if (c.req.method !== 'OPTIONS' && !c.req.header('Authorization')) {
+      countRequest(c, 'anonymous', clientAddress(c, config.limits.trustProxy), config.limits.anonymousPerMinute);
+    }
+    return next();
+  });
+
   api.get('/meta', (c) => c.json({
     apiVersion: API_VERSION, dataMode: config.dataMode, authMode: config.authMode, features: config.features,
     notice: config.dataMode === 'demo' ? 'Synthetic demonstration data. No live customer, cloud or sensor connection.' : null,
+    // Public sign-in settings for the browser (Authorization Code + PKCE). Never includes secrets.
+    oidc: config.oidc?.clientId
+      ? { issuer: config.oidc.issuer, clientId: config.oidc.clientId, scope: config.oidc.scope, audience: config.oidc.audience, tokenUse: config.oidc.tokenUse }
+      : null,
   }));
 
   if (config.authMode === 'dev') {
@@ -103,7 +164,17 @@ export function createApp(deps: AppDeps) {
 
   api.use('*', async (c, next) => {
     if (c.req.path.endsWith('/meta') || c.req.path.includes('/dev/')) return next();
-    c.set('principal', await authenticate(c.req.header('Authorization')));
+    let principal: Principal;
+    try {
+      principal = await authenticate(c.req.header('Authorization'));
+    } catch (e) {
+      if (e instanceof AuthError) countRequest(c, 'anonymous', clientAddress(c, config.limits.trustProxy), config.limits.anonymousPerMinute);
+      throw e;
+    }
+    c.set('principal', principal);
+    const who = principal.kind === 'dev' ? principal.userId : principal.subject;
+    countRequest(c, 'user', who, config.limits.perUserPerMinute);
+    if (c.req.method !== 'GET') countRequest(c, 'write', who, config.limits.writesPerUserPerMinute);
     return next();
   });
 
