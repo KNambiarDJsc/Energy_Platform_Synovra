@@ -2,11 +2,11 @@ import type { Store } from '@/data/store';
 import { QUALIFICATION_THRESHOLD_PCT } from '@/data/seed';
 import { assessDataQuality } from '@/domain/lifecycle';
 import {
-  ForbiddenError, NotFoundError, can, canActorSeeSite, isCustomerAudience, type Permission,
+  ForbiddenError, NotFoundError, ValidationError, can, canActorSeeSite, isCustomerAudience, type Permission,
 } from '@/domain/permissions';
 import type {
-  Actor, Battery, BatteryFamily, DataQuality, DemoDb, LifecycleEvent, LifecycleEventType, LifecycleState,
-  Role, Site, TestSession,
+  Actor, Battery, BatteryFamily, DataQuality, DemoDb, EvidenceFile, LifecycleEvent, LifecycleEventType, LifecycleState,
+  Role, Site, StoredEvidence, TestSession,
 } from '@/domain/types';
 
 export interface Ctx {
@@ -177,4 +177,36 @@ export function hashText(text: string): string {
 
 export function roleOf(ctx: Ctx): Role {
   return ctx.actor().role;
+}
+
+/* ------------------------------ Evidence ------------------------------ */
+
+export const EVIDENCE_EXT = /\.(pdf|png|jpe?g|csv|xlsx)$/i;
+export const EVIDENCE_MAX_KB = 20 * 1024;
+
+/** Customers see customer-visible files only; controlled process files need `process.controlled`. */
+export function canSeeEvidence(actor: Actor, e: EvidenceFile): boolean {
+  if (isCustomerAudience(actor.role)) return e.classification === 'customer_visible';
+  return e.classification !== 'controlled' || can(actor.role, 'process.controlled');
+}
+
+/**
+ * Builds an evidence record. With `stored`, the server has already received, checked and stored the
+ * bytes. Without it only the file name is recorded, which is accepted in demo mode only: a pilot
+ * record must point at the actual file.
+ */
+export function newEvidence(
+  ctx: Ctx,
+  fields: { batteryId: string | null; kind: EvidenceFile['kind']; fileName: string; sizeKb: number; classification: EvidenceFile['classification'] },
+  stored?: StoredEvidence,
+): EvidenceFile {
+  if (!EVIDENCE_EXT.test(fields.fileName)) throw new ValidationError('Evidence file type is not accepted (pdf, png, jpg, csv, xlsx).');
+  if ((stored?.sizeKb ?? fields.sizeKb) > EVIDENCE_MAX_KB) throw new ValidationError('Evidence file is larger than 20 MB.');
+  if (!stored && ctx.store.mode === 'pilot') throw new ValidationError('Upload the evidence file itself. A file name alone is not accepted as evidence.');
+  return {
+    id: ctx.store.nextId('ev'), ...fields, sizeKb: stored?.sizeKb ?? fields.sizeKb,
+    uploadedAt: ctx.store.now(), uploadedByName: ctx.actor().name,
+    checksum: stored?.checksum ?? 'metadata-only-demo'.padEnd(64, '0'),
+    storageKey: stored?.storageKey ?? null, contentType: stored?.contentType ?? null, scanStatus: stored?.scanStatus ?? null,
+  };
 }

@@ -1,26 +1,143 @@
 'use client';
-import { RotateCcw } from 'lucide-react';
+import { Pencil, RotateCcw, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
+import { Field, Input, Select } from '@/components/ui/Field';
+import { Modal } from '@/components/ui/Overlay';
 import { Notice, PageHeader, Section } from '@/components/ui/Layout';
 import { ReasonDialog } from '@/components/ui/ReasonDialog';
 import { LoadingBlock, QueryView } from '@/components/ui/States';
 import { Tabs } from '@/components/ui/Tabs';
-import { ROLE_LABELS } from '@/domain/permissions';
-import type { AuditEvent, Role, User } from '@/domain/types';
-import { formatDateTime, titleCase } from '@/lib/format';
-import { useAction, useSession, useSvcQuery } from '@/lib/hooks';
+import { ROLE_LABELS, ROLE_SUMMARIES, ValidationError } from '@/domain/permissions';
+import type { AuditEvent, Role, Site, Tenant, User } from '@/domain/types';
+import { formatDateTime } from '@/lib/format';
+import { errorMessage, useAction, useRuntime, useSession, useSvcQuery } from '@/lib/hooks';
 import { DEMO_USER_FOR_ROLE, setSessionUserId } from '@/services/session';
+
+const ROLES = Object.keys(ROLE_LABELS) as Role[];
+
+interface UserForm { name: string; title: string; email: string; role: Role; tenantId: string; allSites: boolean; sites: string[] }
+
+function formFor(user: User | null, tenants: Tenant[]): UserForm {
+  if (user) {
+    return {
+      name: user.name, title: user.title, email: user.email, role: user.role, tenantId: user.tenantId,
+      allSites: user.siteScope === 'all', sites: user.siteScope === 'all' ? [] : user.siteScope,
+    };
+  }
+  return { name: '', title: '', email: '', role: 'lab_operator', tenantId: tenants.find((t) => t.kind === 'operator')?.id ?? '', allSites: true, sites: [] };
+}
+
+function UserDialog({ user, tenants, sites, onClose }: { user: User | null; tenants: Tenant[]; sites: Site[]; onClose: () => void }) {
+  const [f, setF] = useState<UserForm>(() => formFor(user, tenants));
+  const set = (patch: Partial<UserForm>) => setF((x) => ({ ...x, ...patch }));
+  const save = useAction<UserForm, User>(
+    (s, v) => {
+      const siteScope = v.allSites ? ('all' as const) : v.sites;
+      return user
+        ? s.admin.updateUser(user.id, { name: v.name, title: v.title, role: v.role, siteScope })
+        : s.admin.createUser({ name: v.name, title: v.title, email: v.email, role: v.role, tenantId: v.tenantId, siteScope });
+    },
+    { success: (u) => (user ? `${u.name} updated.` : `${u.name} added. They sign in with ${u.email}.`), toastError: false, onSuccess: onClose },
+  );
+  const tenant = tenants.find((t) => t.id === f.tenantId);
+  const isCustomer = tenant?.kind === 'customer';
+  const tenantSites = sites.filter((s) => !isCustomer || s.tenantId === tenant?.id);
+  const err = save.error;
+  return (
+    <Modal
+      open
+      onOpenChange={(o) => !o && onClose()}
+      title={user ? `Edit ${user.name}` : 'Add a user'}
+      description={user ? 'Email and tenant are fixed, because sign-in through your identity provider is matched on email.' : 'The person signs in through your identity provider with this email address.'}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button loading={save.isPending} onClick={() => save.mutate(f)}>{user ? 'Save changes' : 'Add user'}</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {err && (
+          <Notice tone="danger" title="Not saved">
+            {errorMessage(err)}
+            {err instanceof ValidationError && err.issues.length > 0 && (
+              <ul className="mt-1 list-disc pl-5">{err.issues.map((i) => <li key={i}>{i}</li>)}</ul>
+            )}
+          </Notice>
+        )}
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Full name" required><Input value={f.name} onChange={(e) => set({ name: e.target.value })} autoComplete="off" /></Field>
+          <Field label="Job title" required><Input value={f.title} onChange={(e) => set({ title: e.target.value })} autoComplete="off" /></Field>
+        </div>
+        <Field label="Email" required hint={user ? 'Cannot be changed.' : undefined}>
+          <Input type="email" value={f.email} disabled={!!user} onChange={(e) => set({ email: e.target.value })} autoComplete="off" />
+        </Field>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Tenant" required hint={user ? 'Cannot be changed.' : 'Customer accounts belong to a customer tenant.'}>
+            <Select
+              value={f.tenantId}
+              disabled={!!user}
+              onChange={(e) => {
+                const customer = tenants.find((x) => x.id === e.target.value)?.kind === 'customer';
+                set({ tenantId: e.target.value, sites: [], role: customer ? 'customer_auditor' : f.role === 'customer_auditor' ? 'lab_operator' : f.role });
+              }}
+            >
+              {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </Select>
+          </Field>
+          <Field label="Role" required hint={ROLE_SUMMARIES[f.role]}>
+            <Select value={f.role} onChange={(e) => set({ role: e.target.value as Role })}>
+              {ROLES.filter((r) => isCustomer === (r === 'customer_auditor')).map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+            </Select>
+          </Field>
+        </div>
+        <fieldset>
+          <legend className="label">Site scope</legend>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="radio" name="scope" className="h-4 w-4" checked={f.allSites} onChange={() => set({ allSites: true })} />
+            {isCustomer ? `All sites of ${tenant?.name}` : 'All sites'}
+          </label>
+          <label className="mt-1 flex items-center gap-2 text-sm">
+            <input type="radio" name="scope" className="h-4 w-4" checked={!f.allSites} onChange={() => set({ allSites: false })} />
+            Selected sites only
+          </label>
+          {!f.allSites && (
+            <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto rounded-md border border-line p-2 text-sm">
+              {tenantSites.length === 0 && <li className="text-muted">No sites are set up for this tenant.</li>}
+              {tenantSites.map((s) => (
+                <li key={s.id}>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={f.sites.includes(s.id)}
+                      onChange={(e) => set({ sites: e.target.checked ? [...f.sites, s.id] : f.sites.filter((x) => x !== s.id) })}
+                    />
+                    {s.name}
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
+        </fieldset>
+      </div>
+    </Modal>
+  );
+}
 
 function UsersTab() {
   const session = useSession();
   const q = useSvcQuery(['admin', 'users'], (s) => s.admin.users());
   const tenants = useSvcQuery(['admin', 'tenants'], (s) => s.admin.tenants());
+  const sites = useSvcQuery(['admin', 'sites'], (s) => s.admin.sites());
+  const [editing, setEditing] = useState<{ user: User | null } | null>(null);
   const toggle = useAction<{ id: string; active: boolean }, unknown>((s, a) => s.admin.setUserActive(a.id, a.active), { success: 'User updated.' });
+  const manage = session.can('admin.manage');
   const cols: Column<User>[] = [
-    { key: 'name', header: 'Name', mobile: 'title', sort: (u) => u.name, cell: (u) => <span>{u.name}<span className="block text-xs text-muted">{u.title}</span></span> },
+    { key: 'name', header: 'Name', mobile: 'title', sort: (u) => u.name, cell: (u) => <span>{u.name}<span className="block text-xs text-muted">{u.title} · {u.email}</span></span> },
     { key: 'role', header: 'Role', sort: (u) => u.role, cell: (u) => ROLE_LABELS[u.role] },
     { key: 'tenant', header: 'Tenant', cell: (u) => tenants.data?.find((t) => t.id === u.tenantId)?.name ?? u.tenantId },
     { key: 'scope', header: 'Site scope', cell: (u) => (u.siteScope === 'all' ? 'All sites in tenant' : `${u.siteScope.length} site(s)`) },
@@ -28,15 +145,33 @@ function UsersTab() {
     {
       key: 'act', header: 'Action', mobile: 'show',
       cell: (u) =>
-        session.can('admin.manage') && u.id !== session.user?.id ? (
-          <Button size="sm" variant="secondary" onClick={() => toggle.mutate({ id: u.id, active: !u.active })}>{u.active ? 'Deactivate' : 'Activate'}</Button>
+        manage ? (
+          <span className="flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" icon={<Pencil className="h-3.5 w-3.5" aria-hidden />} aria-label={`Edit ${u.name}`} onClick={() => setEditing({ user: u })}>
+              Edit
+            </Button>
+            {u.id !== session.user?.id && (
+              <Button size="sm" variant="secondary" onClick={() => toggle.mutate({ id: u.id, active: !u.active })}>{u.active ? 'Deactivate' : 'Activate'}</Button>
+            )}
+          </span>
         ) : null,
     },
   ];
   return (
-    <QueryView query={q} skeleton={<LoadingBlock rows={4} />}>
-      {(rows) => <DataTable caption="Users" columns={cols} rows={rows} rowKey={(u) => u.id} pageSize={12} />}
-    </QueryView>
+    <div className="space-y-4">
+      {manage && (
+        <div className="flex justify-end">
+          <Button icon={<UserPlus className="h-4 w-4" aria-hidden />} onClick={() => setEditing({ user: null })}>Add user</Button>
+        </div>
+      )}
+      <QueryView query={q} skeleton={<LoadingBlock rows={4} />}>
+        {(rows) => <DataTable caption="Users" columns={cols} rows={rows} rowKey={(u) => u.id} pageSize={12} />}
+      </QueryView>
+      {/* Mounted per open, so the form always starts from the chosen user. */}
+      {manage && editing && tenants.data && sites.data && (
+        <UserDialog user={editing.user} tenants={tenants.data} sites={sites.data} onClose={() => setEditing(null)} />
+      )}
+    </div>
   );
 }
 
@@ -159,6 +294,7 @@ function AuditTab() {
 
 export default function AdminPage() {
   const session = useSession();
+  const runtime = useRuntime();
   const [tab, setTab] = useState('users');
   const [reset, setReset] = useState(false);
   const doReset = useAction<void, void>((s) => s.admin.resetDemo(), {
@@ -177,7 +313,9 @@ export default function AdminPage() {
         }
       />
       <Notice tone="info" className="mb-6">
-        Users and roles here are synthetic. In a deployment, identity and role assignment come from your identity provider.
+        {runtime.dataMode === 'pilot'
+          ? 'People sign in through your identity provider and are matched to their platform account by email. Roles and site scope are managed here.'
+          : 'Users and roles here are synthetic. In a deployment, people sign in through your identity provider and are matched to these accounts by email.'}
       </Notice>
       <Tabs
         label="Administration sections"

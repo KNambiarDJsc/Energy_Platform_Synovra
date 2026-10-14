@@ -8,14 +8,17 @@ import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
-import { ValidationError } from '../../src/domain/permissions';
-import type { LifecycleState, PredictionKind, ReportTemplateId } from '../../src/domain/types';
+import { ConflictError, ValidationError, can, type Permission } from '../../src/domain/permissions';
+import type { LifecycleState, PredictionKind, ReportTemplateId, StoredEvidence } from '../../src/domain/types';
 import type { Services } from '../../src/services/types';
 import { createAuthenticator, issueDevToken, type Principal } from './auth';
 import type { Config } from './config';
 import type { Database } from './db/client';
 import { users } from './db/schema';
 import { AuthError, FeatureDisabledError, toHttpError } from './errors';
+import { inspectUpload, MAX_BYTES } from './evidence/inspect';
+import { createScanner, type Scanner } from './evidence/scan';
+import { createBlobStore, readVerified, type BlobStore } from './evidence/storage';
 import { withServices, type Timing } from './uow';
 
 type Env = { Variables: { principal: Principal; timing: Timing } };
@@ -25,6 +28,8 @@ export interface AppDeps {
   config: Config;
   clock?: () => number;
   log?: (entry: Record<string, unknown>) => void;
+  /** Injected by tests; built from config otherwise. */
+  evidence?: { store: BlobStore; scanner: Scanner };
 }
 
 const API_VERSION = '1';
@@ -33,12 +38,19 @@ export function createApp(deps: AppDeps) {
   const { config } = deps;
   const authenticate = createAuthenticator(config);
   const log = deps.log ?? ((e) => console.log(JSON.stringify(e)));
+  const blobs = deps.evidence?.store ?? createBlobStore(config.evidence.store);
+  const scanner = deps.evidence?.scanner ?? createScanner(config.evidence.scan);
   const app = new Hono<Env>();
 
   app.use('*', secureHeaders());
-  app.use('/api/*', cors({ origin: config.corsOrigins, allowHeaders: ['Authorization', 'Content-Type'], allowMethods: ['GET', 'POST', 'PATCH', 'OPTIONS'], maxAge: 600 }));
-  // CSV previews are capped at 1 MB by the service; allow JSON overhead on top.
-  app.use('/api/*', bodyLimit({ maxSize: 2 * 1024 * 1024, onError: (c) => c.json({ error: { code: 'VALIDATION', message: 'Request body is larger than 2 MB.', details: [] } }, 413) }));
+  app.use('/api/*', cors({
+    origin: config.corsOrigins, allowHeaders: ['Authorization', 'Content-Type', 'X-Request-Id'], allowMethods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
+    exposeHeaders: ['Content-Disposition', 'X-Request-Id', 'Retry-After'], maxAge: 600,
+  }));
+  // JSON bodies: CSV previews are capped at 1 MB by the service, plus overhead. Evidence uploads: 20 MB plus multipart overhead.
+  const jsonLimit = bodyLimit({ maxSize: 2 * 1024 * 1024, onError: (c) => c.json({ error: { code: 'VALIDATION', message: 'Request body is larger than 2 MB.', details: [] } }, 413) });
+  const uploadLimit = bodyLimit({ maxSize: MAX_BYTES + 64 * 1024, onError: (c) => c.json({ error: { code: 'VALIDATION', message: 'Evidence file is larger than 20 MB.', details: [] } }, 413) });
+  app.use('/api/*', (c, next) => ((c.req.header('Content-Type') ?? '').startsWith('multipart/form-data') ? uploadLimit(c, next) : jsonLimit(c, next)));
 
   app.use('*', async (c, next) => {
     const started = Date.now();
@@ -60,7 +72,9 @@ export function createApp(deps: AppDeps) {
   app.get('/health', (c) => c.json({ status: 'ok' }));
   app.get('/ready', async (c) => {
     await deps.db.execute(sql`SELECT 1`);
-    return c.json({ status: 'ready' });
+    await blobs.check();
+    await scanner.check();
+    return c.json({ status: 'ready', evidenceStore: blobs.kind, malwareScan: scanner.kind });
   });
 
   const api = new Hono<Env>();
@@ -102,6 +116,37 @@ export function createApp(deps: AppDeps) {
     await next();
   };
 
+  /**
+   * Evidence upload. JSON `{ fileName, sizeKb }` records metadata only (accepted in demo mode only;
+   * the service refuses it in pilot). Multipart `file` uploads are checked in this order: content
+   * matches the declared type, the caller may attach evidence at all, malware scan, storage, then
+   * the service rule (record state, scope) creates the evidence record.
+   */
+  const upload = (permission: Permission, attach: (s: Services, id: string, fileName: string, sizeKb: number, stored?: StoredEvidence) => Promise<unknown>) =>
+    async (c: Context<Env>) => {
+      const id = c.req.param('id') ?? '';
+      const principal = c.get('principal');
+      const timing = c.get('timing');
+      if (!(c.req.header('Content-Type') ?? '').startsWith('multipart/form-data')) {
+        const b = await body<{ fileName: string; sizeKb: number }>(c);
+        return c.json(await withServices(deps, principal, 'write', (s) => attach(s, id, b.fileName, b.sizeKb), timing) as object);
+      }
+      const form = await c.req.parseBody();
+      const file = form.file;
+      if (!(file instanceof File)) throw new ValidationError('Choose a file to upload.', ['Send the file in a multipart field named "file".']);
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const info = inspectUpload(file.name, bytes);
+      // Nothing reaches storage for a caller who may not attach evidence. Running the service call
+      // without a file makes it refuse with its usual audited permission error.
+      await withServices(deps, principal, 'read', async (s, actor) => {
+        if (!can(actor.role, permission)) await attach(s, id, info.fileName, info.sizeKb);
+      }, timing);
+      const scanStatus = await scanner.scan(bytes);
+      const { key, checksum } = await blobs.put(bytes, info.contentType);
+      const stored: StoredEvidence = { checksum, storageKey: key, contentType: info.contentType, sizeKb: info.sizeKb, scanStatus };
+      return c.json(await withServices(deps, principal, 'write', (s) => attach(s, id, info.fileName, info.sizeKb, stored), timing) as object);
+    };
+
   api.get('/me', read(async (s) => ({ actor: s.actor(), dataMode: config.dataMode, features: config.features })));
 
   // Batteries
@@ -113,6 +158,27 @@ export function createApp(deps: AppDeps) {
   api.get('/batteries/export', read((s, c) => s.batteries.exportCsv(q(c, 'ids')?.split(',').filter(Boolean))));
   api.get('/battery-families', read((s) => s.batteries.families()));
   api.get('/batteries/:id/passport', read((s, c) => s.batteries.get(c.req.param('id'))));
+
+  // Evidence files: visibility follows the passport; every open is audited.
+  api.get('/evidence/:id', read((s, c) => s.batteries.openEvidence(c.req.param('id'))));
+  api.get('/evidence/:id/content', async (c) => {
+    const e = await withServices(deps, c.get('principal'), 'read', (s) => s.batteries.openEvidence(c.req.param('id')), c.get('timing'));
+    if (!e.storageKey || !e.contentType) throw new ConflictError('Only the file name was recorded for this evidence; no file is stored.');
+    const bytes = await readVerified(blobs, e.storageKey);
+    if (!bytes) throw new Error(`Evidence ${e.id} is recorded but ${e.storageKey} is missing from storage.`);
+    const ascii = e.fileName.replace(/[^\x20-\x7e]|["\\]/g, '_');
+    return new Response(bytes, {
+      headers: {
+        'Content-Type': e.contentType,
+        'Content-Length': String(bytes.length),
+        'Content-Disposition': `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(e.fileName)}`,
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': "default-src 'none'; sandbox",
+        'Cache-Control': 'private, no-store',
+        'X-Checksum-SHA256': e.checksum,
+      },
+    });
+  });
   api.get('/lookup', read((s, c) => s.batteries.lookupByPublicRef(q(c, 'ref') ?? '')));
   api.post('/batteries', write(async (s, c) => s.batteries.create(await body(c))));
   api.post('/batteries/:id/corrections', write(async (s, c) => s.batteries.correct({ ...(await body<object>(c)), batteryId: c.req.param('id') } as never)));
@@ -134,10 +200,7 @@ export function createApp(deps: AppDeps) {
   api.post('/tests/:id/approve', write(async (s, c) => s.tests.approve(c.req.param('id'), (await body<{ reason: string }>(c)).reason)));
   api.post('/tests/:id/reject', write(async (s, c) => s.tests.reject(c.req.param('id'), (await body<{ reason: string }>(c)).reason)));
   api.post('/tests/:id/rework', write(async (s, c) => s.tests.requestRework(c.req.param('id'), (await body<{ reason: string }>(c)).reason)));
-  api.post('/tests/:id/evidence', write(async (s, c) => {
-    const b = await body<{ fileName: string; sizeKb: number }>(c);
-    return s.tests.attachEvidence(c.req.param('id'), b.fileName, b.sizeKb);
-  }));
+  api.post('/tests/:id/evidence', upload('test.create', (s, id, name, kb, stored) => s.tests.attachEvidence(id, name, kb, stored)));
 
   // Restoration
   api.get('/restoration/batches', read((s) => s.restoration.batches()));
@@ -148,10 +211,7 @@ export function createApp(deps: AppDeps) {
   api.post('/batteries/:id/restoration-candidate', write(async (s, c) => s.restoration.markCandidate(c.req.param('id'), (await body<{ reason: string }>(c)).reason)));
   api.post('/restoration/attempts', write(async (s, c) => s.restoration.createAttempt(await body(c))));
   api.post('/restoration/attempts/:id/notes', write(async (s, c) => s.restoration.addNote(c.req.param('id'), (await body<{ text: string }>(c)).text)));
-  api.post('/restoration/attempts/:id/evidence', write(async (s, c) => {
-    const b = await body<{ fileName: string; sizeKb: number }>(c);
-    return s.restoration.addEvidence(c.req.param('id'), b.fileName, b.sizeKb);
-  }));
+  api.post('/restoration/attempts/:id/evidence', upload('restoration.write', (s, id, name, kb, stored) => s.restoration.addEvidence(id, name, kb, stored)));
   api.post('/restoration/attempts/:id/submit', write(async (s, c) => s.restoration.submitForReview(c.req.param('id'), (await body<{ afterTestId: string }>(c)).afterTestId)));
   api.post('/restoration/attempts/:id/decide', write(async (s, c) => {
     const b = await body<{ decision: 'approve' | 'reject' | 'rework'; reason: string }>(c);
@@ -195,7 +255,8 @@ export function createApp(deps: AppDeps) {
   api.get('/admin/notifications', read((s) => s.admin.notifications()));
   api.get('/admin/sensor-mappings', read((s) => s.admin.sensorMappings()));
   api.patch('/admin/notifications/:id', write(async (s, c) => s.admin.setNotification(c.req.param('id'), (await body<{ enabled: boolean }>(c)).enabled)));
-  api.patch('/admin/users/:id', write(async (s, c) => s.admin.setUserActive(c.req.param('id'), (await body<{ active: boolean }>(c)).active)));
+  api.post('/admin/users', write(async (s, c) => s.admin.createUser(await body(c))));
+  api.patch('/admin/users/:id', write(async (s, c) => s.admin.updateUser(c.req.param('id'), await body(c))));
   api.get('/audit-events', read((s, c) => s.admin.audit({ outcome: q(c, 'outcome') as 'success' | 'denied' | undefined })));
   api.post('/admin/reset-demo', write(async (s) => { await s.admin.resetDemo(); return { ok: true }; }));
 

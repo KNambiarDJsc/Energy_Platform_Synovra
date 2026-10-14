@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { buildSeed, DEMO_NOW } from '../../src/data/seed';
-import { createApp } from '../src/app';
+import { createApp, type AppDeps } from '../src/app';
 import { loadConfig } from '../src/config';
 import { connect, type DbHandle } from '../src/db/client';
 import { insertAll } from '../src/db/snapshot';
@@ -20,18 +20,24 @@ export interface Server {
   close(): Promise<void>;
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- test responses are asserted field by field */
 export interface Client {
   get<T = any>(path: string): Promise<ApiResponse<T>>;
   post<T = any>(path: string, body?: unknown): Promise<ApiResponse<T>>;
   patch<T = any>(path: string, body?: unknown): Promise<ApiResponse<T>>;
+  /** Multipart upload of one file in the field `file`. */
+  upload<T = any>(path: string, fileName: string, bytes: Uint8Array | string): Promise<ApiResponse<T>>;
+  /** Authenticated request returning the raw response (binary downloads). */
+  fetch(path: string): Promise<Response>;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * A fresh database with migrations applied and, by default, the demo seed loaded.
  * Uses in-memory PGlite, or a throwaway database on a real PostgreSQL server when
  * TEST_DATABASE_URL is set (e.g. postgres://synovra:synovra-local-only@localhost:5432/synovra).
  */
-export async function startServer(opts: { env?: Record<string, string>; seed?: boolean } = {}): Promise<Server> {
+export async function startServer(opts: { env?: Record<string, string>; seed?: boolean; evidence?: AppDeps['evidence'] } = {}): Promise<Server> {
   const real = await createTestDatabase();
   const inner = await connect({ databaseUrl: real?.url ?? null, pgliteDir: 'memory://' });
   const handle: DbHandle = { ...inner, close: async () => { await inner.close(); await real?.drop(); } };
@@ -39,7 +45,7 @@ export async function startServer(opts: { env?: Record<string, string>; seed?: b
   if (opts.seed !== false) await handle.db.transaction((tx) => insertAll(tx, buildSeed()));
   const config = loadConfig({ DATA_MODE: 'demo', AUTH_MODE: 'dev', DEV_JWT_SECRET: 'test-secret-not-for-production', ...opts.env });
   let t = Date.parse(DEMO_NOW) + 3_600_000;
-  const app = createApp({ db: handle.db, config, clock: () => (t += 1000), log: () => {} });
+  const app = createApp({ db: handle.db, config, clock: () => (t += 1000), log: () => {}, evidence: opts.evidence });
 
   const raw = (path: string, init?: RequestInit) => Promise.resolve(app.request(path, init));
   const call = async (token: string, method: string, path: string, body?: unknown) => {
@@ -61,6 +67,13 @@ export async function startServer(opts: { env?: Record<string, string>; seed?: b
         get: (p) => call(token, 'GET', p),
         post: (p, b) => call(token, 'POST', p, b ?? {}),
         patch: (p, b) => call(token, 'PATCH', p, b ?? {}),
+        async upload(p, fileName, bytes) {
+          const form = new FormData();
+          form.append('file', new Blob([typeof bytes === 'string' ? new TextEncoder().encode(bytes) : bytes]), fileName);
+          const res = await raw(`/api/v1${p}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+          return { status: res.status, body: await res.json() };
+        },
+        fetch: (p) => raw(`/api/v1${p}`, { headers: { Authorization: `Bearer ${token}` } }),
       };
     },
     close: () => handle.close(),

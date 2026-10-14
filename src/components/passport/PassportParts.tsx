@@ -8,6 +8,7 @@ import { useState } from 'react';
 import {
   ApprovalBadge, Badge, FreshnessBadge, LifecycleBadge, TestStatusBadge, ValueKindBadge, WarrantyBadge,
 } from '@/components/ui/Badge';
+import { EvidenceDownload, StorageBadge } from '@/components/app/Evidence';
 import { TimeSeriesChart } from '@/components/ui/Charts';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Select } from '@/components/ui/Field';
@@ -659,11 +660,17 @@ export function EvidencePanel({ p }: { p: BatteryPassport }) {
     { key: 'kind', header: 'Type', cell: (e) => titleCase(e.kind) },
     { key: 'class', header: 'Visibility', cell: (e) => <Badge tone={CLASS_TONE[e.classification]}>{CLASS_LABEL[e.classification]}</Badge> },
     { key: 'by', header: 'Uploaded', sort: (e) => e.uploadedAt, cell: (e) => <span>{formatDate(e.uploadedAt)}<span className="block text-xs text-muted">{e.uploadedByName}</span></span> },
-    { key: 'sum', header: 'Checksum', cell: (e) => <span className="mono text-xs">{e.checksum.slice(0, 12)}…</span> },
+    { key: 'sum', header: 'SHA-256', cell: (e) => (e.storageKey ? <span className="mono text-xs" title={e.checksum}>{e.checksum.slice(0, 12)}…</span> : <span className="text-xs text-muted">None</span>) },
+    { key: 'file', header: 'File', mobile: 'show', cell: (e) => <span className="flex flex-wrap items-center gap-2"><StorageBadge e={e} /><EvidenceDownload e={e} /></span> },
   ];
+  const anyStored = p.evidence.some((e) => e.storageKey);
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted">File names and checksums are recorded. File contents are not stored in this demonstration.</p>
+      <p className="text-sm text-muted">
+        {anyStored
+          ? 'Stored files are kept under their SHA-256 checksum and checked on every download. Each download is recorded in the audit trail.'
+          : 'Only file names are recorded for these entries; no file contents are stored.'}
+      </p>
       <DataTable caption="Evidence files" columns={cols} rows={p.evidence} rowKey={(e) => e.id} initialSort={{ key: 'by', dir: 'desc' }} />
     </div>
   );

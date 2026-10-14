@@ -155,7 +155,7 @@ export function createImportService(ctx: Ctx): ImportService {
       const ensureEvidence = () => {
         if (!evidenceId) {
           evidenceId = ctx.store.nextId('ev');
-          d.evidence.push({ id: evidenceId, batteryId: null, kind: 'import_source', fileName: job.fileName, sizeKb: Math.max(1, Math.round(job.rows.length / 4)), uploadedAt: now, uploadedByName: actor.name, checksum: job.fileHash.padEnd(64, '0'), classification: 'internal' });
+          d.evidence.push({ id: evidenceId, batteryId: null, kind: 'import_source', fileName: job.fileName, sizeKb: Math.max(1, Math.round(job.rows.length / 4)), uploadedAt: now, uploadedByName: actor.name, checksum: job.fileHash.padEnd(64, '0'), classification: 'internal', storageKey: null, contentType: null, scanStatus: null });
         }
         return evidenceId;
       };

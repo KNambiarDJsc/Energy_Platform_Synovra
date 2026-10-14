@@ -388,8 +388,23 @@ export interface EvidenceFile {
   sizeKb: number;
   uploadedAt: ISODateTime;
   uploadedByName: string;
+  /** SHA-256 of the stored bytes. Placeholder text when only metadata was recorded. */
   checksum: string;
   classification: EvidenceClassification;
+  /** Content-addressed key in evidence storage (`sha256/<hex>`). Null when only metadata was recorded. */
+  storageKey: string | null;
+  contentType: string | null;
+  /** Malware scan result at upload. Null when no file is stored. */
+  scanStatus: 'clean' | 'not_scanned' | null;
+}
+
+/** File facts established by the server when the bytes were stored. */
+export interface StoredEvidence {
+  checksum: string;
+  storageKey: string;
+  contentType: string;
+  sizeKb: number;
+  scanStatus: 'clean' | 'not_scanned';
 }
 
 /* ------------------------------ Alerts ------------------------------ */

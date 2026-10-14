@@ -152,7 +152,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (session.ready && !session.user) router.replace(`/signin?next=${encodeURIComponent(pathname)}`);
   }, [session.ready, session.user, router, pathname]);
 
-  useEffect(() => setMenuOpen(false), [pathname]);
+  // Close the mobile menu after navigation (state adjusted during render, not in an effect).
+  const [menuPath, setMenuPath] = useState(pathname);
+  if (menuPath !== pathname) {
+    setMenuPath(pathname);
+    setMenuOpen(false);
+  }
 
   const canAlerts = session.can('alert.read') && session.has('alerts');
   const canAssistant = session.can('assistant.use') && session.has('assistant');

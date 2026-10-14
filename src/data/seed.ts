@@ -165,7 +165,7 @@ export function buildSeed(): DemoDb {
     classification: EvidenceClassification, at: string, by: string,
   ): string => {
     const id = `ev_${evidence.length + 1}`;
-    evidence.push({ id, batteryId, kind, fileName, sizeKb: ri(40, 1800), uploadedAt: at, uploadedByName: by, checksum: hex(64), classification });
+    evidence.push({ id, batteryId, kind, fileName, sizeKb: ri(40, 1800), uploadedAt: at, uploadedByName: by, checksum: hex(64), classification, storageKey: null, contentType: null, scanStatus: null });
     return id;
   };
 
@@ -709,7 +709,7 @@ export function buildSeed(): DemoDb {
   ];
 
   /* ------------------------------ Batch-level costs & string tests ------------------------------ */
-  batches.forEach((bt, bi) => {
+  batches.forEach((bt) => {
     const members = batteries.filter((b) => b.restorationBatchId === bt.id);
     const n = Math.max(members.length, 1);
     const qualified = members.filter((b) => ['qualified', 'reserved', 'deployed', 'returned'].includes(b.lifecycleState) || recycling.some((r) => r.batteryId === b.id && r.state === 'recycled')).length;

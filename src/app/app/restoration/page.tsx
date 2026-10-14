@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Field, Input, Select, Textarea, parseNumberInput } from '@/components/ui/Field';
 import { KeyValue, Notice, PageHeader, Section } from '@/components/ui/Layout';
+import { EvidenceFileInput, fileSizeKb } from '@/components/app/Evidence';
 import { Modal } from '@/components/ui/Overlay';
 import { ReasonDialog } from '@/components/ui/ReasonDialog';
 import { EmptyState, LoadingBlock, QueryView } from '@/components/ui/States';
@@ -228,14 +229,15 @@ function AttemptCard({ a, onDialog }: { a: AttemptView; onDialog: (d: Dialog) =>
 
 function AttemptDialogs({ dialog, onClose }: { dialog: Dialog | null; onClose: () => void }) {
   const [text, setText] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   const [afterTest, setAfterTest] = useState('');
   const tests = useSvcQuery(['tests', 'for', dialog?.a.batteryId], (s) => s.tests.list({ batteryId: dialog!.a.batteryId }), {
     enabled: dialog?.kind === 'submit',
   });
-  const reset = () => { setText(''); setAfterTest(''); onClose(); };
+  const reset = () => { setText(''); setFile(null); setAfterTest(''); onClose(); };
 
   const note = useAction<void, unknown>((s) => s.restoration.addNote(dialog!.a.id, text), { success: 'Note added.', onSuccess: reset, toastError: false });
-  const evidence = useAction<void, unknown>((s) => s.restoration.addEvidence(dialog!.a.id, text, 120), { success: 'Evidence attached.', onSuccess: reset, toastError: false });
+  const evidence = useAction<void, unknown>((s) => s.restoration.addEvidence(dialog!.a.id, file!.name, fileSizeKb(file!), undefined, file!), { success: 'Evidence attached.', onSuccess: reset, toastError: false });
   const submit = useAction<void, unknown>((s) => s.restoration.submitForReview(dialog!.a.id, afterTest), { success: 'Submitted for engineering review.', onSuccess: reset, toastError: false });
   const decide = useAction<string, unknown>(
     (s, reason) => s.restoration.decide(dialog!.a.id, (dialog as Extract<Dialog, { kind: 'decide' }>).decision, reason),
@@ -274,7 +276,7 @@ function AttemptDialogs({ dialog, onClose }: { dialog: Dialog | null; onClose: (
       footer={
         <>
           <Button variant="secondary" onClick={reset}>Cancel</Button>
-          <Button loading={cfg.mutation.isPending} disabled={dialog.kind === 'submit' ? !afterTest : text.trim().length < 2} onClick={() => cfg.mutation.mutate(undefined as never)}>
+          <Button loading={cfg.mutation.isPending} disabled={dialog.kind === 'submit' ? !afterTest : dialog.kind === 'evidence' ? !file : text.trim().length < 2} onClick={() => cfg.mutation.mutate(undefined as never)}>
             {cfg.cta}
           </Button>
         </>
@@ -288,9 +290,7 @@ function AttemptDialogs({ dialog, onClose }: { dialog: Dialog | null; onClose: (
           </>
         )}
         {dialog.kind === 'evidence' && (
-          <Field label="File name" required hint="PDF, image, CSV or XLSX. Contents are not stored in the demo.">
-            <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="after-photo.png" />
-          </Field>
+          <EvidenceFileInput label="Evidence file" required file={file} onChange={setFile} />
         )}
         {dialog.kind === 'submit' && (
           <>

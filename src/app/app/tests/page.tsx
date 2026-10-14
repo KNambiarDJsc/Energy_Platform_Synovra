@@ -11,6 +11,7 @@ import { KeyValue, Notice, PageHeader } from '@/components/ui/Layout';
 import { Drawer, Modal } from '@/components/ui/Overlay';
 import { ReasonDialog } from '@/components/ui/ReasonDialog';
 import { EmptyState, LoadingBlock, QueryView } from '@/components/ui/States';
+import { EvidenceDownload, EvidenceFileInput, StorageBadge, fileSizeKb } from '@/components/app/Evidence';
 import { DEMO_CRITERION_TEXT } from '@/data/seed';
 import type { TestKind, TestStatus } from '@/domain/types';
 import { cn, formatDateTime, formatNumber, titleCase } from '@/lib/format';
@@ -37,14 +38,17 @@ function RecordTestModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
   const protocols = useSvcQuery(['protocols'], (s) => s.tests.protocols(), { enabled: open });
   const [f, setF] = useState({
     batteryId: '', kind: 'initial' as TestKind, protocolId: '', voltage: '', resistance: '', temp: '', capacity: '',
-    ambient: '25', load: '', cutoff: '', duration: '', instrument: '', calibration: '', witness: '', evidence: '', notes: '',
+    ambient: '25', load: '', cutoff: '', duration: '', instrument: '', calibration: '', witness: '', notes: '',
   });
+  const [file, setFile] = useState<File | null>(null);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const set = (patch: Partial<typeof f>) => setF((x) => ({ ...x, ...patch }));
 
-  const create = useAction<void, { id: string }>(
-    (s) =>
-      s.tests.create({
+  // The test is saved first, then the file is attached to it. If the upload fails, the draft is kept
+  // and the person is told to attach the file from the test detail.
+  const create = useAction<void, { id: string; uploadError: string | null }>(
+    async (s) => {
+      const t = await s.tests.create({
         batteryId: f.batteryId,
         kind: f.kind,
         protocolId: f.protocolId || protocols.data?.[0]?.id || '',
@@ -59,10 +63,24 @@ function RecordTestModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
         instrument: f.instrument,
         calibrationRef: f.calibration,
         witnessName: f.witness.trim() || null,
-        evidenceFileName: f.evidence.trim() || null,
+        evidenceFileName: null,
         notes: f.notes,
-      }),
-    { toastError: false, success: 'Test saved as a draft. Submit it when the evidence is complete.', onSuccess: () => onOpenChange(false) },
+      });
+      if (!file) return { id: t.id, uploadError: null };
+      try {
+        await s.tests.attachEvidence(t.id, file.name, fileSizeKb(file), undefined, file);
+        return { id: t.id, uploadError: null };
+      } catch (e) {
+        return { id: t.id, uploadError: errorMessage(e) };
+      }
+    },
+    {
+      toastError: false,
+      success: (r) => (r.uploadError
+        ? `Test saved as a draft, but the file was not attached: ${r.uploadError} Attach it from the test detail.`
+        : 'Test saved as a draft. Submit it when the evidence is complete.'),
+      onSuccess: () => { setFile(null); onOpenChange(false); },
+    },
   );
 
   function submit() {
@@ -159,9 +177,9 @@ function RecordTestModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
             <Field label="Witness">
               <Input value={f.witness} onChange={(e) => set({ witness: e.target.value })} />
             </Field>
-            <Field label="Evidence file name" hint="PDF, image, CSV or XLSX. File contents are not stored in the demo.">
-              <Input value={f.evidence} onChange={(e) => set({ evidence: e.target.value })} placeholder="discharge-curve.pdf" />
-            </Field>
+            <div className="sm:col-span-2">
+              <EvidenceFileInput label="Evidence file (test report, curve or photo)" file={file} onChange={setFile} />
+            </div>
             <Field label="Notes" className="sm:col-span-2">
               <Textarea value={f.notes} onChange={(e) => set({ notes: e.target.value })} maxLength={500} />
             </Field>
@@ -186,6 +204,10 @@ function TestDrawer({ id, onClose }: { id: string | null; onClose: () => void })
   const q = useSvcQuery(['test', id], (s) => s.tests.get(id!), { enabled: !!id });
   const [decision, setDecision] = useState<Decision | null>(null);
   const submit = useAction<string, unknown>((s, tid) => s.tests.submit(tid), { success: 'Test submitted for engineering review.' });
+  const [file, setFile] = useState<File | null>(null);
+  const attach = useAction<File, unknown>((s, f) => s.tests.attachEvidence(id!, f.name, fileSizeKb(f), undefined, f), {
+    success: (_r, f) => `${f.name} attached.`, onSuccess: () => setFile(null),
+  });
   const start = useAction<string, unknown>((s, tid) => s.tests.startReview(tid), { success: 'Review started. You are now the reviewer of record.' });
   const decide = useAction<{ reason: string }, unknown>(
     (s, a) => {
@@ -253,13 +275,21 @@ function TestDrawer({ id, onClose }: { id: string | null; onClose: () => void })
             {t.evidence.length > 0 && (
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted">Evidence</p>
-                <ul className="mt-1 space-y-1 text-sm">
+                <ul className="mt-1 space-y-2 text-sm">
                   {t.evidence.map((e) => (
-                    <li key={e.id} className="flex items-center gap-1.5">
-                      <FileText className="h-4 w-4 text-muted" aria-hidden /> {e.fileName}
+                    <li key={e.id} className="flex flex-wrap items-center gap-2">
+                      <FileText className="h-4 w-4 text-muted" aria-hidden /> <span className="break-all">{e.fileName}</span>
+                      <StorageBadge e={e} />
+                      <EvidenceDownload e={e} />
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+            {session.can('test.create') && ['draft', 'requires_rework', 'submitted'].includes(t.status) && (
+              <div className="space-y-2 rounded-md border border-line p-3">
+                <EvidenceFileInput label="Attach another evidence file" file={file} onChange={setFile} />
+                <Button size="sm" variant="secondary" disabled={!file} loading={attach.isPending} onClick={() => file && attach.mutate(file)}>Attach file</Button>
               </div>
             )}
 

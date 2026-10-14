@@ -8,10 +8,10 @@ import type {
   DataQuality, EvidenceFile, ImportJob, ImportTemplate, LifecycleEvent, LifecycleState, NotificationSetting,
   Prediction, PredictionKind, RecyclingRecord, Report, ReportTemplateId, RestorationAttempt, RestorationBatch,
   Role, ServiceTask, Severity, Site, StringUnit, Slot, Bank, Tenant, TestProtocolRevision, TestSession, User,
-  WarrantyRecord, Gateway, Sensor, SensorAssignment, Actor,
+  WarrantyRecord, Gateway, Sensor, SensorAssignment, Actor, StoredEvidence,
 } from '@/domain/types';
 import type { InventoryGroup } from '@/domain/lifecycle';
-import type { CorrectionInput, CreateBatteryInput, DeploymentInput, ReportInput, TaskInput, TestInput } from '@/domain/schemas';
+import type { CorrectionInput, CreateBatteryInput, DeploymentInput, ReportInput, TaskInput, TestInput, UserInput, UserUpdate } from '@/domain/schemas';
 import type { EvidenceStatusCode } from './core';
 
 /* ------------------------------ Batteries ------------------------------ */
@@ -130,6 +130,10 @@ export interface BatteryRepository {
   reissueLabel(batteryId: string, reason: string): Promise<{ battery: Battery; retired: string }>;
   exportCsv(ids?: string[]): Promise<{ fileName: string; csv: string }>;
   families(): Promise<BatteryFamily[]>;
+  /** Checks that the caller may open an evidence file and records the access in the audit log. */
+  openEvidence(evidenceId: string): Promise<EvidenceFile>;
+  /** Downloads stored evidence bytes (HTTP mode only; the demo stores no files). */
+  downloadEvidence?(evidenceId: string): Promise<{ blob: Blob; fileName: string }>;
 }
 
 /* ------------------------------ Imports ------------------------------ */
@@ -165,7 +169,11 @@ export interface TestRepository {
   approve(id: string, reason: string): Promise<TestSession>;
   reject(id: string, reason: string): Promise<TestSession>;
   requestRework(id: string, reason: string): Promise<TestSession>;
-  attachEvidence(id: string, fileName: string, sizeKb: number): Promise<EvidenceFile>;
+  /**
+   * `stored` is set by the API after it has received, checked and stored the bytes. The browser's
+   * HTTP adapter passes the `file` itself instead; the in-browser demo records metadata only.
+   */
+  attachEvidence(id: string, fileName: string, sizeKb: number, stored?: StoredEvidence, file?: Blob): Promise<EvidenceFile>;
 }
 
 export interface AttemptView extends RestorationAttempt {
@@ -218,7 +226,7 @@ export interface RestorationRepository {
   markCandidate(batteryId: string, reason: string): Promise<Battery>;
   createAttempt(args: { batteryId: string; batchId: string; lotRefs?: { kind: 'material' | 'solvent'; ref: string }[] }): Promise<RestorationAttempt>;
   addNote(attemptId: string, text: string): Promise<RestorationAttempt>;
-  addEvidence(attemptId: string, fileName: string, sizeKb: number): Promise<RestorationAttempt>;
+  addEvidence(attemptId: string, fileName: string, sizeKb: number, stored?: StoredEvidence, file?: Blob): Promise<RestorationAttempt>;
   submitForReview(attemptId: string, afterTestId: string): Promise<RestorationAttempt>;
   decide(attemptId: string, decision: 'approve' | 'reject' | 'rework', reason: string): Promise<RestorationAttempt>;
 }
@@ -417,6 +425,9 @@ export interface AdminRepository {
   notifications(): Promise<NotificationSetting[]>;
   setNotification(id: string, enabled: boolean): Promise<NotificationSetting>;
   setUserActive(id: string, active: boolean): Promise<User>;
+  createUser(input: UserInput): Promise<User>;
+  /** Name, title, role, site scope and active status. Email and tenant are fixed after creation. */
+  updateUser(id: string, patch: UserUpdate): Promise<User>;
   audit(filter?: { outcome?: 'success' | 'denied' }): Promise<AuditEvent[]>;
   resetDemo(): Promise<void>;
 }

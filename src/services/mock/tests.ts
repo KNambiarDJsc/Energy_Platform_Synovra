@@ -1,21 +1,18 @@
 import { reasonSchema, testInputSchema } from '@/domain/schemas';
-import { ConflictError, NotFoundError, ValidationError, can, isCustomerAudience } from '@/domain/permissions';
-import type { EvidenceFile, TestSession } from '@/domain/types';
+import { ConflictError, NotFoundError, ValidationError, can } from '@/domain/permissions';
+import type { TestSession } from '@/domain/types';
 import {
-  audit, canSeeBattery, canSeeSite, db, familyOf, latency, pctOfRated, pushEvent, authorize, ruleCheck, setState, type Ctx,
+  audit, canSeeBattery, canSeeEvidence, canSeeSite, db, familyOf, latency, newEvidence, pctOfRated, pushEvent, authorize, ruleCheck, setState, type Ctx,
 } from '../core';
 import type { TestRepository, TestView } from '../types';
-
-const ALLOWED_EXT = /\.(pdf|png|jpe?g|csv|xlsx)$/i;
-const MAX_KB = 20 * 1024;
 
 export function toTestView(ctx: Ctx, t: TestSession): TestView {
   const d = db(ctx);
   const b = t.batteryId ? d.batteries.find((x) => x.id === t.batteryId) : null;
   const fam = b ? familyOf(ctx, b) : null;
   const protocol = d.protocols.find((p) => p.id === t.protocolId);
-  const customer = isCustomerAudience(ctx.actor().role);
-  const evidence = d.evidence.filter((e) => t.evidenceIds.includes(e.id) && (!customer || e.classification === 'customer_visible'));
+  const actor = ctx.actor();
+  const evidence = d.evidence.filter((e) => t.evidenceIds.includes(e.id) && canSeeEvidence(actor, e));
   const famForRule = fam ?? (t.stringId ? d.families.find((f) => f.id === d.strings.find((s) => s.id === t.stringId)?.familyId) ?? null : null);
   return {
     ...t,
@@ -111,11 +108,7 @@ export function createTestRepository(ctx: Ctx): TestRepository {
 
       let evidenceIds: string[] = [];
       if (v.evidenceFileName) {
-        if (!ALLOWED_EXT.test(v.evidenceFileName)) throw new ValidationError('Evidence file type is not accepted (pdf, png, jpg, csv, xlsx).');
-        const ev: EvidenceFile = {
-          id: ctx.store.nextId('ev'), batteryId: b.id, kind: 'test_report', fileName: v.evidenceFileName, sizeKb: 120,
-          uploadedAt: ctx.store.now(), uploadedByName: actor.name, checksum: 'pending-upload-demo'.padEnd(64, '0'), classification: 'internal',
-        };
+        const ev = newEvidence(ctx, { batteryId: b.id, kind: 'test_report', fileName: v.evidenceFileName, sizeKb: 120, classification: 'internal' });
         d.evidence.push(ev);
         evidenceIds = [ev.id];
       }
@@ -215,20 +208,17 @@ export function createTestRepository(ctx: Ctx): TestRepository {
       return t;
     },
 
-    async attachEvidence(id, fileName, sizeKb) {
+    async attachEvidence(id, fileName, sizeKb, stored) {
       await latency(ctx);
-      const actor = authorize(ctx, 'test.create');
+      authorize(ctx, 'test.create');
       const t = testOrThrow(ctx, id);
       if (!['draft', 'requires_rework', 'submitted'].includes(t.status)) throw new ConflictError('Evidence can only be attached before a decision.');
-      if (!ALLOWED_EXT.test(fileName)) throw new ValidationError('Evidence file type is not accepted (pdf, png, jpg, csv, xlsx).');
-      if (sizeKb > MAX_KB) throw new ValidationError('Evidence file is larger than 20 MB.');
-      const ev: EvidenceFile = {
-        id: ctx.store.nextId('ev'), batteryId: t.batteryId, kind: 'test_report', fileName, sizeKb,
-        uploadedAt: ctx.store.now(), uploadedByName: actor.name, checksum: 'metadata-only-demo'.padEnd(64, '0'), classification: 'internal',
-      };
+      const ev = newEvidence(ctx, { batteryId: t.batteryId, kind: 'test_report', fileName, sizeKb, classification: 'internal' }, stored);
       db(ctx).evidence.push(ev);
       t.evidenceIds.push(ev.id);
-      audit(ctx, 'evidence.attach', 'test', t.id, `Attached ${fileName} (metadata only; no file stored in the demo)`);
+      audit(ctx, 'evidence.attach', 'test', t.id, stored
+        ? `Attached ${fileName} (${stored.sizeKb} KB, SHA-256 ${stored.checksum.slice(0, 12)}…, ${stored.scanStatus === 'clean' ? 'malware scan clean' : 'not malware-scanned'})`
+        : `Attached ${fileName} (metadata only; no file stored in the demo)`);
       ctx.store.save();
       return ev;
     },

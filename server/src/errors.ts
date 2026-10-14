@@ -4,6 +4,7 @@
  * violations (the second line of defence) map to 409 so a race can never produce a 500.
  */
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../src/domain/permissions';
+import { ScannerUnavailableError } from './evidence/scan';
 
 export class AuthError extends Error {
   constructor(public status: 401 | 403, message: string) {
@@ -16,6 +17,13 @@ export class FeatureDisabledError extends Error {
   constructor(public feature: string) {
     super(`${feature} is not enabled on this deployment.`);
     this.name = 'FeatureDisabledError';
+  }
+}
+
+export class RateLimitError extends Error {
+  constructor(public retryAfterSeconds: number) {
+    super('Too many requests. Wait a moment and try again.');
+    this.name = 'RateLimitError';
   }
 }
 
@@ -38,6 +46,10 @@ export function toHttpError(e: unknown): { status: number; body: ErrorBody } {
   if (e instanceof NotFoundError) return { status: 404, body: body(e.code, e.message) };
   if (e instanceof ConflictError) return { status: 409, body: body(e.code, e.message) };
   if (e instanceof ValidationError) return { status: 422, body: body(e.code, e.message, e.issues) };
+  if (e instanceof RateLimitError) return { status: 429, body: body('RATE_LIMITED', e.message) };
+  if (e instanceof ScannerUnavailableError) {
+    return { status: 503, body: body('UNAVAILABLE', 'Uploads are paused because the malware scanner is unavailable. Nothing was stored. Try again shortly.') };
+  }
   const pg = e as { code?: string; constraint?: string };
   if (typeof pg?.code === 'string' && PG_INTEGRITY[pg.code]) {
     return { status: 409, body: body('CONFLICT', PG_INTEGRITY[pg.code], pg.constraint ? [pg.constraint] : []) };

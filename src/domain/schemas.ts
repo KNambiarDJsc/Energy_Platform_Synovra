@@ -69,6 +69,29 @@ export const reportInputSchema = z.object({
 });
 export type ReportInput = z.infer<typeof reportInputSchema>;
 
+const roleSchema = z.enum(['lab_operator', 'battery_engineer', 'field_technician', 'noc_manager', 'finance_owner', 'customer_auditor', 'platform_admin']);
+const siteScopeSchema = z.union([z.literal('all'), z.array(z.string().min(1)).min(1, 'Select at least one site, or all sites')]);
+
+export const userInputSchema = z.object({
+  name: z.string().trim().min(2, 'Name is required').max(80),
+  title: z.string().trim().min(2, 'Job title is required').max(80),
+  email: z.string().trim().toLowerCase().email('Enter a valid email address').max(254),
+  role: roleSchema,
+  tenantId: z.string().min(1, 'Select a tenant'),
+  siteScope: siteScopeSchema,
+});
+export type UserInput = z.infer<typeof userInputSchema>;
+
+/** Email and tenant are fixed after creation: identity-provider accounts are linked by email. */
+export const userUpdateSchema = z.object({
+  name: z.string().trim().min(2, 'Name is required').max(80).optional(),
+  title: z.string().trim().min(2, 'Job title is required').max(80).optional(),
+  role: roleSchema.optional(),
+  siteScope: siteScopeSchema.optional(),
+  active: z.boolean().optional(),
+});
+export type UserUpdate = z.infer<typeof userUpdateSchema>;
+
 export const correctionSchema = z.object({
   batteryId: z.string(),
   field: z.enum(['manufacturerSerial', 'manufacturedOn', 'physicalLocation']),

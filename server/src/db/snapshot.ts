@@ -71,7 +71,7 @@ const SPECS: TableSpec[] = [
 const UNSUPPORTED: (keyof DemoDb)[] = ['gateways', 'sensors', 'sensorAssignments', 'alerts', 'tasks'];
 
 /** Columns that exist only in the database (not part of the domain record). */
-const DB_ONLY = new Set(['seq', 'externalSubject', 'storageKey']);
+const DB_ONLY = new Set(['seq', 'externalSubject']);
 
 function columnsOf(table: PgTable) {
   return getTableColumns(table) as Record<string, { columnType: string }>;

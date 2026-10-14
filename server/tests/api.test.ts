@@ -380,3 +380,42 @@ describe('database integrity rules (second line of defence)', () => {
     await expect(db().update(s.costEntries).set({ amountAed: '-1' }).where(eq(s.costEntries.id, c.id))).rejects.toMatchObject({ code: '23514' });
   });
 });
+
+describe('user administration over HTTP', () => {
+  it('adds a user who can then sign in, and applies a role change on their next request', async () => {
+    const admin = await server.as(USERS.admin);
+    const created = await admin.post('/admin/users', {
+      name: 'Noor Haddad', title: 'Lab operator', email: 'Noor.Haddad@example.invalid', role: 'lab_operator', tenantId: 't_ops', siteScope: 'all',
+    });
+    expect(created.status).toBe(200);
+    const [row] = await db().select().from(s.users).where(eq(s.users.id, created.body.id));
+    expect(row).toMatchObject({ email: 'noor.haddad@example.invalid', role: 'lab_operator', active: true, externalSubject: null });
+
+    const noor = await server.as(created.body.id);
+    expect((await noor.get('/me')).body.actor.role).toBe('lab_operator');
+    expect((await noor.post('/tests/x/approve', { reason: 'Looks fine to me' })).status).toBe(403);
+
+    const promoted = await admin.patch(`/admin/users/${created.body.id}`, { role: 'battery_engineer', siteScope: ['s1'] });
+    expect(promoted.body).toMatchObject({ role: 'battery_engineer', siteScope: ['s1'] });
+    expect((await noor.get('/me')).body.actor).toMatchObject({ role: 'battery_engineer', siteScope: ['s1'] });
+
+    const dup = await admin.post('/admin/users', { name: 'Noor Two', title: 'Lab operator', email: 'NOOR.HADDAD@example.invalid', role: 'lab_operator', tenantId: 't_ops', siteScope: 'all' });
+    expect(dup.status).toBe(409);
+    const audit = await db().select().from(s.auditEvents).where(eq(s.auditEvents.entityId, created.body.id));
+    expect(audit.map((a) => a.action).sort()).toEqual(['admin.user_create', 'admin.user_update']);
+  });
+
+  it('refuses invalid input and non-administrators, and a deactivated user loses access at once', async () => {
+    const admin = await server.as(USERS.admin);
+    const bad = await admin.post('/admin/users', { name: 'X', title: '', email: 'not-an-email', role: 'lab_operator', tenantId: 't_ops', siteScope: [] });
+    expect(bad.status).toBe(422);
+    expect(bad.body.error.details.length).toBeGreaterThan(1);
+    expect((await (await server.as(USERS.eng)).patch(`/admin/users/${USERS.lab2}`, { role: 'platform_admin' })).status).toBe(403);
+
+    const lab2 = await server.as(USERS.lab2);
+    await admin.patch(`/admin/users/${USERS.lab2}`, { active: false });
+    expect((await lab2.get('/me')).status).toBe(403);
+    await admin.patch(`/admin/users/${USERS.lab2}`, { active: true });
+    expect((await lab2.get('/me')).status).toBe(200);
+  });
+});

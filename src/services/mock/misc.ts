@@ -1,5 +1,6 @@
-import { ConflictError, NotFoundError, canActorSeeSite, isCustomerAudience } from '@/domain/permissions';
-import type { LifecycleState } from '@/domain/types';
+import { ConflictError, NotFoundError, ROLE_LABELS, ValidationError, canActorSeeSite, isCustomerAudience } from '@/domain/permissions';
+import { userInputSchema, userUpdateSchema } from '@/domain/schemas';
+import type { DemoDb, LifecycleState, Role, User } from '@/domain/types';
 import {
   audit, canSeeBattery, canSeeSite, db, latency, qualityOf, authorize, type Ctx,
 } from '../core';
@@ -46,7 +47,7 @@ export function createPredictionRepository(ctx: Ctx): PredictionRepository {
 }
 
 export function createAdminRepository(ctx: Ctx): AdminRepository {
-  return {
+  const repo: AdminRepository = {
     async users() { await latency(ctx); authorize(ctx, 'admin.read'); return db(ctx).users; },
     async tenants() { await latency(ctx); authorize(ctx, 'admin.read'); return db(ctx).tenants; },
     async sites() { await latency(ctx); authorize(ctx, 'admin.read'); return db(ctx).sites; },
@@ -79,13 +80,53 @@ export function createAdminRepository(ctx: Ctx): AdminRepository {
       return n;
     },
     async setUserActive(id, active) {
+      return repo.updateUser(id, { active });
+    },
+    async createUser(input) {
+      await latency(ctx);
+      authorize(ctx, 'admin.manage');
+      const parsed = userInputSchema.safeParse(input);
+      if (!parsed.success) throw new ValidationError('User details are invalid', parsed.error.issues.map((i) => i.message));
+      const v = parsed.data;
+      const d = db(ctx);
+      if (d.users.some((u) => u.email.toLowerCase() === v.email)) throw new ConflictError(`A user with the email ${v.email} already exists.`);
+      checkRoleAndScope(d, v.role, v.tenantId, v.siteScope);
+      const u: User = { id: ctx.store.nextId('u'), name: v.name, title: v.title, email: v.email, role: v.role, tenantId: v.tenantId, siteScope: v.siteScope, active: true };
+      d.users.push(u);
+      audit(ctx, 'admin.user_create', 'user', u.id, `Created ${u.name} (${u.email}) as ${ROLE_LABELS[u.role]}, ${scopeLabel(u.siteScope)}`);
+      ctx.store.save();
+      return u;
+    },
+    async updateUser(id, patch) {
       await latency(ctx);
       const actor = authorize(ctx, 'admin.manage');
-      const u = db(ctx).users.find((x) => x.id === id);
+      const parsed = userUpdateSchema.safeParse(patch);
+      if (!parsed.success) throw new ValidationError('User changes are invalid', parsed.error.issues.map((i) => i.message));
+      const v = parsed.data;
+      const d = db(ctx);
+      const u = d.users.find((x) => x.id === id);
       if (!u) throw new NotFoundError('User');
-      if (u.id === actor.userId && !active) throw new ConflictError('You cannot deactivate your own account.');
-      u.active = active;
-      audit(ctx, 'admin.user_active', 'user', id, `${u.name}: ${active ? 'activated' : 'deactivated'}`);
+      const self = u.id === actor.userId;
+      if (self && v.active === false) throw new ConflictError('You cannot deactivate your own account.');
+      if (self && v.role !== undefined && v.role !== u.role) throw new ConflictError('You cannot change your own role. Ask another administrator.');
+      const next: User = { ...u, ...v };
+      checkRoleAndScope(d, next.role, next.tenantId, next.siteScope);
+      // The platform must always keep one active administrator who can manage users.
+      const wasAdmin = u.role === 'platform_admin' && u.active;
+      const isAdmin = next.role === 'platform_admin' && next.active;
+      if (wasAdmin && !isAdmin && !d.users.some((x) => x.id !== u.id && x.role === 'platform_admin' && x.active)) {
+        throw new ConflictError('This is the last active platform administrator. Add another administrator first.');
+      }
+      const changes: string[] = [];
+      if (next.name !== u.name) changes.push(`name: ${u.name} → ${next.name}`);
+      if (next.title !== u.title) changes.push(`title: ${u.title} → ${next.title}`);
+      if (next.role !== u.role) changes.push(`role: ${ROLE_LABELS[u.role]} → ${ROLE_LABELS[next.role]}`);
+      if (JSON.stringify(next.siteScope) !== JSON.stringify(u.siteScope)) changes.push(`site scope: ${scopeLabel(u.siteScope)} → ${scopeLabel(next.siteScope)}`);
+      if (next.active !== u.active) changes.push(next.active ? 'activated' : 'deactivated');
+      if (changes.length === 0) return u;
+      const action = changes.length === 1 && next.active !== u.active ? 'admin.user_active' : 'admin.user_update';
+      Object.assign(u, next);
+      audit(ctx, action, 'user', id, `${u.name}: ${changes.join('; ')}`);
       ctx.store.save();
       return u;
     },
@@ -100,6 +141,7 @@ export function createAdminRepository(ctx: Ctx): AdminRepository {
       ctx.store.reset();
     },
   };
+  return repo;
 }
 
 export function createOverviewRepository(ctx: Ctx): OverviewRepository {
@@ -170,4 +212,22 @@ export function createOverviewRepository(ctx: Ctx): OverviewRepository {
       };
     },
   };
+}
+
+function scopeLabel(scope: User['siteScope']): string {
+  return scope === 'all' ? 'all sites' : `${scope.length} site(s)`;
+}
+
+/** Role, tenant and site scope must agree: customers only see their own sites, internal roles belong to the operator. */
+function checkRoleAndScope(d: DemoDb, role: Role, tenantId: string, siteScope: User['siteScope']) {
+  const tenant = d.tenants.find((t) => t.id === tenantId);
+  if (!tenant) throw new ValidationError('Tenant was not found.', ['Select a tenant']);
+  if (role === 'customer_auditor' && tenant.kind !== 'customer') throw new ValidationError('A customer or auditor account must belong to a customer tenant.', ['Choose a customer tenant']);
+  if (role !== 'customer_auditor' && tenant.kind !== 'operator') throw new ValidationError(`${ROLE_LABELS[role]} accounts belong to the operator tenant.`, ['Choose the operator tenant']);
+  if (siteScope === 'all') return;
+  for (const sid of siteScope) {
+    const site = d.sites.find((s) => s.id === sid);
+    if (!site) throw new ValidationError(`Site ${sid} was not found.`, ['Choose existing sites']);
+    if (tenant.kind === 'customer' && site.tenantId !== tenant.id) throw new ValidationError(`${site.name} does not belong to ${tenant.name}.`, ['Customer accounts can only be scoped to their own sites']);
+  }
 }

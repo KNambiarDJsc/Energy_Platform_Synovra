@@ -26,11 +26,41 @@ export interface Config {
   dataMode: DataMode;
   authMode: AuthMode;
   devJwtSecret: Uint8Array;
-  oidc: { issuer: string; audience: string; jwksUrl: string | null } | null;
+  oidc: {
+    issuer: string; audience: string; jwksUrl: string | null;
+    /** Public (browser) client for the Authorization Code + PKCE sign-in. Published at /meta. */
+    clientId: string | null; scope: string;
+    /** Which token the browser sends to the API: the access token (default) or the ID token. */
+    tokenUse: 'access' | 'id';
+  } | null;
   corsOrigins: string[];
   features: Features;
   /** Load the synthetic seed on start when the database is empty (demo mode only). */
   seedOnStart: boolean;
+  evidence: {
+    store: { kind: 'local'; dir: string } | { kind: 's3'; endpoint: string; bucket: string; region: string; accessKeyId: string; secretAccessKey: string };
+    scan: { kind: 'none' } | { kind: 'clamd'; host: string; port: number; timeoutMs: number };
+  };
+  limits: {
+    /** Requests per minute per signed-in user, and writes per minute per user. */
+    perUserPerMinute: number;
+    writesPerUserPerMinute: number;
+    /** Unauthenticated requests (sign-in, meta) per minute per client address. */
+    anonymousPerMinute: number;
+    /** Use X-Forwarded-For for the client address (only behind a trusted proxy). */
+    trustProxy: boolean;
+  };
+  /** Bearer token for GET /metrics. Unset: metrics are served only outside production. */
+  metricsToken: string | null;
+  /** Webhook (Slack-compatible JSON `{ text }`) notified about server errors, rate-limited. */
+  errorWebhookUrl: string | null;
+}
+
+function int(v: string | undefined, fallback: number): number {
+  if (v === undefined || v === '') return fallback;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 0) throw new Error(`Expected a non-negative integer, got "${v}"`);
+  return n;
 }
 
 function bool(v: string | undefined, fallback: boolean): boolean {
@@ -53,7 +83,30 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   let oidc: Config['oidc'] = null;
   if (authMode === 'oidc') {
     if (!env.OIDC_ISSUER || !env.OIDC_AUDIENCE) throw new Error('AUTH_MODE=oidc needs OIDC_ISSUER and OIDC_AUDIENCE.');
-    oidc = { issuer: env.OIDC_ISSUER, audience: env.OIDC_AUDIENCE, jwksUrl: env.OIDC_JWKS_URL ?? null };
+    const tokenUse = (env.OIDC_TOKEN_USE ?? 'access') as 'access' | 'id';
+    if (!['access', 'id'].includes(tokenUse)) throw new Error('OIDC_TOKEN_USE must be access or id.');
+    oidc = {
+      issuer: env.OIDC_ISSUER, audience: env.OIDC_AUDIENCE, jwksUrl: env.OIDC_JWKS_URL ?? null,
+      clientId: env.OIDC_CLIENT_ID || null, scope: env.OIDC_SCOPE || 'openid profile email', tokenUse,
+    };
+  }
+
+  let store: Config['evidence']['store'] = { kind: 'local', dir: env.EVIDENCE_DIR ?? './.data/evidence' };
+  if ((env.EVIDENCE_STORE ?? 'local') === 's3') {
+    const need = ['EVIDENCE_S3_ENDPOINT', 'EVIDENCE_S3_BUCKET', 'EVIDENCE_S3_ACCESS_KEY_ID', 'EVIDENCE_S3_SECRET_ACCESS_KEY'].filter((k) => !env[k]);
+    if (need.length) throw new Error(`EVIDENCE_STORE=s3 needs ${need.join(', ')}.`);
+    store = {
+      kind: 's3', endpoint: env.EVIDENCE_S3_ENDPOINT!.replace(/\/$/, ''), bucket: env.EVIDENCE_S3_BUCKET!, region: env.EVIDENCE_S3_REGION ?? 'us-east-1',
+      accessKeyId: env.EVIDENCE_S3_ACCESS_KEY_ID!, secretAccessKey: env.EVIDENCE_S3_SECRET_ACCESS_KEY!,
+    };
+  } else if (env.EVIDENCE_STORE && env.EVIDENCE_STORE !== 'local') {
+    throw new Error(`EVIDENCE_STORE must be local or s3, got "${env.EVIDENCE_STORE}"`);
+  }
+  const scan: Config['evidence']['scan'] = (env.EVIDENCE_SCAN ?? 'none') === 'clamd'
+    ? { kind: 'clamd', host: env.CLAMD_HOST ?? 'localhost', port: int(env.CLAMD_PORT, 3310), timeoutMs: int(env.CLAMD_TIMEOUT_MS, 30_000) }
+    : { kind: 'none' };
+  if (production && dataMode === 'pilot' && scan.kind === 'none' && !bool(env.EVIDENCE_ALLOW_UNSCANNED, false)) {
+    throw new Error('Pilot evidence uploads must be malware-scanned in production. Set EVIDENCE_SCAN=clamd, or EVIDENCE_ALLOW_UNSCANNED=true if your storage scans files itself.');
   }
 
   const secret = env.DEV_JWT_SECRET;
@@ -76,5 +129,14 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       assistant: false,
     },
     seedOnStart: bool(env.SEED_ON_START, dataMode === 'demo'),
+    evidence: { store, scan },
+    limits: {
+      perUserPerMinute: int(env.RATE_LIMIT_PER_MINUTE, 600),
+      writesPerUserPerMinute: int(env.RATE_LIMIT_WRITES_PER_MINUTE, 120),
+      anonymousPerMinute: int(env.RATE_LIMIT_ANONYMOUS_PER_MINUTE, 60),
+      trustProxy: bool(env.TRUST_PROXY, false),
+    },
+    metricsToken: env.METRICS_TOKEN || (production ? null : ''),
+    errorWebhookUrl: env.ERROR_WEBHOOK_URL || null,
   };
 }

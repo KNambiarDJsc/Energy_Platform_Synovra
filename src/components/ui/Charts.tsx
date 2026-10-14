@@ -53,7 +53,7 @@ export function TimeSeriesChart({
             <YAxis tick={AXIS} width={48} stroke="#9FB2BD" domain={['auto', 'auto']} unit={unit ? ` ${unit}` : ''} />
             <Tooltip
               labelFormatter={(v) => formatDateTime(String(v))}
-              formatter={(v: number | string, name) => [v === null ? 'No reading' : `${formatNumber(Number(v), 2)} ${unit}`, name]}
+              formatter={(v, name) => [v === null || v === undefined ? 'No reading' : `${formatNumber(Number(v), 2)} ${unit}`, name]}
               contentStyle={{ borderRadius: 8, border: '1px solid #D3DEE4', fontSize: 12 }}
             />
             {series.length > 1 && <Legend wrapperStyle={{ fontSize: 12 }} />}

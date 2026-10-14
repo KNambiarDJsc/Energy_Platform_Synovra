@@ -1,5 +1,6 @@
 /** Pilot mode: starts empty, loads reference data only, labels nothing as synthetic, no demo-only features. */
 import { readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildSeed } from '../../src/data/seed';
@@ -13,7 +14,7 @@ const reference = () => {
 };
 
 beforeAll(async () => {
-  server = await startServer({ seed: false, env: { DATA_MODE: 'pilot' } });
+  server = await startServer({ seed: false, env: { DATA_MODE: 'pilot', EVIDENCE_DIR: path.join(tmpdir(), `synovra-pilot-evidence-${process.pid}`) } });
   await bootstrap(server.handle.db, reference());
 });
 afterAll(async () => { await server?.close(); });
@@ -49,7 +50,14 @@ describe('pilot mode behaviour', () => {
       familyId: 'f1', manufacturerSerial: 'PILOT-0001', manufacturedOn: null, physicalLocation: 'Receiving bay', legacyId: null, acquisitionCostAed: 120,
     })).body;
     expect(battery.sourceSystem).toBe('Manual entry');
-    const t = (await lab.post('/tests', goodTest(battery.id))).body;
+    // A pilot record must point at the actual file: a file name alone is refused.
+    const nameOnly = await lab.post('/tests', goodTest(battery.id));
+    expect(nameOnly.status).toBe(422);
+    expect(nameOnly.body.error.message).toMatch(/Upload the evidence file itself/);
+    const t = (await lab.post('/tests', goodTest(battery.id, { evidenceFileName: null }))).body;
+    expect((await lab.post(`/tests/${t.id}/evidence`, { fileName: 'report.pdf', sizeKb: 10 })).status).toBe(422);
+    const uploaded = await lab.upload(`/tests/${t.id}/evidence`, 'report.pdf', '%PDF-1.7 pilot evidence');
+    expect(uploaded.body).toMatchObject({ storageKey: expect.stringMatching(/^sha256\/[0-9a-f]{64}$/), scanStatus: 'not_scanned' });
     await lab.post(`/tests/${t.id}/submit`);
     const p = (await lab.get(`/batteries/${battery.id}/passport`)).body;
     expect(p.events.every((e: { sourceSystem: string }) => !/demo/i.test(e.sourceSystem))).toBe(true);

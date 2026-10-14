@@ -328,13 +328,20 @@ export const evidenceFiles = pgTable('evidence_files', {
   sizeKb: integer('size_kb').notNull(),
   uploadedAt: ts('uploaded_at').notNull(),
   uploadedByName: text('uploaded_by_name').notNull(),
-  /** SHA-256 of the stored bytes once object storage is connected; a placeholder while metadata-only. */
+  /** SHA-256 of the stored bytes; a placeholder for metadata-only demo records. */
   checksum: text('checksum').notNull(),
   classification: text('classification', { enum: ['customer_visible', 'internal', 'controlled'] }).notNull(),
-  /** Object-storage key. Null while evidence is metadata-only. */
+  /** Content-addressed storage key (`sha256/<checksum>`). Null for metadata-only demo records. */
   storageKey: text('storage_key'),
+  contentType: text('content_type'),
+  scanStatus: text('scan_status', { enum: ['clean', 'not_scanned'] }),
   seq: seq(),
-}, (t) => [index('evidence_battery_idx').on(t.batteryId)]);
+}, (t) => [
+  index('evidence_battery_idx').on(t.batteryId),
+  // A stored file is addressed by its own checksum and always has a type and a scan result.
+  check('evidence_stored_consistent_ck', sql`${t.storageKey} IS NULL
+    OR (${t.storageKey} = 'sha256/' || ${t.checksum} AND ${t.contentType} IS NOT NULL AND ${t.scanStatus} IS NOT NULL)`),
+]);
 
 /* ------------------------------ Imports, reports, audit ------------------------------ */
 

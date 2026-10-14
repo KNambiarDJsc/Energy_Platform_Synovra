@@ -3,7 +3,7 @@ import { can, ConflictError, NotFoundError, ValidationError, isCustomerAudience 
 import { LIFECYCLE_LABELS } from '@/domain/lifecycle';
 import type { Battery, EvidenceFile } from '@/domain/types';
 import {
-  audit, canSeeBattery, canSeeSite, db, evidenceStatus, familyOf, getBatteryOrThrow, lastApprovedTest, latency,
+  audit, canSeeBattery, canSeeEvidence, canSeeSite, db, evidenceStatus, familyOf, getBatteryOrThrow, lastApprovedTest, latency,
   pctOfRated, pushEvent, qualityOf, authorize, siteName, sourceName, type Ctx,
 } from '../core';
 import type {
@@ -118,6 +118,23 @@ export function createBatteryRepository(ctx: Ctx): BatteryRepository {
       return db(ctx).families;
     },
 
+    async openEvidence(evidenceId) {
+      await latency(ctx);
+      const actor = authorize(ctx, 'battery.read');
+      const e = db(ctx).evidence.find((x) => x.id === evidenceId);
+      // Same visibility as the passport. Files outside scope are reported as missing, never as forbidden.
+      const allowed = !!e && canSeeEvidence(actor, e)
+        && (e.batteryId ? canSeeBattery(ctx, db(ctx).batteries.find((b) => b.id === e.batteryId)!) : can(actor.role, 'battery.import'));
+      if (!e || !allowed) {
+        audit(ctx, 'evidence.open', 'evidence', evidenceId, 'Evidence file not found or outside access scope', 'denied');
+        ctx.store.save();
+        throw new NotFoundError('Evidence file');
+      }
+      audit(ctx, 'evidence.open', 'evidence', e.id, `Opened ${e.fileName}${e.storageKey ? '' : ' (metadata only)'}`);
+      ctx.store.save();
+      return e;
+    },
+
     async get(id) {
       await latency(ctx);
       authorize(ctx, 'battery.read');
@@ -128,8 +145,7 @@ export function createBatteryRepository(ctx: Ctx): BatteryRepository {
       const redactions: string[] = [];
       const family = familyOf(ctx, b);
       const evidenceById = new Map(d.evidence.map((e) => [e.id, e]));
-      const visibleEvidence = (e: EvidenceFile) =>
-        customer ? e.classification === 'customer_visible' : e.classification !== 'controlled' || can(actor.role, 'process.controlled');
+      const visibleEvidence = (e: EvidenceFile) => canSeeEvidence(actor, e);
 
       const events: TimelineEvent[] = d.events
         .filter((e) => e.batteryId === b.id)

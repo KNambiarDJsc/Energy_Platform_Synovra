@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from './Button';
 import { Field, Textarea } from './Field';
 import { Modal } from './Overlay';
@@ -30,12 +30,15 @@ export function ReasonDialog({
   const [reason, setReason] = useState('');
   const [touched, setTouched] = useState(false);
 
-  useEffect(() => {
+  // Start each opening with an empty reason (state adjusted during render, not in an effect).
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setReason('');
       setTouched(false);
     }
-  }, [open]);
+  }
 
   const tooShort = requireReason && reason.trim().length < 5;
 

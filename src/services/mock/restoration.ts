@@ -1,9 +1,9 @@
 import { reasonSchema } from '@/domain/schemas';
 import { canTransition } from '@/domain/lifecycle';
 import { ConflictError, NotFoundError, ValidationError, can } from '@/domain/permissions';
-import type { EvidenceFile, RestorationAttempt } from '@/domain/types';
+import type { RestorationAttempt } from '@/domain/types';
 import {
-  audit, canSeeBattery, db, familyOf, getBatteryOrThrow, latency, pushEvent, authorize, ruleCheck, setState, type Ctx,
+  audit, canSeeBattery, db, familyOf, getBatteryOrThrow, latency, newEvidence, pushEvent, authorize, ruleCheck, setState, type Ctx,
 } from '../core';
 import type { AttemptView, BatchResults, EconomicsResult, EconomicsScenario, RestorationRepository } from '../types';
 import { toTestView } from './tests';
@@ -206,18 +206,14 @@ export function createRestorationRepository(ctx: Ctx): RestorationRepository {
       return a;
     },
 
-    async addEvidence(attemptId, fileName, sizeKb) {
+    async addEvidence(attemptId, fileName, sizeKb, stored) {
       await latency(ctx);
-      const actor = authorize(ctx, 'restoration.write');
+      authorize(ctx, 'restoration.write');
       const a = attemptOrThrow(attemptId);
-      if (!/\.(pdf|png|jpe?g|csv|xlsx)$/i.test(fileName)) throw new ValidationError('Evidence file type is not accepted (pdf, png, jpg, csv, xlsx).');
-      const ev: EvidenceFile = {
-        id: ctx.store.nextId('ev'), batteryId: a.batteryId, kind: 'other', fileName, sizeKb,
-        uploadedAt: ctx.store.now(), uploadedByName: actor.name, checksum: 'metadata-only-demo'.padEnd(64, '0'), classification: 'controlled',
-      };
+      const ev = newEvidence(ctx, { batteryId: a.batteryId, kind: 'other', fileName, sizeKb, classification: 'controlled' }, stored);
       db(ctx).evidence.push(ev);
       a.evidenceIds.push(ev.id);
-      audit(ctx, 'evidence.attach', 'attempt', a.id, `Attached ${fileName} (metadata only)`);
+      audit(ctx, 'evidence.attach', 'attempt', a.id, stored ? `Attached ${fileName} (${stored.sizeKb} KB, SHA-256 ${stored.checksum.slice(0, 12)}…)` : `Attached ${fileName} (metadata only)`);
       ctx.store.save();
       return a;
     },

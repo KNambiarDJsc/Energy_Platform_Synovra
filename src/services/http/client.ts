@@ -26,34 +26,56 @@ function toError(status: number, body: ErrorBody | null): Error {
   return err;
 }
 
-export async function request<T>(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<T> {
+async function send(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<Response> {
   const token = currentToken();
-  let res: Response;
+  const form = typeof FormData !== 'undefined' && body instanceof FormData;
   try {
-    res = await fetch(`${API_BASE_URL}/api/v1${path}`, {
+    return await fetch(`${API_BASE_URL}/api/v1${path}`, {
       method,
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        // FormData sets its own multipart boundary.
+        ...(body === undefined || form ? {} : { 'Content-Type': 'application/json' }),
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : form ? (body as FormData) : JSON.stringify(body),
     });
   } catch {
     throw new Error(`The Synovra API is not reachable at ${API_BASE_URL}. Check that it is running.`);
   }
-  const data = (await res.json().catch(() => null)) as unknown;
-  if (res.status === 401) {
-    // Expired or revoked token: drop it so the app returns to sign-in.
-    clearApiSession();
-  }
-  if (!res.ok) throw toError(res.status, data as ErrorBody | null);
-  return data as T;
+}
+
+async function failure(res: Response): Promise<Error> {
+  const data = (await res.json().catch(() => null)) as ErrorBody | null;
+  return toError(res.status, data);
+}
+
+export async function request<T>(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<T> {
+  const res = await send(method, path, body);
+  // Expired or revoked token: drop it so the app returns to sign-in.
+  if (res.status === 401) clearApiSession();
+  if (!res.ok) throw await failure(res);
+  return (await res.json().catch(() => null)) as T;
+}
+
+/** Fetches a binary response (evidence files) with the caller's token. */
+export async function download(path: string): Promise<{ blob: Blob; fileName: string }> {
+  const res = await send('GET', path);
+  if (res.status === 401) clearApiSession();
+  if (!res.ok) throw await failure(res);
+  const disposition = res.headers.get('Content-Disposition') ?? '';
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+  return { blob: await res.blob(), fileName: encoded ? decodeURIComponent(encoded) : 'evidence' };
 }
 
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body: unknown = {}) => request<T>('POST', path, body),
   patch: <T>(path: string, body: unknown = {}) => request<T>('PATCH', path, body),
+  upload: <T>(path: string, file: Blob, fileName: string) => {
+    const form = new FormData();
+    form.append('file', file, fileName);
+    return request<T>('POST', path, form);
+  },
 };
 
 /** Builds a query string, leaving out empty values. */

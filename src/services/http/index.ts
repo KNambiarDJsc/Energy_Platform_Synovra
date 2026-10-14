@@ -14,7 +14,7 @@ import type {
   ReportRepository, RestorationRepository, Services, TelemetryRepository, TelemetrySummary, TestRepository,
   AdminRepository, OverviewRepository,
 } from '../types';
-import { api, qs } from './client';
+import { api, download, qs } from './client';
 import { currentActor } from './session';
 
 const NOT_CONNECTED = 'Monitoring is not connected in this deployment. Telemetry is unknown, not normal.';
@@ -32,6 +32,8 @@ function batteries(): BatteryRepository {
     reissueLabel: (id, reason) => api.post(`/batteries/${enc(id)}/reissue-label`, { reason }),
     exportCsv: (ids) => api.get(`/batteries/export${qs({ ids: ids?.join(',') })}`),
     families: () => api.get('/battery-families'),
+    openEvidence: (id) => api.get(`/evidence/${enc(id)}`),
+    downloadEvidence: (id) => download(`/evidence/${enc(id)}/content`),
   };
 }
 
@@ -56,7 +58,7 @@ function tests(): TestRepository {
     approve: (id, reason) => api.post(`/tests/${enc(id)}/approve`, { reason }),
     reject: (id, reason) => api.post(`/tests/${enc(id)}/reject`, { reason }),
     requestRework: (id, reason) => api.post(`/tests/${enc(id)}/rework`, { reason }),
-    attachEvidence: (id, fileName, sizeKb) => api.post(`/tests/${enc(id)}/evidence`, { fileName, sizeKb }),
+    attachEvidence: (id, fileName, sizeKb, _stored, file) => (file ? api.upload(`/tests/${enc(id)}/evidence`, file, fileName) : api.post(`/tests/${enc(id)}/evidence`, { fileName, sizeKb })),
   };
 }
 
@@ -69,7 +71,7 @@ function restoration(): RestorationRepository {
     markCandidate: (batteryId, reason) => api.post(`/batteries/${enc(batteryId)}/restoration-candidate`, { reason }),
     createAttempt: (args) => api.post('/restoration/attempts', args),
     addNote: (id, text) => api.post(`/restoration/attempts/${enc(id)}/notes`, { text }),
-    addEvidence: (id, fileName, sizeKb) => api.post(`/restoration/attempts/${enc(id)}/evidence`, { fileName, sizeKb }),
+    addEvidence: (id, fileName, sizeKb, _stored, file) => (file ? api.upload(`/restoration/attempts/${enc(id)}/evidence`, file, fileName) : api.post(`/restoration/attempts/${enc(id)}/evidence`, { fileName, sizeKb })),
     submitForReview: (id, afterTestId) => api.post(`/restoration/attempts/${enc(id)}/submit`, { afterTestId }),
     decide: (id, decision, reason) => api.post(`/restoration/attempts/${enc(id)}/decide`, { decision, reason }),
   };
@@ -157,6 +159,8 @@ function admin(): AdminRepository {
     notifications: () => api.get('/admin/notifications'),
     setNotification: (id, enabled) => api.patch(`/admin/notifications/${enc(id)}`, { enabled }),
     setUserActive: (id, active) => api.patch(`/admin/users/${enc(id)}`, { active }),
+    createUser: (input) => api.post('/admin/users', input),
+    updateUser: (id, patch) => api.patch(`/admin/users/${enc(id)}`, patch),
     audit: (f = {}) => api.get(`/audit-events${qs({ ...f })}`),
     resetDemo: async () => { await api.post('/admin/reset-demo'); },
   };

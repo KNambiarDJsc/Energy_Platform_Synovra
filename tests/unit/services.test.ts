@@ -463,3 +463,56 @@ describe('string-level versus battery-level tests', () => {
     expect(p.lastApprovedTest?.level).toBe('battery');
   });
 });
+
+describe('user administration', () => {
+  const newUser = (over: Record<string, unknown> = {}) => ({
+    name: 'Noor Haddad', title: 'Lab operator', email: 'Noor.Haddad@example.invalid', role: 'lab_operator' as const,
+    tenantId: 't_ops', siteScope: 'all' as const, ...over,
+  });
+
+  it('lets an administrator add a user, with a normalised unique email, and audits it', async () => {
+    const h = harness(USERS.admin);
+    const u = await h.svc.admin.createUser(newUser());
+    expect(u).toMatchObject({ email: 'noor.haddad@example.invalid', active: true, role: 'lab_operator' });
+    expect(h.store.db.audit[0]).toMatchObject({ action: 'admin.user_create', entityId: u.id });
+    expect(await rejects(h.svc.admin.createUser(newUser({ email: 'NOOR.haddad@example.invalid' })))).toBeInstanceOf(ConflictError);
+  });
+
+  it('refuses user management to everyone except administrators', async () => {
+    const h = harness(USERS.eng);
+    expect(await rejects(h.svc.admin.createUser(newUser()))).toBeInstanceOf(ForbiddenError);
+    expect(await rejects(h.svc.admin.updateUser(USERS.lab, { role: 'battery_engineer' }))).toBeInstanceOf(ForbiddenError);
+  });
+
+  it('keeps role, tenant and site scope consistent', async () => {
+    const h = harness(USERS.admin);
+    // Internal roles belong to the operator tenant; customers to a customer tenant, scoped to their own sites.
+    expect((await rejects(h.svc.admin.createUser(newUser({ tenantId: 't_custA' })))).message).toMatch(/operator tenant/);
+    expect((await rejects(h.svc.admin.createUser(newUser({ role: 'customer_auditor' })))).message).toMatch(/customer tenant/);
+    expect((await rejects(h.svc.admin.createUser(newUser({ role: 'customer_auditor', tenantId: 't_custA', siteScope: ['s3'] })))).message).toMatch(/does not belong/);
+    expect((await rejects(h.svc.admin.createUser(newUser({ siteScope: ['nope'] })))).message).toMatch(/not found/);
+    const c = await h.svc.admin.createUser(newUser({ email: 'auditor@example.invalid', role: 'customer_auditor', tenantId: 't_custA', siteScope: ['s1'] }));
+    expect(c.siteScope).toEqual(['s1']);
+  });
+
+  it('changes role and scope with a before/after audit entry, and the change takes effect', async () => {
+    const h = harness(USERS.admin);
+    const u = await h.svc.admin.updateUser(USERS.lab2, { role: 'battery_engineer', siteScope: ['s1'] });
+    expect(u).toMatchObject({ role: 'battery_engineer', siteScope: ['s1'] });
+    expect(h.store.db.audit[0].summary).toMatch(/role: Lab operator → Battery engineer; site scope: all sites → 1 site\(s\)/);
+    h.as(USERS.lab2);
+    expect(h.svc.actor().role).toBe('battery_engineer');
+  });
+
+  it('protects against lock-out: administrators cannot change their own role or deactivate themselves', async () => {
+    const h = harness(USERS.admin);
+    expect((await rejects(h.svc.admin.updateUser(USERS.admin, { role: 'finance_owner' }))).message).toMatch(/own role/);
+    expect((await rejects(h.svc.admin.setUserActive(USERS.admin, false))).message).toMatch(/own account/);
+    const second = await h.svc.admin.createUser(newUser({ email: 'admin2@example.invalid', role: 'platform_admin' }));
+    h.as(second.id);
+    // A second administrator may change the first one's role, which takes effect immediately.
+    await h.svc.admin.updateUser(USERS.admin, { role: 'finance_owner' });
+    h.as(USERS.admin);
+    expect(await rejects(h.svc.admin.setUserActive(second.id, false))).toBeInstanceOf(ForbiddenError);
+  });
+});
