@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { Badge, FreshnessBadge, ValueKindBadge } from '@/components/ui/Badge';
-import { DataTable, type Column } from '@/components/ui/DataTable';
+import { DataTable, DateTimeCell, type Column } from '@/components/ui/DataTable';
 import { Notice, PageHeader, Section, Stat } from '@/components/ui/Layout';
 import { LoadingBlock, QueryView } from '@/components/ui/States';
 import { formatDateTime, formatNumber } from '@/lib/format';
@@ -36,13 +36,13 @@ export default function MonitoringPage() {
       key: 'battery', header: 'Battery', sort: (s) => s.batteryLabel,
       cell: (s) =>
         s.batteryId ? (
-          <Link href={`/app/batteries/${s.batteryId}?tab=telemetry`} className="mono text-teal-800 underline underline-offset-2">{s.batteryLabel}</Link>
+          <Link href={`/app/batteries/${s.batteryId}?tab=telemetry`} className="mono font-semibold text-teal-700 underline-offset-4 hover:underline">{s.batteryLabel}</Link>
         ) : (
           <Badge tone="amber">Unmapped</Badge>
         ),
     },
-    { key: 'slot', header: 'Slot', cell: (s) => <span>{s.slotLabel ?? '—'}<span className="block text-xs text-muted">{s.siteName}</span></span> },
-    { key: 'last', header: 'Last reading', sort: (s) => s.lastReadingAt, cell: (s) => (s.lastReadingAt ? formatDateTime(s.lastReadingAt) : <span className="text-muted">No reading</span>) },
+    { key: 'slot', header: 'Slot', cell: (s) => <span>{s.slotLabel ?? 'Not mapped'}<span className="block text-xs text-muted">{s.siteName}</span></span> },
+    { key: 'last', header: 'Last reading', sort: (s) => s.lastReadingAt, cell: (s) => (s.lastReadingAt ? <DateTimeCell iso={s.lastReadingAt} /> : <span className="text-muted">No reading</span>) },
     { key: 'fresh', header: 'Freshness', cell: (s) => <FreshnessBadge freshness={s.freshness} /> },
     { key: 'comp', header: 'Completeness (30 d)', align: 'right', sort: (s) => s.completenessPct, cell: (s) => (s.completenessPct === null ? 'Unknown' : `${formatNumber(s.completenessPct, 0)}%`) },
     {
@@ -51,7 +51,7 @@ export default function MonitoringPage() {
     },
     {
       key: 'map', header: 'Mapping', mobile: 'hide',
-      cell: (s) => (s.assignment ? <Badge tone={s.assignment.mappingQuality === 'verified' ? 'green' : 'amber'}>{s.assignment.mappingQuality === 'verified' ? 'Verified' : 'Unverified'}</Badge> : '—'),
+      cell: (s) => (s.assignment ? <Badge tone={s.assignment.mappingQuality === 'verified' ? 'green' : 'amber'}>{s.assignment.mappingQuality === 'verified' ? 'Verified' : 'Unverified'}</Badge> : <span className="text-muted">Not mapped</span>),
     },
   ];
 
@@ -76,19 +76,15 @@ export default function MonitoringPage() {
         </QueryView>
 
         <Section title="Gateways" tone="flush">
-          <div className="p-3 md:p-4">
-            <QueryView query={gateways} skeleton={<LoadingBlock rows={3} />}>
-              {(rows) => <DataTable caption="Gateways" columns={gwCols} rows={rows} rowKey={(g) => g.gateway.id} />}
-            </QueryView>
-          </div>
+          <QueryView query={gateways} skeleton={<LoadingBlock rows={3} />}>
+            {(rows) => <DataTable caption="Gateways" columns={gwCols} rows={rows} rowKey={(g) => g.gateway.id} />}
+          </QueryView>
         </Section>
 
         <Section title="Sensors and mapping" description="A reading is attributed to a battery only through the sensor-to-slot mapping valid at that time." tone="flush">
-          <div className="p-3 md:p-4">
-            <QueryView query={sensors} skeleton={<LoadingBlock rows={4} />}>
-              {(rows) => <DataTable caption="Sensors" columns={sCols} rows={rows} rowKey={(s) => s.sensor.id} pageSize={12} />}
-            </QueryView>
-          </div>
+          <QueryView query={sensors} skeleton={<LoadingBlock rows={4} />}>
+            {(rows) => <DataTable caption="Sensors" columns={sCols} rows={rows} rowKey={(s) => s.sensor.id} pageSize={12} />}
+          </QueryView>
         </Section>
       </div>
     </>

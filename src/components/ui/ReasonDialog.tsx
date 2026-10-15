@@ -81,7 +81,7 @@ export function ReasonDialog({
           </Field>
         )}
         {error && (
-          <p role="alert" className="rounded-md border border-[#EBC4C4] bg-critical-50 p-3 text-sm text-critical-700">
+          <p role="alert" className="rounded-lg bg-critical-50 p-3 text-sm text-critical-700">
             {error}
           </p>
         )}

@@ -486,7 +486,7 @@ export interface Prediction {
   baseline: string;
   /** Inputs must exist at decision time; list what was (and was not) used. */
   inputsUsed: string;
-  status: 'shadow' | 'validated';
+  status: 'shadow' | 'validated'; // taste-skill-ignore: "shadow mode" is the model status, not a style
   reviewState: 'unreviewed' | 'agreed' | 'disagreed';
   reviewedByName: string | null;
 }

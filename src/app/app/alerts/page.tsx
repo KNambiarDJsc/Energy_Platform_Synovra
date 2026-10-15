@@ -5,9 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { AlertStateBadge, Badge, SeverityBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { DataTable, type Column } from '@/components/ui/DataTable';
-import { Field, Input, Select, Textarea } from '@/components/ui/Field';
-import { KeyValue, Notice, PageHeader } from '@/components/ui/Layout';
+import { DataTable, DateTimeCell, type Column } from '@/components/ui/DataTable';
+import { chipClass } from '@/components/ui/buttonClass';
+import { Field, Input, Select, Textarea, ToolbarSelect } from '@/components/ui/Field';
+import { KeyValue, Notice, PageHeader, TableCard } from '@/components/ui/Layout';
 import { Drawer, Modal } from '@/components/ui/Overlay';
 import { ReasonDialog } from '@/components/ui/ReasonDialog';
 import { EmptyState, LoadingBlock, QueryView } from '@/components/ui/States';
@@ -132,27 +133,27 @@ function AlertDrawer({ id, onClose }: { id: string | null; onClose: () => void }
             {a.evidence.length > 0 && (
               <div>
                 <p className="text-[13px] font-medium text-muted">Evidence</p>
-                <dl className="mt-1 divide-y divide-line rounded-md border border-line text-sm">
+                <dl className="mt-1 space-y-0.5 overflow-hidden rounded-lg [&>*]:bg-canvas [&>*]:px-3.5 text-sm">
                   {a.evidence.map((e) => (
                     <div key={e.label} className="flex justify-between gap-3 px-3 py-2"><dt className="text-muted">{e.label}</dt><dd className="text-right">{e.value}</dd></div>
                   ))}
                 </dl>
               </div>
             )}
-            {a.resolutionReason && <p className="rounded-md bg-canvas p-3 text-sm"><span className="font-medium">Resolution:</span> {a.resolutionReason}</p>}
+            {a.resolutionReason && <p className="rounded-lg bg-canvas p-3 text-sm"><span className="font-medium">Resolution:</span> {a.resolutionReason}</p>}
             {a.history.length > 0 && (
               <div>
                 <p className="text-[13px] font-medium text-muted">History</p>
                 <ul className="mt-1 space-y-1.5 text-sm">
                   {a.history.map((h, i) => (
-                    <li key={i}><span className="text-muted">{formatDateTime(h.at)} · {h.actorName}:</span> {h.from ? `${titleCase(h.from)} → ` : ''}{titleCase(h.to)}{h.note ? ` — ${h.note}` : ''}</li>
+                    <li key={i}><span className="text-muted">{formatDateTime(h.at)} · {h.actorName}:</span> {h.from ? `${titleCase(h.from)} → ` : ''}{titleCase(h.to)}{h.note ? ` · ${h.note}` : ''}</li>
                   ))}
                 </ul>
               </div>
             )}
 
             {canAct && (
-              <div className="space-y-3 border-t border-line pt-4">
+              <div className="space-y-3 pt-4">
                 <div className="flex flex-wrap gap-2">
                   {a.state === 'open' && <Button loading={ack.isPending} onClick={() => ack.mutate(a.id)}>Acknowledge</Button>}
                   {(a.state === 'acknowledged' || a.state === 'assigned') && <Button loading={start.isPending} onClick={() => start.mutate(a.id)}>Start work</Button>}
@@ -173,7 +174,7 @@ function AlertDrawer({ id, onClose }: { id: string | null; onClose: () => void }
                 )}
               </div>
             )}
-            {!canAct && <p className="border-t border-line pt-4 text-sm text-muted">Your role can read alerts but not act on them.</p>}
+            {!canAct && <p className="pt-4 text-sm text-muted">Your role can read alerts but not act on them.</p>}
           </div>
         )}
       </Drawer>
@@ -212,35 +213,36 @@ function AlertsList({ onOpen }: { onOpen: (id: string) => void }) {
     },
     { key: 'state', header: 'State', cell: (a) => <AlertStateBadge state={a.state} /> },
     { key: 'where', header: 'Site / battery', cell: (a) => <span>{a.siteName}{a.batteryLabel && <span className="mono block text-xs text-muted">{a.batteryLabel}</span>}</span> },
-    { key: 'src', header: 'Raised by', mobile: 'hide', cell: (a) => <span className="text-xs">{a.source.kind === 'model' ? 'Model' : a.source.kind === 'rule' ? 'Rule' : 'System'}: {a.source.name}</span> },
+    { key: 'src', header: 'Raised by', mobile: 'hide', hideBelow: '2xl', cell: (a) => <span className="text-xs">{a.source.kind === 'model' ? 'Model' : a.source.kind === 'rule' ? 'Rule' : 'System'}: {a.source.name}</span> },
     { key: 'assignee', header: 'Assignee', cell: (a) => a.assigneeName ?? <span className="text-muted">Unassigned</span> },
-    { key: 'when', header: 'Raised', sort: (a) => a.createdAt, cell: (a) => <span>{formatDateTime(a.createdAt)}{a.freshness.stale && <span className="block text-xs text-amber-700">Stale evaluation</span>}</span> },
+    { key: 'when', header: 'Raised', sort: (a) => a.createdAt, cell: (a) => <DateTimeCell iso={a.createdAt} note={a.freshness.stale && <span className="block text-xs text-amber-700">Stale evaluation</span>} /> },
   ];
   return (
     <div className="space-y-4">
-      <div className="card grid gap-3 p-4 sm:grid-cols-3">
-        <Field label="Show">
-          <Select value={active ? 'active' : 'all'} onChange={(e) => setActive(e.target.value === 'active')}>
-            <option value="active">Active alerts</option><option value="all">All alerts, including closed</option>
-          </Select>
-        </Field>
-        <Field label="Severity">
-          <Select value={severity} onChange={(e) => setSeverity(e.target.value as Severity | '')}>
-            <option value="">Any</option><option value="critical">Critical</option><option value="warning">Warning</option><option value="info">Info</option>
-          </Select>
-        </Field>
-        <Field label="State">
-          <Select value={state} onChange={(e) => setState(e.target.value as AlertState | '')}>
-            <option value="">Any</option>
-            {(['open', 'acknowledged', 'assigned', 'in_progress', 'resolved', 'closed'] as const).map((s) => <option key={s} value={s}>{titleCase(s)}</option>)}
-          </Select>
-        </Field>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2" role="group" aria-label="Filter alerts">
+        <div className="flex gap-2">
+          <button type="button" aria-pressed={active} className={chipClass(active, 'min-h-[40px]')} onClick={() => setActive(true)}>
+            Active
+          </button>
+          <button type="button" aria-pressed={!active} className={chipClass(!active, 'min-h-[40px]')} onClick={() => setActive(false)}>
+            All, including closed
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+        <ToolbarSelect label="Severity" value={severity} onChange={(e) => setSeverity(e.target.value as Severity | '')}>
+          <option value="">Any severity</option><option value="critical">Critical</option><option value="warning">Warning</option><option value="info">Info</option>
+        </ToolbarSelect>
+        <ToolbarSelect label="State" value={state} onChange={(e) => setState(e.target.value as AlertState | '')}>
+          <option value="">Any state</option>
+          {(['open', 'acknowledged', 'assigned', 'in_progress', 'resolved', 'closed'] as const).map((s) => <option key={s} value={s}>{titleCase(s)}</option>)}
+        </ToolbarSelect>
+        </div>
       </div>
       <QueryView query={q} skeleton={<LoadingBlock rows={5} />} isEmpty={(d) => d.length === 0} empty={<EmptyState title="No alerts match" description="Nothing needs attention with these filters." />}>
         {(rows) => (
-          <div className="card p-3 md:p-2">
+          <TableCard>
             <DataTable caption="Alerts" columns={cols} rows={rows} rowKey={(a) => a.id} initialSort={{ key: 'sev', dir: 'asc' }} pageSize={12} />
-          </div>
+          </TableCard>
         )}
       </QueryView>
     </div>
@@ -259,7 +261,7 @@ function TasksList() {
     { key: 'prio', header: 'Priority', cell: (t) => <Badge tone={t.priority === 'high' ? 'red' : 'neutral'}>{titleCase(t.priority)}</Badge> },
     { key: 'site', header: 'Site / battery', cell: (t) => <span>{t.siteName}{t.batteryLabel && <span className="mono block text-xs text-muted">{t.batteryLabel}</span>}</span> },
     { key: 'who', header: 'Assignee', cell: (t) => t.assigneeName ?? <span className="text-muted">Unassigned</span> },
-    { key: 'due', header: 'Due', sort: (t) => t.dueOn, cell: (t) => (t.dueOn ? formatDate(t.dueOn) : '—') },
+    { key: 'due', header: 'Due', sort: (t) => t.dueOn, cell: (t) => (t.dueOn ? formatDate(t.dueOn) : <span className="text-muted">No due date</span>) },
     {
       key: 'act', header: 'Action', mobile: 'show',
       cell: (t) =>
@@ -278,7 +280,11 @@ function TasksList() {
         <div><Button icon={<Plus className="h-4 w-4" aria-hidden />} onClick={() => setCreate(true)}>Create task</Button></div>
       )}
       <QueryView query={q} skeleton={<LoadingBlock rows={4} />} isEmpty={(d) => d.length === 0} empty={<EmptyState title="No service tasks" description="Tasks created from alerts or by the assistant (after confirmation) appear here." />}>
-        {(rows) => <div className="card p-3 md:p-2"><DataTable caption="Service tasks" columns={cols} rows={rows} rowKey={(t) => t.id} initialSort={{ key: 'due', dir: 'asc' }} pageSize={12} /></div>}
+        {(rows) => (
+          <TableCard>
+            <DataTable caption="Service tasks" columns={cols} rows={rows} rowKey={(t) => t.id} initialSort={{ key: 'due', dir: 'asc' }} pageSize={12} />
+          </TableCard>
+        )}
       </QueryView>
       {create && <TaskModal open onOpenChange={setCreate} />}
     </div>

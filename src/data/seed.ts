@@ -90,11 +90,11 @@ export function buildSeed(): DemoDb {
 
   /* ------------------------------ Sites, strings, slots ------------------------------ */
   const sites: Site[] = [
-    { id: 's1', tenantId: 't_custA', name: 'Demo Site A — Rooftop Cabinet', city: 'Dubai', kind: 'Rooftop cabinet site' },
-    { id: 's2', tenantId: 't_custA', name: 'Demo Site B — Indoor Battery Room', city: 'Abu Dhabi', kind: 'Indoor site' },
-    { id: 's3', tenantId: 't_custB', name: 'Demo Site C — Ground Tower', city: 'Sharjah', kind: 'Ground tower site' },
-    { id: 's4', tenantId: 't_custB', name: 'Demo Site D — Exchange Battery Room', city: 'Al Ain', kind: 'Exchange / hub battery room' },
-    { id: 's5', tenantId: 't_custB', name: 'Demo Site E — Rooftop Cabinet', city: 'Fujairah', kind: 'Rooftop cabinet site' },
+    { id: 's1', tenantId: 't_custA', name: 'Demo Site A, Rooftop Cabinet', city: 'Dubai', kind: 'Rooftop cabinet site' },
+    { id: 's2', tenantId: 't_custA', name: 'Demo Site B, Indoor Battery Room', city: 'Abu Dhabi', kind: 'Indoor site' },
+    { id: 's3', tenantId: 't_custB', name: 'Demo Site C, Ground Tower', city: 'Sharjah', kind: 'Ground tower site' },
+    { id: 's4', tenantId: 't_custB', name: 'Demo Site D, Exchange Battery Room', city: 'Al Ain', kind: 'Exchange / hub battery room' },
+    { id: 's5', tenantId: 't_custB', name: 'Demo Site E, Rooftop Cabinet', city: 'Fujairah', kind: 'Rooftop cabinet site' },
   ];
   const banks: Bank[] = sites.map((s, i) => ({ id: `b${i + 1}`, siteId: s.id, name: 'Bank 1' }));
   const strDefs = [
@@ -147,7 +147,7 @@ export function buildSeed(): DemoDb {
     awaiting_review: 'Lab review shelf',
     rework: 'Rework bench',
     qualified: 'Qualified store',
-    reserved: 'Qualified store — reserved shelf',
+    reserved: 'Qualified store, reserved shelf',
     deployed: 'Installed at site',
     returned: 'Returns bay',
     rejected: 'Quarantine shelf',
@@ -286,7 +286,7 @@ export function buildSeed(): DemoDb {
       lifecycleState: p.state,
       siteId: null,
       currentAssignmentId: null,
-      physicalLocation: p.state === 'qualified' ? `Qualified store — rack Q${ri(1, 4)}` : LOC[p.state],
+      physicalLocation: p.state === 'qualified' ? `Qualified store, rack Q${ri(1, 4)}` : LOC[p.state],
       restorationBatchId: batch,
       replacesBatteryId: null,
       createdAt: iso(intakeAgo, 8, 30),
@@ -581,7 +581,7 @@ export function buildSeed(): DemoDb {
       id: `ALR-${1001 + alerts.length}`, type, state, severity, batteryId, siteId, source: src, title, detail,
       recommendedAction: rec, createdAt: created, lastEvaluatedAt: iso(0, 4, 30), assigneeId: null,
       evidence: [], resolutionReason: null,
-      history: [{ at: created, actorName: src.kind === 'model' ? 'Model (shadow mode)' : 'System rule engine', from: null, to: 'open', note: 'Alert raised.' }],
+      history: [{ at: created, actorName: src.kind === 'model' ? 'Model (shadow mode)' : 'System rule engine', from: null, to: 'open', note: 'Alert raised.' }], // taste-skill-ignore: "shadow mode" is the model status, not a style
       ...o,
     });
   };
@@ -597,11 +597,11 @@ export function buildSeed(): DemoDb {
   mkAlert('voltage_threshold', 'in_progress', 'warning', 's1', b1p2?.id ?? null, 'Float voltage below configured band', 'Measured float voltage has drifted 0.18 V below the string median over 6 days.', 'Check charger setting and terminal torque; re-measure on site.', 150, ruleV('float-voltage-band', '2.0.0'), { assigneeId: 'u_field1', evidence: [{ label: 'Latest measured', value: '13.38 V' }, { label: 'String median', value: '13.56 V' }, { label: 'Configured band', value: '13.40–13.80 V' }] });
   mkAlert('temperature_threshold', 'open', 'critical', 's4', b5p1?.id ?? null, 'Cell temperature above limit', 'Measured temperature exceeded the configured limit on three consecutive readings.', 'Inspect ventilation and cooling; treat as urgent until re-measured.', 9, ruleV('temperature-limit', '1.4.0'), { evidence: [{ label: 'Latest measured', value: '36.4 °C' }, { label: 'Configured limit', value: '35.0 °C' }] });
   mkAlert('resistance_trend', 'acknowledged', 'warning', 's1', b1p4?.id ?? null, 'Internal resistance trending upward', 'Daily resistance readings are up 14% over 30 days (rule-based comparison, not a model).', 'Schedule a bench check at next visit.', 300, ruleV('resistance-trend', '1.0.0'), { assigneeId: 'u_noc', evidence: [{ label: '30-day change', value: '+14%' }] });
-  mkAlert('suspected_battery_issue', 'open', 'warning', 's2', b3p2?.id ?? null, 'Possible battery issue flagged by anomaly model', 'Model flagged this unit as different from its string peers. Shadow mode: not validated.', 'Engineer to review telemetry and decide whether a service visit is needed.', 30, { kind: 'model', name: 'string-anomaly-detector', version: '0.2.0-shadow' }, { evidence: [{ label: 'Model status', value: 'Shadow mode — not validated' }, { label: 'Telemetry age', value: 'Stale (gateway degraded)' }] });
+  mkAlert('suspected_battery_issue', 'open', 'warning', 's2', b3p2?.id ?? null, 'Possible battery issue flagged by anomaly model', 'Model flagged this unit as different from its string peers. Shadow mode: not validated.', 'Engineer to review telemetry and decide whether a service visit is needed.', 30, { kind: 'model', name: 'string-anomaly-detector', version: '0.2.0-shadow' }, { evidence: [{ label: 'Model status', value: 'Shadow mode, not validated' }, { label: 'Telemetry age', value: 'Stale (gateway degraded)' }] });
   mkAlert('warranty_review', 'open', 'info', 's3', b4p1?.id ?? null, 'Warranty term ending soon', 'Warranty ends within 45 days. Review condition evidence before expiry.', 'Compile the warranty evidence pack and confirm any open concerns.', 200, ruleV('warranty-window', '1.0.0'));
-  mkAlert('voltage_threshold', 'resolved', 'warning', 's1', b2p1?.id ?? null, 'Float voltage outside band (resolved)', 'Charger setpoint corrected on site; voltage returned inside band.', 'None — resolved.', 460, ruleV('float-voltage-band', '2.0.0'), { assigneeId: 'u_field1', resolutionReason: 'Charger setpoint corrected on site. Re-measured within band.' });
-  mkAlert('temperature_threshold', 'closed', 'info', 's5', null, 'Room temperature spike (closed)', 'Short excursion linked to maintenance work in the room.', 'None — closed.', 700, ruleV('temperature-limit', '1.4.0'), { assigneeId: 'u_field2', resolutionReason: 'Linked to planned maintenance; no battery action.' });
-  mkAlert('missing_telemetry', 'resolved', 'warning', 's1', null, 'Gateway reconnect after outage (resolved)', 'Short outage at GW-S1-01; backfill received.', 'None — resolved.', 380, ruleV('telemetry-gap', '1.1.0'), { assigneeId: 'u_noc', resolutionReason: 'Gateway reconnected; backfilled readings accepted.' });
+  mkAlert('voltage_threshold', 'resolved', 'warning', 's1', b2p1?.id ?? null, 'Float voltage outside band (resolved)', 'Charger setpoint corrected on site; voltage returned inside band.', 'None needed. Resolved.', 460, ruleV('float-voltage-band', '2.0.0'), { assigneeId: 'u_field1', resolutionReason: 'Charger setpoint corrected on site. Re-measured within band.' });
+  mkAlert('temperature_threshold', 'closed', 'info', 's5', null, 'Room temperature spike (closed)', 'Short excursion linked to maintenance work in the room.', 'None needed. Closed.', 700, ruleV('temperature-limit', '1.4.0'), { assigneeId: 'u_field2', resolutionReason: 'Linked to planned maintenance; no battery action.' });
+  mkAlert('missing_telemetry', 'resolved', 'warning', 's1', null, 'Gateway reconnect after outage (resolved)', 'Short outage at GW-S1-01; backfill received.', 'None needed. Resolved.', 380, ruleV('telemetry-gap', '1.1.0'), { assigneeId: 'u_noc', resolutionReason: 'Gateway reconnected; backfilled readings accepted.' });
   // append progress history for non-open alerts
   alerts.forEach((a) => {
     const step = (to: Alert['state'], who: string, note: string, mins: number) => {
@@ -627,7 +627,7 @@ export function buildSeed(): DemoDb {
   mkTask({ alertId: 'ALR-1005', batteryId: b1p2?.id ?? null, siteId: 's1', title: 'Re-measure float voltage on String 1', description: 'Check charger setpoint and terminal torque.', status: 'in_progress', priority: 'normal', assigneeId: 'u_field1', dueOn: dateOnly(-1), origin: 'alert', createdAgoH: 140 });
   mkTask({ alertId: 'ALR-1006', batteryId: b5p1?.id ?? null, siteId: 's4', title: 'Check ventilation and temperature at Site D', description: 'Urgent re-measure and ventilation inspection.', status: 'open', priority: 'high', assigneeId: 'u_field2', dueOn: dateOnly(0), origin: 'alert', createdAgoH: 8 });
   mkTask({ alertId: 'ALR-1007', batteryId: b1p4?.id ?? null, siteId: 's1', title: 'Bench-check resistance on S1 pos 4', description: 'Pull for bench impedance check at next visit.', status: 'open', priority: 'low', assigneeId: null, dueOn: dateOnly(-14), origin: 'alert', createdAgoH: 280 });
-  mkTask({ alertId: null, batteryId: null, siteId: 's5', title: 'Commissioning visit — Site E String 1', description: 'Install reserved batteries and map sensors.', status: 'open', priority: 'normal', assigneeId: 'u_field2', dueOn: dateOnly(-7), origin: 'manual', createdAgoH: 70 });
+  mkTask({ alertId: null, batteryId: null, siteId: 's5', title: 'Commissioning visit: Site E, String 1', description: 'Install reserved batteries and map sensors.', status: 'open', priority: 'normal', assigneeId: 'u_field2', dueOn: dateOnly(-7), origin: 'manual', createdAgoH: 70 });
   mkTask({ alertId: 'ALR-1010', batteryId: b2p1?.id ?? null, siteId: 's1', title: 'Verify charger setpoint (completed)', description: 'Charger setpoint corrected.', status: 'done', priority: 'normal', assigneeId: 'u_field1', dueOn: dateOnly(5), origin: 'alert', createdAgoH: 450 });
   mkTask({ alertId: 'ALR-1011', batteryId: null, siteId: 's5', title: 'Room temperature review (closed)', description: 'No action required.', status: 'cancelled', priority: 'low', assigneeId: 'u_field2', dueOn: null, origin: 'alert', createdAgoH: 690 });
   mkTask({ alertId: 'ALR-1008', batteryId: b3p2?.id ?? null, siteId: 's2', title: 'Draft: review anomaly flag on S2 / String 1 / pos 2', description: 'Draft prepared by the assistant for engineer review. Not yet confirmed.', status: 'draft', priority: 'normal', assigneeId: null, dueOn: null, origin: 'assistant_draft', createdAgoH: 3, by: 'Assistant draft (unconfirmed)' });
@@ -639,7 +639,7 @@ export function buildSeed(): DemoDb {
     predictions.push({
       id: `PRD-${predictions.length + 1}`, inputAt: new Date(NOW - (inputAgoH ?? 6) * 3_600_000).toISOString(),
       predictedAt: new Date(NOW - ((inputAgoH ?? 6) - 0.3) * 3_600_000).toISOString(),
-      status: 'shadow', reviewState: reviewState ?? 'unreviewed', reviewedByName: reviewedByName ?? null, ...rest,
+      status: 'shadow', reviewState: reviewState ?? 'unreviewed', reviewedByName: reviewedByName ?? null, ...rest, // taste-skill-ignore: "shadow mode" is the model status, not a style
     });
   };
   // Qualification aid runs BEFORE processing: it may only use intake context and the initial test.
@@ -740,7 +740,7 @@ export function buildSeed(): DemoDb {
   // alert and service events on battery timelines
   alerts.filter((a) => a.batteryId).forEach((a) => {
     const t = Math.max(0, (NOW - Date.parse(a.createdAt)) / DAY);
-    pushEventFor(a.batteryId!, 'alert', t, 'system', `${a.title}`, `${a.id}: ${a.detail}`, { sourceSystem: a.source.kind === 'model' ? 'Model (shadow mode)' : 'Rule engine', approvalState: 'not_required', ref: { kind: 'alert', id: a.id } });
+    pushEventFor(a.batteryId!, 'alert', t, 'system', `${a.title}`, `${a.id}: ${a.detail}`, { sourceSystem: a.source.kind === 'model' ? 'Model (shadow mode)' : 'Rule engine', approvalState: 'not_required', ref: { kind: 'alert', id: a.id } }); // taste-skill-ignore: "shadow mode" is the model status, not a style
   });
   tasks.filter((t) => t.batteryId && ['done', 'in_progress'].includes(t.status)).forEach((t) => {
     const ago = Math.max(0, (NOW - Date.parse(t.createdAt)) / DAY - 0.2);

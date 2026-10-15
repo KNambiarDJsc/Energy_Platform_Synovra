@@ -63,8 +63,8 @@ export function ruleCheck(test: TestSession | null | undefined, family: BatteryF
     state: pct >= QUALIFICATION_THRESHOLD_PCT ? ('meets' as const) : ('below' as const),
     pct,
     label: pct >= QUALIFICATION_THRESHOLD_PCT
-      ? `${pct}% of rated — meets the ${QUALIFICATION_THRESHOLD_PCT}% demonstration threshold`
-      : `${pct}% of rated — below the ${QUALIFICATION_THRESHOLD_PCT}% demonstration threshold`,
+      ? `${pct}% of rated, which meets the ${QUALIFICATION_THRESHOLD_PCT}% demonstration threshold`
+      : `${pct}% of rated, below the ${QUALIFICATION_THRESHOLD_PCT}% demonstration threshold`,
   };
 }
 
@@ -127,7 +127,7 @@ export function evidenceStatus(d: DemoDb, b: Battery): { code: EvidenceStatusCod
   const tests = d.tests.filter((t) => t.batteryId === b.id);
   const claim = d.warranties.find((w) => w.batteryId === b.id && w.state === 'claim_open');
   if (claim) return { code: 'warranty_investigation', label: 'Warranty investigation', detail: 'An open warranty claim is linked to this battery.' };
-  if (b.lifecycleState === 'recycled') return { code: 'closed', label: 'Closed — recycled', detail: 'Battery consigned for recycling. History retained.' };
+  if (b.lifecycleState === 'recycled') return { code: 'closed', label: 'Closed, recycled', detail: 'Battery consigned for recycling. History retained.' };
   if (b.lifecycleState === 'rejected') return { code: 'not_qualified', label: 'Not qualified', detail: 'Rejected by an engineer. No deployment permitted.' };
   if (b.lifecycleState === 'awaiting_review') return { code: 'engineering_review', label: 'Engineering review', detail: 'Post-restoration test awaiting engineer decision.' };
   if (['qualified', 'reserved', 'deployed', 'returned'].includes(b.lifecycleState) && tests.some((t) => t.kind === 'final' && t.status === 'approved')) {

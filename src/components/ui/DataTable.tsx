@@ -1,8 +1,8 @@
 'use client';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState, type ReactNode } from 'react';
-import { cn } from '@/lib/format';
+import { cn, formatDate, formatTime } from '@/lib/format';
 import { Button } from './Button';
 
 export interface Column<T> {
@@ -19,6 +19,18 @@ export interface Column<T> {
   hideBelow?: 'lg' | 'xl' | '2xl';
 }
 
+/** A timestamp in a table: the date on one line that never breaks, the time beneath it. */
+export function DateTimeCell({ iso, note }: { iso: string; note?: ReactNode }) {
+  return (
+    <span className="whitespace-nowrap">
+      {formatDate(iso)}
+      <span className="block text-xs text-muted">{formatTime(iso)}</span>
+      {note}
+    </span>
+  );
+}
+
+const ROW = 'border-b border-line align-top transition-colors duration-150 last:border-0 hover:bg-canvas'; // taste-skill-ignore: rows of a real data table
 const HIDE_CLASS = { lg: 'hidden lg:table-cell', xl: 'hidden xl:table-cell', '2xl': 'hidden 2xl:table-cell' } as const;
 
 interface Props<T> {
@@ -35,6 +47,7 @@ interface Props<T> {
 
 /**
  * Sortable, paginated table on desktop; stacked cards under 768px so nothing needs horizontal scrolling.
+ * Rows are separated by the lightest line the eye still reads; there are no boxes around cells.
  */
 export function DataTable<T>({ columns, rows, rowKey, caption, rowHref, pageSize = 20, initialSort, mobileFooter }: Props<T>) {
   const [sort, setSort] = useState(initialSort ?? null);
@@ -73,22 +86,22 @@ export function DataTable<T>({ columns, rows, rowKey, caption, rowHref, pageSize
         <table className="w-full border-collapse text-left text-sm">
           <caption className="sr-only">{caption}</caption>
           <thead>
-            <tr className="border-b border-line bg-canvas">
+            <tr className="border-b border-line">
               {columns.map((c) => {
                 const active = sort?.key === c.key;
                 const ariaSort = active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : c.sort ? 'none' : undefined;
-                const Icon = active ? (sort!.dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+                const Icon = active && sort!.dir === 'desc' ? ArrowDown : ArrowUp;
                 return (
                   <th
                     key={c.key}
                     scope="col"
                     aria-sort={ariaSort}
-                    className={cn('whitespace-nowrap px-3 py-2.5 text-[13px] font-medium text-muted', c.align === 'right' && 'text-right', c.hideBelow && HIDE_CLASS[c.hideBelow], c.className)}
+                    className={cn('whitespace-nowrap px-3 pb-2.5 pt-1 text-[13px] font-medium text-muted', c.align === 'right' && 'text-right', c.hideBelow && HIDE_CLASS[c.hideBelow], c.className)}
                   >
                     {c.sort ? (
-                      <button type="button" onClick={() => toggle(c.key)} className="inline-flex items-center gap-1 rounded hover:text-ink">
+                      <button type="button" onClick={() => toggle(c.key)} className={cn('group inline-flex items-center gap-1 rounded-md transition-colors hover:text-ink', active && 'text-ink')}>
                         {c.header}
-                        <Icon className={cn('h-3 w-3', !active && 'opacity-50')} aria-hidden />
+                        <Icon className={cn('h-3 w-3 transition-opacity', active ? 'opacity-100' : 'opacity-0 group-hover:opacity-50')} aria-hidden />
                       </button>
                     ) : (
                       c.header
@@ -100,11 +113,11 @@ export function DataTable<T>({ columns, rows, rowKey, caption, rowHref, pageSize
           </thead>
           <tbody>
             {visible.map((row) => (
-              <tr key={rowKey(row)} className="border-b border-line align-top last:border-0 hover:bg-[#F6FAFB]">
+              <tr key={rowKey(row)} className={ROW}>
                 {columns.map((c, i) => (
-                  <td key={c.key} className={cn('px-3 py-3', c.align === 'right' && 'text-right', c.hideBelow && HIDE_CLASS[c.hideBelow], c.className)}>
+                  <td key={c.key} className={cn('px-3 py-3.5', c.align === 'right' && 'num text-right', c.hideBelow && HIDE_CLASS[c.hideBelow], c.className)}>
                     {rowHref && i === 0 ? (
-                      <Link href={rowHref(row)} className="font-semibold text-teal-800 underline-offset-2 hover:underline">
+                      <Link href={rowHref(row)} className="font-semibold text-teal-700 underline-offset-4 hover:underline">
                         {c.cell(row)}
                       </Link>
                     ) : (
@@ -119,39 +132,40 @@ export function DataTable<T>({ columns, rows, rowKey, caption, rowHref, pageSize
       </div>
 
       {/* Mobile cards */}
-      <ul className="space-y-3 md:hidden" aria-label={caption}>
+      <ul className="space-y-2.5 md:hidden" aria-label={caption}>
         {visible.map((row) => {
           const title = titleCol.cell(row);
           return (
-            <li key={rowKey(row)} className="rounded-lg border border-line bg-white p-3.5">
-              <div className="text-base font-semibold text-navy">
+            <li key={rowKey(row)} className="rounded-lg bg-canvas p-4">
+              <div className="text-[17px] font-semibold leading-6 text-ink">
                 {rowHref ? (
-                  <Link href={rowHref(row)} className="text-teal-800 underline underline-offset-2">
-                    {title}
+                  <Link href={rowHref(row)} className="flex items-center justify-between gap-2 text-teal-700">
+                    <span className="min-w-0">{title}</span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted" aria-hidden />
                   </Link>
                 ) : (
                   title
                 )}
               </div>
-              <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
+              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
                 {columns
                   .filter((c) => c !== titleCol && c.mobile !== 'hide')
                   .map((c) => (
                     <div key={c.key} className="min-w-0">
-                      <dt className="text-[13px] font-medium text-muted">{c.header}</dt>
+                      <dt className="text-xs font-medium text-muted">{c.header}</dt>
                       <dd className="mt-0.5 break-words text-sm text-ink">{c.cell(row)}</dd>
                     </div>
                   ))}
               </dl>
-              {mobileFooter && <div className="mt-3 border-t border-line pt-3">{mobileFooter(row)}</div>}
+              {mobileFooter && <div className="mt-4">{mobileFooter(row)}</div>}
             </li>
           );
         })}
       </ul>
 
       {sorted.length > pageSize && (
-        <nav aria-label="Pagination" className="no-print mt-4 flex items-center justify-between gap-3 text-sm text-muted">
-          <span>
+        <nav aria-label="Pagination" className="no-print mt-5 flex items-center justify-between gap-3 text-sm text-muted">
+          <span className="num">
             {current * pageSize + 1}–{Math.min(sorted.length, (current + 1) * pageSize)} of {sorted.length}
           </span>
           <div className="flex gap-2">

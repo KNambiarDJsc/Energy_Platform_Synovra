@@ -1,11 +1,13 @@
 'use client';
-import { Bot, Send, ShieldCheck } from 'lucide-react';
+import { Send, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Notice } from '@/components/ui/Layout';
 import { Drawer } from '@/components/ui/Overlay';
 import { Badge } from '@/components/ui/Badge';
+import { Spinner } from '@/components/ui/States';
+import { chipClass } from '@/components/ui/buttonClass';
 import { useAction } from '@/lib/hooks';
 import type { AssistantCitation, AssistantResponse } from '@/services/types';
 
@@ -81,7 +83,7 @@ export function AssistantPanel({
                   <button
                     type="button"
                     onClick={() => send(s)}
-                    className="min-h-[40px] rounded-full border border-[#9FB2BD] bg-white px-3 py-1.5 text-left text-sm text-ink hover:bg-canvas"
+                    className={chipClass(false, 'min-h-[40px] whitespace-normal py-2 text-left')}
                   >
                     {s}
                   </button>
@@ -95,13 +97,13 @@ export function AssistantPanel({
         <ol className="space-y-5" aria-live="polite">
           {turns.map((t, i) => (
             <li key={`${i}-${t.prompt}`} className="space-y-2">
-              <p className="ml-auto max-w-[85%] rounded-lg bg-navy px-3 py-2 text-sm text-white">{t.prompt}</p>
+              <p className="anim-row ml-auto w-fit max-w-[85%] rounded-[20px] rounded-br-md bg-teal px-4 py-2.5 text-sm text-white">{t.prompt}</p>
               {!t.response ? (
                 <p className="flex items-center gap-2 text-sm text-muted" role="status">
-                  <Bot className="h-4 w-4 animate-pulse" aria-hidden /> Searching records you can access…
+                  <Spinner className="h-4 w-4" /> Searching records you can access…
                 </p>
               ) : (
-                <div className="rounded-lg border border-line bg-white p-3 text-sm">
+                <div className="anim-row max-w-[92%] rounded-[20px] rounded-bl-md bg-canvas px-4 py-3 text-sm">
                   {t.response.refused && (
                     <Badge tone="amber" className="mb-2">
                       Not done
@@ -134,7 +136,7 @@ export function AssistantPanel({
                   <p className="mt-1 text-xs text-muted">{t.response.scopeNote}</p>
 
                   {t.response.draft && (
-                    <div className="mt-3 rounded-md border border-[#E8D6A8] bg-amber-50 p-3">
+                    <div className="mt-3 rounded-xl bg-amber-50 p-3">
                       <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-700">
                         <ShieldCheck className="h-4 w-4" aria-hidden /> Draft, not created
                       </p>
@@ -179,7 +181,7 @@ export function AssistantPanel({
       </div>
 
       <form
-        className="sticky bottom-0 -mx-5 -mb-4 mt-4 flex gap-2 border-t border-line bg-white px-5 py-3"
+        className="sticky bottom-0 -mx-5 -mb-4 mt-4 flex items-center gap-2 bg-white px-5 pb-4 pt-3"
         onSubmit={(e) => {
           e.preventDefault();
           send(text);
@@ -190,7 +192,7 @@ export function AssistantPanel({
         </label>
         <input
           id="assistant-input"
-          className="input"
+          className="input !min-h-[44px] rounded-full border-transparent bg-fill px-4 hover:bg-fill-2 focus:bg-white"
           placeholder="Ask about records you can see"
           value={text}
           maxLength={400}

@@ -12,19 +12,19 @@ import type { AlertState, ApprovalState, DataQualityLevel, LifecycleState, Sever
 export type Tone = 'neutral' | 'teal' | 'green' | 'amber' | 'red' | 'navy';
 
 const toneClass: Record<Tone, string> = {
-  neutral: 'bg-[#E4ECF0] text-ink border-[#C5D3DA]',
-  teal: 'bg-teal-50 text-teal-800 border-teal-100',
-  green: 'bg-approved-50 text-approved-700 border-[#BFDCCB]',
-  amber: 'bg-amber-50 text-amber-700 border-[#E8D6A8]',
-  red: 'bg-critical-50 text-critical-700 border-[#EBC4C4]',
-  navy: 'bg-navy text-white border-navy',
+  neutral: 'bg-fill text-ink-2',
+  teal: 'bg-teal-50 text-teal-800',
+  green: 'bg-approved-50 text-approved-700',
+  amber: 'bg-amber-50 text-amber-700',
+  red: 'bg-critical-50 text-critical-700',
+  navy: 'bg-[#E3EAF0] text-navy',
 };
 
-/** Every status is communicated by text and an icon, never colour alone. */
+/** Every status is communicated by text and an icon, never colour alone. A tint, no outline. */
 export function Badge({ tone = 'neutral', icon: Icon, children, className, title }: { tone?: Tone; icon?: LucideIcon; children: ReactNode; className?: string; title?: string }) {
   return (
-    <span title={title} className={cn('inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-semibold', toneClass[tone], className)}>
-      {Icon && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+    <span title={title} className={cn('inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[13px] font-medium leading-5', toneClass[tone], className)}>
+      {Icon && <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden />}
       {children}
     </span>
   );
@@ -93,6 +93,22 @@ export function WarrantyBadge({ state }: { state: WarrantyRecord['state'] | null
   if (!state) return <Badge tone="neutral" icon={CircleSlash}>None recorded</Badge>;
   const [tone, icon, label] = warranty[state];
   return <Badge tone={tone} icon={icon}>{label}</Badge>;
+}
+
+/** Tone, icon and words for a status, for places that show it without a pill (the passport card). */
+export interface StatusMeta { tone: Tone; icon: LucideIcon; label: string }
+export function lifecycleMeta(state: LifecycleState): StatusMeta {
+  const [tone, icon] = lifecycle[state];
+  return { tone, icon, label: LIFECYCLE_LABELS[state] };
+}
+export function qualityMeta(level: DataQualityLevel): StatusMeta {
+  const [tone, icon, label] = quality[level];
+  return { tone, icon, label };
+}
+export function warrantyMeta(state: WarrantyRecord['state'] | null): StatusMeta {
+  if (!state) return { tone: 'neutral', icon: CircleSlash, label: 'None recorded' };
+  const [tone, icon, label] = warranty[state];
+  return { tone, icon, label };
 }
 
 export function FreshnessBadge({ freshness }: { freshness: 'fresh' | 'stale' | 'none' }) {

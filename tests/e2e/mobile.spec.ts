@@ -29,7 +29,7 @@ test.describe('390px layout', () => {
     await expect(page.getByRole('navigation', { name: 'Quick navigation' })).toBeVisible();
     await expect(page.locator('table:visible')).toHaveCount(0);
     await expect(page.getByRole('list', { name: 'Batteries' })).toBeVisible();
-    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('button', { name: 'More', exact: true }).click();
     await expect(page.getByRole('dialog').getByRole('link', { name: 'Monitoring' })).toBeVisible();
   });
 

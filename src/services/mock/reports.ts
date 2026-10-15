@@ -21,7 +21,7 @@ const CUSTOMER_TEMPLATES: ReportTemplateId[] = ['battery_passport', 'customer_si
 
 export function createReportRepository(ctx: Ctx): ReportRepository {
   const csvEscape = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  const dash = '—';
+  const dash = 'Not recorded';
 
   function buildSections(templateId: ReportTemplateId, scopeId: string | null, from: string, to: string, customerView: boolean): { sections: ReportSection[]; scope: string; evidenceRefs: string[] } {
     const d = db(ctx);
@@ -214,7 +214,7 @@ export function createReportRepository(ctx: Ctx): ReportRepository {
       const tpl = TEMPLATES.find((t) => t.id === v.templateId)!;
       const d = db(ctx);
       const report: Report = {
-        id: `RPT-${String(d.reports.length + 1).padStart(4, '0')}`, templateId: v.templateId, title: `${tpl.name} — ${built.scope}`, scope: built.scope,
+        id: `RPT-${String(d.reports.length + 1).padStart(4, '0')}`, templateId: v.templateId, title: `${tpl.name}: ${built.scope}`, scope: built.scope,
         period: { from: v.from, to: v.to }, generatedAt: ctx.store.now(), generatedByName: actor.name, audience,
         approvalState: 'draft', approvedByName: null,
         sourceWatermark: ctx.store.mode === 'pilot'

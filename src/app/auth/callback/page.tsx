@@ -1,10 +1,10 @@
 'use client';
-import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Brand } from '@/components/app/Brand';
+import { BrandMark } from '@/components/app/Brand';
 import { DemoBanner } from '@/components/app/DemoBanner';
+import { Spinner } from '@/components/ui/States';
 import { buttonClass } from '@/components/ui/buttonClass';
 import { useRuntime } from '@/lib/hooks';
 import { completeSignIn, type SignInResult } from '@/services/http/oidc';
@@ -41,26 +41,24 @@ export default function AuthCallbackPage() {
   }, [runtime.loaded, runtime.oidc, runtime.error, router]);
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="min-h-[100dvh] bg-canvas">
       <DemoBanner />
-      <div className="mx-auto max-w-xl px-4 py-12">
-        <Brand />
-        <main id="main" className="app-enter mt-16">
-          {error ? (
-            <>
-              <h1 className="text-3xl font-semibold tracking-tight text-navy">Sign-in did not finish</h1>
-              <p className="mt-3 text-ink" role="alert">{error}</p>
-              <p className="mt-2 text-sm text-muted">If your organisation&apos;s account is new to Synovra, an administrator must add your email address first.</p>
-              <Link href="/signin" className={buttonClass('primary', 'md', 'mt-6')}>Start again</Link>
-            </>
-          ) : (
-            <div role="status" className="flex items-center gap-3 text-lg text-navy">
-              <Loader2 className="h-5 w-5 animate-spin text-teal" aria-hidden />
-              Finishing sign-in…
-            </div>
-          )}
-        </main>
-      </div>
+      <main id="main" className="app-enter mx-auto max-w-[480px] px-4 pb-16 pt-14 text-center md:pt-24">
+        <BrandMark size={56} className="mx-auto" />
+        {error ? (
+          <>
+            <h1 className="mt-6 text-[34px] font-semibold leading-[40px] tracking-[-0.022em] text-ink">Sign-in did not finish</h1>
+            <p className="mt-3 text-[17px] leading-[26px] text-ink" role="alert">{error}</p>
+            <p className="mt-2 text-sm text-muted">If your organisation&apos;s account is new to Synovra, an administrator must add your email address first.</p>
+            <Link href="/signin" className={buttonClass('primary', 'md', 'mt-8')}>Start again</Link>
+          </>
+        ) : (
+          <div role="status" className="mt-8 flex items-center justify-center gap-3 text-[17px] text-ink">
+            <Spinner />
+            Finishing sign-in…
+          </div>
+        )}
+      </main>
     </div>
   );
 }

@@ -5,10 +5,11 @@
 :root {
   --navy: #112b40;
   --teal: #007e83;
-  --canvas: #eff5f7;
-  --ink: #243b4b;
-  --muted: #566b79;
+  --canvas: #f5f5f7;
+  --ink: #1d1d1f;
+  --muted: #6e6e73;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.32, 0.64, 1);
 }
 
 html {
@@ -18,62 +19,110 @@ html {
 body {
   background: var(--canvas);
   color: var(--ink);
-  font-feature-settings: 'cv11', 'ss01';
-  font-variant-numeric: tabular-nums;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Visible focus for keyboard users on every interactive element */
+/* Visible focus for keyboard users; the outline follows each element's own corners. */
 :focus-visible {
   outline: 2px solid var(--teal);
   outline-offset: 2px;
-  border-radius: 4px;
+}
+
+::selection {
+  background: rgba(0, 126, 131, 0.2);
 }
 
 @layer components {
+  /* A grouped surface on the canvas. Separated by tone, never by a line or a shadow. */
   .card {
-    @apply rounded-lg border border-transparent bg-white;
+    @apply rounded-xl bg-white;
   }
   .label {
-    @apply mb-1 block text-sm font-medium text-ink;
+    @apply mb-1.5 block text-sm font-medium text-ink;
   }
   .input {
-    @apply block w-full rounded-md border border-[#9FB2BD] bg-white px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/30 disabled:bg-canvas disabled:text-muted;
-    min-height: 40px;
+    @apply block w-full rounded-md border border-field bg-white px-3.5 py-2 text-sm text-ink transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-muted focus:border-teal focus:outline-none focus:ring-4 focus:ring-teal/20 disabled:bg-canvas disabled:text-muted;
+    min-height: 44px;
+  }
+  .input:focus-visible {
+    outline: none;
+  }
+  select.input {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='14' viewBox='0 0 10 14' fill='none' stroke='%236E6E73' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1.5 5 5 1.5 8.5 5M1.5 9 5 12.5 8.5 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 10px 14px;
+    padding-right: 36px;
   }
   .input[aria-invalid='true'] {
-    @apply border-critical;
+    @apply border-critical focus:ring-critical/20;
   }
-  .eyebrow {
-    @apply text-[13px] font-medium text-muted;
-  }
+  /* Identifiers (labels, serials, references): slashed zero so 0 and O never get confused. */
   .mono {
-    @apply text-[13px] font-medium tabular-nums;
+    @apply font-medium;
+    font-feature-settings: 'zero' 1;
+  }
+  /* Figures that line up in columns or count. */
+  .num {
+    font-variant-numeric: tabular-nums;
   }
 }
 
-/* Motion. Every animation ends in the finished state, so nothing depends on script or on it running. */
-@keyframes app-rise { from { opacity: 0; transform: translateY(12px); } }
+/* Axis ticks line up. Table columns of figures opt in with .num (right-aligned cells get it); IDs and
+   large standalone numbers keep proportional figures, because Inter's tabular set also widens hyphens. */
+.recharts-cartesian-axis-tick-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ motion
+   Every animation ends in the finished state, so nothing depends on script or on it running. */
+@keyframes app-rise { from { opacity: 0; transform: translateY(10px); } }
 @keyframes app-fade { from { opacity: 0; } }
-@keyframes app-pop { from { opacity: 0; transform: translate(-50%, -48%) scale(0.97); } }
+@keyframes app-pop { from { opacity: 0; transform: translate(-50%, -47%) scale(0.96); } }
 @keyframes app-sheet { from { transform: translateY(100%); } }
-@keyframes app-slide { from { transform: translateX(100%); } }
-@keyframes app-toast { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+@keyframes app-slide { from { transform: translateX(calc(100% + 16px)); } }
+@keyframes app-hud { from { opacity: 0; transform: translateY(14px) scale(0.94); } }
+@keyframes app-grow { from { transform: scaleX(0); } }
+@keyframes app-ring { from { stroke-dashoffset: var(--ring-full, 0); } }
+@keyframes app-reveal { from { clip-path: inset(0 100% 0 0); } }
+@keyframes app-spin { to { transform: rotate(360deg); } }
 
 /* Page parts arrive in reading order on each navigation. */
-.app-enter > * { animation: app-rise 520ms var(--ease-out) both; }
-.app-enter > *:nth-child(2) { animation-delay: 60ms; }
-.app-enter > *:nth-child(3) { animation-delay: 120ms; }
-.app-enter > *:nth-child(4) { animation-delay: 180ms; }
-.app-enter > *:nth-child(n + 5) { animation-delay: 240ms; }
+.app-enter > * { animation: app-rise 460ms var(--ease-out) both; }
+.app-enter > *:nth-child(2) { animation-delay: 50ms; }
+.app-enter > *:nth-child(3) { animation-delay: 100ms; }
+.app-enter > *:nth-child(4) { animation-delay: 150ms; }
+.app-enter > *:nth-child(n + 5) { animation-delay: 200ms; }
 
-.anim-overlay[data-state='open'] { animation: app-fade 200ms ease both; }
-.anim-sheet[data-state='open'] { animation: app-sheet 320ms var(--ease-out) both; }
-.anim-drawer[data-state='open'] { animation: app-slide 340ms var(--ease-out) both; }
-.anim-toast { animation: app-toast 260ms var(--ease-out) both; }
+/* Tiles inside a grid follow one another. */
+.app-stagger > * { animation: app-rise 520ms var(--ease-out) both; }
+.app-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.app-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.app-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.app-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.app-stagger > *:nth-child(n + 6) { animation-delay: 300ms; }
+
+.anim-overlay[data-state='open'] { animation: app-fade 240ms ease both; }
+.anim-overlay[data-state='closed'] { animation: app-fade 180ms ease reverse both; }
+.anim-sheet[data-state='open'] { animation: app-sheet 440ms var(--ease-out) both; }
+.anim-sheet[data-state='closed'] { animation: app-sheet 240ms ease-in reverse both; } /* taste-skill-ignore: reversed, so it plays as an ease-out */
+.anim-drawer[data-state='open'] { animation: app-slide 440ms var(--ease-out) both; }
+.anim-drawer[data-state='closed'] { animation: app-slide 240ms ease-in reverse both; } /* taste-skill-ignore: reversed, so it plays as an ease-out */
+.anim-toast { animation: app-hud 380ms var(--ease-spring) both; }
 .anim-row { animation: app-rise 480ms var(--ease-out) both; }
+/* Bars that represent a quantity fill from their start. */
+.anim-grow { transform-origin: left center; animation: app-grow 900ms var(--ease-out) both; }
+.anim-ring { animation: app-ring 1100ms var(--ease-out) both; }
+.anim-reveal { animation: app-reveal 1000ms var(--ease-out) both; }
 @media (min-width: 768px) {
-  .anim-sheet[data-state='open'] { animation: app-pop 260ms var(--ease-out) both; }
+  .anim-sheet[data-state='open'] { animation: app-pop 360ms var(--ease-spring) both; }
+  .anim-sheet[data-state='closed'] { animation: app-pop 180ms ease-in reverse both; } /* taste-skill-ignore: reversed, so it plays as an ease-out */
 }
+
+/* Activity indicator: eight spokes stepping round, the platform's own way of saying "working". */
+.spinner { animation: app-spin 900ms steps(8) infinite; }
 
 /* Print: reports render as a clean document */
 @media print {
@@ -84,7 +133,7 @@ body {
     display: none !important;
   }
   .print-area {
-    box-shadow: none !important;
+    box-shadow: none !important; /* taste-skill-ignore: print removes shadows */
     border: none !important;
   }
   @page {
@@ -98,4 +147,5 @@ body {
     animation-delay: 0ms !important;
     transition-duration: 0.001ms !important;
   }
+  .spinner { animation: none; }
 }

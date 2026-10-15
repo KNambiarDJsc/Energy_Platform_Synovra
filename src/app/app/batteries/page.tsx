@@ -1,16 +1,17 @@
 'use client';
-import { Download, Plus, Search } from 'lucide-react';
+import { Download, Plus, Search, SlidersHorizontal } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState } from 'react';
-import { Badge, LifecycleBadge, QualityBadge, WarrantyBadge } from '@/components/ui/Badge';
+import { LifecycleBadge, QualityBadge, WarrantyBadge } from '@/components/ui/Badge';
 import { Button, LinkButton } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
-import { Field, Input, Select } from '@/components/ui/Field';
-import { PageHeader } from '@/components/ui/Layout';
+import { chipClass } from '@/components/ui/buttonClass';
+import { Field, Input, Select, ToolbarSearch, ToolbarSelect } from '@/components/ui/Field';
+import { PageHeader, TableCard } from '@/components/ui/Layout';
 import { LoadingBlock, NoResults, QueryView } from '@/components/ui/States';
 import { LIFECYCLE_LABELS, LIFECYCLE_ORDER } from '@/domain/lifecycle';
 import type { LifecycleState } from '@/domain/types';
-import { downloadText, formatDate, formatNumber } from '@/lib/format';
+import { cn, downloadText, formatDate, formatNumber } from '@/lib/format';
 import { useAction, useSession, useSvcQuery } from '@/lib/hooks';
 import type { BatteryFilters, BatteryListItem } from '@/services/types';
 
@@ -26,6 +27,7 @@ function BatteriesInner() {
     state: (params.get('state') as LifecycleState | null) ?? '',
   });
 
+  const [more, setMore] = useState(false);
   const facets = useSvcQuery(['batteries', 'facets'], (s) => s.batteries.facets());
   const list = useSvcQuery(['batteries', 'list', filters], (s) => s.batteries.list(filters));
   const exportCsv = useAction<void, { fileName: string; csv: string }>(
@@ -35,22 +37,21 @@ function BatteriesInner() {
 
   const set = (patch: Partial<BatteryFilters>) => setFilters((f) => ({ ...f, ...patch }));
   const active = useMemo(() => Object.values(filters).some(Boolean), [filters]);
+  const extraCount = [filters.siteId, filters.manufacturer, filters.chemistry, filters.updatedFrom || filters.updatedTo].filter(Boolean).length;
 
   const columns: Column<BatteryListItem>[] = [
     {
       key: 'label', header: 'Battery', sort: (b) => b.label, mobile: 'title',
-      cell: (b) => <span className="mono">{b.label}</span>,
-    },
-    {
-      key: 'serial', header: 'Manufacturer serial', sort: (b) => b.manufacturerSerial,
       cell: (b) => (
-        <span>
-          {b.manufacturerSerial ? <span className="mono whitespace-nowrap text-xs">{b.manufacturerSerial}</span> : <span className="text-muted">Not recorded</span>}
-          {b.duplicateWarning && (
-            <span className="mt-1 block">
-              <Badge tone="red" title={b.duplicateWarning}>Duplicate serial</Badge>
-            </span>
-          )}
+        <span className="block whitespace-nowrap">
+          <span className="mono">{b.label}</span>
+          <span
+            className={cn('mono block text-xs font-normal', b.duplicateWarning ? 'text-critical-700' : 'text-muted')}
+            title={b.duplicateWarning ?? undefined}
+          >
+            {b.manufacturerSerial ?? 'No serial recorded'}
+            {b.duplicateWarning && ' · duplicate'}
+          </span>
         </span>
       ),
     },
@@ -96,9 +97,9 @@ function BatteriesInner() {
       cell: (b) => {
         const notes = [...b.quality.conflicts, ...b.quality.missing.map((m) => `Missing: ${m}`)];
         return (
-          <span className="block max-w-[200px]">
+          <span className="block max-w-[220px]">
             <QualityBadge level={b.quality.level} title={notes.join('; ')} />
-            {notes.length > 0 && <span className="mt-1 block text-xs text-muted">{notes[0]}{notes.length > 1 ? ` (+${notes.length - 1} more)` : ''}</span>}
+            {notes.length > 0 && <span className="mt-1 line-clamp-2 text-xs text-muted">{notes[0]}{notes.length > 1 ? ` (+${notes.length - 1} more)` : ''}</span>}
           </span>
         );
       },
@@ -128,76 +129,77 @@ function BatteriesInner() {
         }
       />
 
-      <form role="search" aria-label="Filter batteries" className="card mb-5 p-4" onSubmit={(e) => e.preventDefault()}>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Search" className="sm:col-span-2" hint="Label, manufacturer serial, QR reference or alias">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
-              <Input className="pl-9" value={filters.q ?? ''} onChange={(e) => set({ q: e.target.value })} placeholder="B-0002, AV200-…, SYN-…" />
-            </div>
-          </Field>
-          <Field label="Lifecycle state">
-            <Select value={filters.state ?? ''} onChange={(e) => set({ state: e.target.value as LifecycleState | '' })}>
-              <option value="">All states</option>
-              {LIFECYCLE_ORDER.map((s) => (
-                <option key={s} value={s}>{LIFECYCLE_LABELS[s]}</option>
+      <form role="search" aria-label="Filter batteries" className="mb-5" onSubmit={(e) => e.preventDefault()}>
+        <div className="flex flex-wrap items-center gap-2">
+          <ToolbarSearch
+            label="Search batteries"
+            icon={<Search className="h-4 w-4" aria-hidden />}
+            className="w-full sm:w-[300px]"
+            value={filters.q ?? ''}
+            onChange={(e) => set({ q: e.target.value })}
+            placeholder="Label, serial or QR reference"
+          />
+          <ToolbarSelect label="Lifecycle state" value={filters.state ?? ''} onChange={(e) => set({ state: e.target.value as LifecycleState | '' })}>
+            <option value="">All lifecycle states</option>
+            {LIFECYCLE_ORDER.map((st) => (
+              <option key={st} value={st}>{LIFECYCLE_LABELS[st]}</option>
+            ))}
+          </ToolbarSelect>
+          <ToolbarSelect label="Data quality" value={filters.qualityLevel ?? ''} onChange={(e) => set({ qualityLevel: e.target.value })}>
+            <option value="">Any data quality</option>
+            <option value="complete">Complete</option>
+            <option value="partial">One field missing</option>
+            <option value="incomplete">Several fields missing</option>
+            <option value="conflict">Identity conflict</option>
+          </ToolbarSelect>
+          <button type="button" aria-expanded={more} aria-controls="more-filters" className={chipClass(more, 'min-h-[40px]')} onClick={() => setMore((m) => !m)}>
+            <SlidersHorizontal className="h-4 w-4" aria-hidden />
+            More filters
+            {extraCount > 0 && <span className="num">· {extraCount}</span>}
+          </button>
+          {active && (
+            <Button variant="ghost" size="sm" className="!min-h-[40px]" onClick={() => setFilters(EMPTY)}>
+              Clear all
+            </Button>
+          )}
+          <p className="ml-auto text-sm text-muted" aria-live="polite">
+            {list.data ? `${list.data.length} ${list.data.length === 1 ? 'battery' : 'batteries'}` : ''}
+          </p>
+        </div>
+        <div id="more-filters" className={more ? 'card anim-row mt-3 grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4' : 'hidden'}>
+          <Field label="Site">
+            <Select value={filters.siteId ?? ''} onChange={(e) => set({ siteId: e.target.value })}>
+              <option value="">All sites</option>
+              {facets.data?.sites.map((st) => (
+                <option key={st.id} value={st.id}>{st.name}</option>
               ))}
             </Select>
           </Field>
-          <Field label="Data quality">
-            <Select value={filters.qualityLevel ?? ''} onChange={(e) => set({ qualityLevel: e.target.value })}>
-              <option value="">Any</option>
-              <option value="complete">Complete</option>
-              <option value="partial">One field missing</option>
-              <option value="incomplete">Several fields missing</option>
-              <option value="conflict">Identity conflict</option>
+          <Field label="Manufacturer">
+            <Select value={filters.manufacturer ?? ''} onChange={(e) => set({ manufacturer: e.target.value })}>
+              <option value="">All manufacturers</option>
+              {facets.data?.manufacturers.map((m) => (
+                <option key={m}>{m}</option>
+              ))}
             </Select>
           </Field>
+          <Field label="Chemistry">
+            <Select value={filters.chemistry ?? ''} onChange={(e) => set({ chemistry: e.target.value })}>
+              <option value="">All chemistries</option>
+              {facets.data?.chemistries.map((m) => (
+                <option key={m}>{m}</option>
+              ))}
+            </Select>
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Updated from">
+              <Input type="date" value={filters.updatedFrom ?? ''} onChange={(e) => set({ updatedFrom: e.target.value })} />
+            </Field>
+            <Field label="Updated to">
+              <Input type="date" value={filters.updatedTo ?? ''} onChange={(e) => set({ updatedTo: e.target.value })} />
+            </Field>
+          </div>
         </div>
-        <details className="mt-3" open={Boolean(filters.siteId || filters.manufacturer || filters.chemistry || filters.updatedFrom || filters.updatedTo)}>
-          <summary className="cursor-pointer text-sm font-medium text-teal-800 underline-offset-2 hover:underline">More filters</summary>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Site">
-              <Select value={filters.siteId ?? ''} onChange={(e) => set({ siteId: e.target.value })}>
-                <option value="">All sites</option>
-                {facets.data?.sites.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Manufacturer">
-              <Select value={filters.manufacturer ?? ''} onChange={(e) => set({ manufacturer: e.target.value })}>
-                <option value="">All manufacturers</option>
-                {facets.data?.manufacturers.map((m) => (
-                  <option key={m}>{m}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Chemistry">
-              <Select value={filters.chemistry ?? ''} onChange={(e) => set({ chemistry: e.target.value })}>
-                <option value="">All chemistries</option>
-                {facets.data?.chemistries.map((m) => (
-                  <option key={m}>{m}</option>
-                ))}
-              </Select>
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Updated from">
-                <Input type="date" value={filters.updatedFrom ?? ''} onChange={(e) => set({ updatedFrom: e.target.value })} />
-              </Field>
-              <Field label="Updated to">
-                <Input type="date" value={filters.updatedTo ?? ''} onChange={(e) => set({ updatedTo: e.target.value })} />
-              </Field>
-            </div>
-          </div>
-        </details>
-        {active && (
-          <div className="mt-3">
-            <Button variant="ghost" size="sm" onClick={() => setFilters(EMPTY)}>
-              Clear all filters
-            </Button>
-          </div>
-        )}
       </form>
 
       <QueryView
@@ -207,22 +209,17 @@ function BatteriesInner() {
         empty={<NoResults onClear={active ? () => setFilters(EMPTY) : undefined} />}
       >
         {(rows) => (
-          <div className="card p-0 md:p-1">
-            <p className="px-4 pt-3 text-sm text-muted md:px-3" aria-live="polite">
-              {rows.length} {rows.length === 1 ? 'battery' : 'batteries'}
-            </p>
-            <div className="p-3 md:p-2">
-              <DataTable
-                caption="Batteries"
-                columns={columns}
-                rows={rows}
-                rowKey={(b) => b.id}
-                rowHref={(b) => `/app/batteries/${b.id}`}
-                pageSize={15}
-                initialSort={{ key: 'label', dir: 'asc' }}
-              />
-            </div>
-          </div>
+          <TableCard>
+            <DataTable
+              caption="Batteries"
+              columns={columns}
+              rows={rows}
+              rowKey={(b) => b.id}
+              rowHref={(b) => `/app/batteries/${b.id}`}
+              pageSize={15}
+              initialSort={{ key: 'label', dir: 'asc' }}
+            />
+          </TableCard>
         )}
       </QueryView>
     </>

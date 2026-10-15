@@ -6,17 +6,29 @@ import { cn } from '@/lib/format';
 import { errorMessage } from '@/lib/hooks';
 import { Button } from './Button';
 
-export function Skeleton({ className }: { className?: string }) {
-  return <div aria-hidden className={cn('animate-pulse rounded-md bg-[#DCE6EB]', className)} />;
+/** Activity indicator: eight spokes stepping round. Drawn here, so no icon font or image is needed. */
+export function Spinner({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={cn('spinner h-5 w-5 shrink-0 text-muted', className)} aria-hidden>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <rect key={i} x="11" y="2" width="2" height="6" rx="1" fill="currentColor" opacity={1 - i * 0.11} transform={`rotate(${-i * 45} 12 12)`} />
+      ))}
+    </svg>
+  );
 }
 
+/** Says what is loading, in words, and holds roughly the space the content will take. */
 export function LoadingBlock({ label = 'Loading', rows = 4 }: { label?: string; rows?: number }) {
   return (
-    <div role="status" aria-live="polite" className="space-y-3" data-testid="loading">
-      <span className="sr-only">{label}…</span>
-      {Array.from({ length: rows }).map((_, i) => (
-        <Skeleton key={i} className={cn('h-10', i === 0 && 'h-12 w-2/3')} />
-      ))}
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="loading"
+      className="flex items-center justify-center gap-3 text-sm text-muted"
+      style={{ minHeight: Math.max(96, rows * 44) }}
+    >
+      <Spinner />
+      <span>{label}…</span>
     </div>
   );
 }
@@ -25,11 +37,13 @@ export function EmptyState({
   title, description, action, icon: Icon = Inbox,
 }: { title: string; description?: ReactNode; action?: ReactNode; icon?: typeof Inbox }) {
   return (
-    <div className="flex flex-col items-center rounded-lg bg-[#E2ECF0]/60 px-6 py-10 text-center">
-      <Icon className="h-8 w-8 text-muted" aria-hidden />
-      <h3 className="mt-3 text-base font-semibold text-navy">{title}</h3>
-      {description && <p className="mt-1 max-w-md text-sm text-muted">{description}</p>}
-      {action && <div className="mt-4">{action}</div>}
+    <div className="flex flex-col items-center px-6 py-12 text-center">
+      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-fill" aria-hidden>
+        <Icon className="h-6 w-6 text-ink-2" strokeWidth={1.75} />
+      </span>
+      <h3 className="mt-4 text-[17px] font-semibold leading-6 text-ink">{title}</h3>
+      {description && <p className="mt-1.5 max-w-md text-sm text-muted">{description}</p>}
+      {action && <div className="mt-5">{action}</div>}
     </div>
   );
 }
@@ -53,19 +67,19 @@ export function ErrorState({ error, onRetry, title }: { error: unknown; onRetry?
   const heading =
     title ?? (forbidden ? 'Your role cannot open this' : missing ? 'Record not found' : 'This could not be loaded');
   return (
-    <div role="alert" className="rounded-lg bg-critical-50 p-5">
+    <div role="alert" className="rounded-xl bg-critical-50 p-5 md:p-6">
       <div className="flex items-start gap-3">
         <Icon className="mt-0.5 h-5 w-5 shrink-0 text-critical-700" aria-hidden />
         <div className="min-w-0 flex-1">
-          <h3 className="text-base font-semibold text-critical-700">{heading}</h3>
+          <h3 className="text-[17px] font-semibold leading-6 text-critical-700">{heading}</h3>
           <p className="mt-1 text-sm text-ink">{errorMessage(error)}</p>
           {forbidden && (
-            <p className="mt-1 text-sm text-muted">
+            <p className="mt-1 text-sm text-ink-2">
               Permissions are enforced by the service layer for the signed-in demo role. Switch role from the top bar to see what each role can do.
             </p>
           )}
           {onRetry && !forbidden && (
-            <Button className="mt-3" size="sm" variant="secondary" onClick={onRetry}>
+            <Button className="mt-4" size="sm" variant="secondary" onClick={onRetry}>
               Try again
             </Button>
           )}

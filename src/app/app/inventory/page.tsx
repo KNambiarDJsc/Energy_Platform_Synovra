@@ -30,7 +30,7 @@ export default function InventoryPage() {
     },
     { key: 'ev', header: 'Evidence status', cell: (b) => b.evidenceStatus.label },
     { key: 'q', header: 'Data quality', cell: (b) => <QualityBadge level={b.quality.level} /> },
-    { key: 'up', header: 'Updated', sort: (b) => b.updatedAt, mobile: 'hide', cell: (b) => formatDate(b.updatedAt) },
+    { key: 'up', header: 'Updated', sort: (b) => b.updatedAt, mobile: 'hide', className: 'whitespace-nowrap', cell: (b) => formatDate(b.updatedAt) },
   ];
   const famCols: Column<FamilyRow>[] = [
     { key: 'model', header: 'Family', mobile: 'title', cell: (f) => f.model },
@@ -61,11 +61,11 @@ export default function InventoryPage() {
                       aria-pressed={active}
                       onClick={() => setGroup(g)}
                       className={cn(
-                        'rounded-lg border p-3 text-left transition-colors',
-                        active ? 'border-navy bg-navy text-white' : 'border-line bg-white hover:border-teal',
+                        'rounded-xl p-4 text-left transition-[background-color,transform] duration-150 ease-out active:scale-[0.98]',
+                        active ? 'bg-ink text-white' : 'bg-white hover:bg-white/60',
                       )}
                     >
-                      <span className={cn('block text-2xl font-semibold', active ? 'text-white' : 'text-navy')}>{inv.groups[g].length}</span>
+                      <span className={cn('block text-2xl font-semibold', active ? 'text-white' : 'text-ink')}>{inv.groups[g].length}</span>
                       <span className="block text-sm font-medium">{INVENTORY_GROUP_LABELS[g]}</span>
                       <span className={cn('mt-0.5 block text-xs', active ? 'text-white/80' : 'text-muted')}>{INVENTORY_GROUP_HINTS[g]}</span>
                     </button>
@@ -74,19 +74,15 @@ export default function InventoryPage() {
               </div>
 
               <Section title={INVENTORY_GROUP_LABELS[group]} description={INVENTORY_GROUP_HINTS[group]} tone="flush">
-                <div className="p-3 md:p-4">
-                  {rows.length === 0 ? (
-                    <p className="p-3 text-sm text-muted">No batteries are in this group.</p>
-                  ) : (
-                    <DataTable caption={INVENTORY_GROUP_LABELS[group]} columns={cols} rows={rows} rowKey={(b) => b.id} rowHref={(b) => `/app/batteries/${b.id}`} pageSize={12} initialSort={{ key: 'label', dir: 'asc' }} />
-                  )}
-                </div>
+                {rows.length === 0 ? (
+                  <p className="px-3 pb-3 text-sm text-muted">No batteries are in this group.</p>
+                ) : (
+                  <DataTable caption={INVENTORY_GROUP_LABELS[group]} columns={cols} rows={rows} rowKey={(b) => b.id} rowHref={(b) => `/app/batteries/${b.id}`} pageSize={12} initialSort={{ key: 'label', dir: 'asc' }} />
+                )}
               </Section>
 
               <Section title="Stock by battery family" tone="flush">
-                <div className="p-3 md:p-4">
-                  <DataTable caption="Stock by family" columns={famCols} rows={inv.byFamily} rowKey={(f) => f.familyId} pageSize={10} />
-                </div>
+                <DataTable caption="Stock by family" columns={famCols} rows={inv.byFamily} rowKey={(f) => f.familyId} pageSize={10} />
               </Section>
             </div>
           );

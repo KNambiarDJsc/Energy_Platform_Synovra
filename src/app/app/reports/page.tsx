@@ -12,6 +12,8 @@ import type { Report, ReportTemplateId } from '@/domain/types';
 import { downloadText, formatDate, formatDateTime } from '@/lib/format';
 import { errorMessage, useAction, useSession, useSvcQuery } from '@/lib/hooks';
 
+const REPORT_ROW = 'border-t border-line align-top'; // taste-skill-ignore: rows of a real data table
+
 function ReportView({ r }: { r: Report }) {
   const session = useSession();
   const approve = useAction<string, Report>((s, id) => s.reports.approve(id), { success: 'Report approved by you and recorded.' });
@@ -21,21 +23,21 @@ function ReportView({ r }: { r: Report }) {
   });
   return (
     <article className="print-area card" aria-label={r.title}>
-      <header className="border-b border-line p-5">
+      <header className="p-5 pb-1 md:p-6 md:pb-1">
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={r.approvalState === 'approved' ? 'green' : r.approvalState === 'rejected' ? 'red' : 'amber'}>
             {r.approvalState === 'approved' ? `Approved by ${r.approvedByName}` : r.approvalState === 'draft' ? 'Draft: not approved' : 'Not approved'}
           </Badge>
           <Badge tone="neutral">{r.audience === 'customer' ? 'Customer audience (redacted)' : 'Internal'}</Badge>
         </div>
-        <h2 className="mt-2 text-2xl font-semibold text-navy">{r.title}</h2>
+        <h2 className="mt-2 text-2xl font-semibold text-ink">{r.title}</h2>
         <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
           <div><dt className="inline font-medium">Scope: </dt><dd className="inline">{r.scope}</dd></div>
           <div><dt className="inline font-medium">Period: </dt><dd className="inline">{formatDate(r.period.from)} to {formatDate(r.period.to)}</dd></div>
           <div><dt className="inline font-medium">Generated: </dt><dd className="inline">{formatDateTime(r.generatedAt)} by {r.generatedByName}</dd></div>
           <div><dt className="inline font-medium">Report ID: </dt><dd className="mono inline">{r.id}</dd></div>
         </dl>
-        <p className="mt-3 rounded-md border border-[#E8D6A8] bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700">{r.sourceWatermark || DEMO_NOTICE}</p>
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700">{r.sourceWatermark || DEMO_NOTICE}</p>
         <div className="no-print mt-4 flex flex-wrap gap-2">
           <Button variant="secondary" size="sm" icon={<Printer className="h-4 w-4" aria-hidden />} onClick={() => window.print()}>Print or save as PDF</Button>
           <Button variant="secondary" size="sm" icon={<Download className="h-4 w-4" aria-hidden />} loading={csv.isPending} onClick={() => csv.mutate(r.id)}>Export CSV</Button>
@@ -51,19 +53,19 @@ function ReportView({ r }: { r: Report }) {
       <div className="space-y-6 p-5">
         {r.sections.map((s) => (
           <section key={s.heading} aria-labelledby={`sec-${s.heading}`}>
-            <h3 id={`sec-${s.heading}`} className="text-base font-semibold text-navy">{s.heading}</h3>
+            <h3 id={`sec-${s.heading}`} className="text-base font-semibold text-ink">{s.heading}</h3>
             {s.note && <p className="mt-1 text-sm text-muted">{s.note}</p>}
             {s.rows.length === 0 ? (
               <p className="mt-2 text-sm text-muted">No records in this section.</p>
             ) : (
-              <div className="mt-2 overflow-x-auto rounded-md border border-line">
+              <div className="mt-2 overflow-x-auto rounded-lg bg-canvas">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-canvas">
                     <tr>{s.columns.map((c) => <th key={c} scope="col" className="px-3 py-2 text-[13px] font-medium text-muted">{c}</th>)}</tr>
                   </thead>
                   <tbody>
                     {s.rows.map((row, i) => (
-                      <tr key={i} className="border-t border-line align-top">
+                      <tr key={i} className={REPORT_ROW}>
                         {row.map((cell, j) => <td key={j} className="px-3 py-2">{cell}</td>)}
                       </tr>
                     ))}
@@ -75,9 +77,9 @@ function ReportView({ r }: { r: Report }) {
         ))}
         {r.evidenceRefs.length > 0 && (
           <section>
-            <h3 className="text-base font-semibold text-navy">Evidence references</h3>
+            <h3 className="text-base font-semibold text-ink">Evidence references</h3>
             <ul className="mt-1 flex flex-wrap gap-2 text-xs">
-              {r.evidenceRefs.map((e) => <li key={e} className="mono rounded-full border border-line px-2 py-0.5">{e}</li>)}
+              {r.evidenceRefs.map((e) => <li key={e} className="mono rounded-full bg-fill px-2.5 py-0.5">{e}</li>)}
             </ul>
           </section>
         )}
@@ -152,16 +154,16 @@ function ReportsInner() {
           <Section title="Generated reports" tone="flush">
             <QueryView query={list} skeleton={<div className="p-4"><LoadingBlock rows={2} /></div>} isEmpty={(d) => d.length === 0} empty={<p className="p-5 text-sm text-muted">No reports yet.</p>}>
               {(rows) => (
-                <ul className="divide-y divide-line">
+                <ul>
                   {rows.map((r) => (
                     <li key={r.id}>
                       <button
                         type="button"
                         onClick={() => router.replace(`/app/reports?report=${r.id}`, { scroll: false })}
                         aria-current={r.id === selected ? 'true' : undefined}
-                        className={`block w-full px-4 py-3 text-left hover:bg-canvas md:px-5 ${r.id === selected ? 'bg-teal-50' : ''}`}
+                        className={`block w-full rounded-lg px-3 py-3 text-left transition-colors duration-150 ${r.id === selected ? 'bg-teal-50' : 'hover:bg-canvas'}`}
                       >
-                        <span className="block text-sm font-semibold text-navy">{r.title}</span>
+                        <span className="block text-sm font-semibold text-ink">{r.title}</span>
                         <span className="block text-xs text-muted">{formatDateTime(r.generatedAt)} · {r.approvalState === 'approved' ? 'Approved' : 'Draft'} · {r.audience}</span>
                       </button>
                     </li>

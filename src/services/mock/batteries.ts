@@ -205,7 +205,7 @@ export function createBatteryRepository(ctx: Ctx): BatteryRepository {
           d.aliases.some((al) => al.batteryId === x.id && d.aliases.some((m) => m.batteryId === b.id && m.value.toLowerCase() === al.value.toLowerCase())) ||
           d.aliases.some((al) => al.batteryId === b.id && x.manufacturerSerial && al.value.toLowerCase() === x.manufacturerSerial.toLowerCase()) ||
           d.aliases.some((al) => al.batteryId === x.id && b.manufacturerSerial && al.value.toLowerCase() === b.manufacturerSerial.toLowerCase())
-        )).forEach((x) => related.push({ id: x.id, label: x.label, publicRef: x.publicRef, relation: 'Possible duplicate identity â€” needs review' }));
+        )).forEach((x) => related.push({ id: x.id, label: x.label, publicRef: x.publicRef, relation: 'Possible duplicate identity, needs review' }));
       }
 
       const loc = locationOf(ctx, b);

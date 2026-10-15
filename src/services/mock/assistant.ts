@@ -85,7 +85,7 @@ export function createAssistantService(ctx: Ctx): AssistantService {
           return make(`${battery.label} has no alerts or model flags on record. ${tel.available ? '' : tel.reason}`.trim(), cites, 'Absence of a flag is not evidence of good condition: telemetry coverage and test age matter.');
         }
         const lines = alerts.map((a) => `• ${a.id} (${a.severity}, ${a.state.replace('_', ' ')}): ${a.detail} Source: ${a.source.kind} ${a.source.name} ${a.source.version}.`);
-        preds.forEach((x) => lines.push(`• ${x.id}: ${x.modelName} ${x.modelVersion} in shadow mode reports "${x.output.value}" (${x.uncertainty}).`));
+        preds.forEach((x) => lines.push(`• ${x.id}: ${x.modelName} ${x.modelVersion} in shadow mode reports "${x.output.value}" (${x.uncertainty}).`)); // taste-skill-ignore: "shadow mode" is the model status, not a style
         if (tel.available) lines.push(`• Latest measured: ${tel.voltageV} V, ${tel.temperatureC} °C${tel.freshness === 'stale' ? ' (stale)' : ''}.`);
         return make(`${battery.label} is flagged for these recorded reasons:\n${lines.join('\n')}`, cites,
           'Alerts from rules are deterministic comparisons to configured thresholds. Model flags are unvalidated shadow-mode outputs and may be wrong.');
@@ -98,7 +98,7 @@ export function createAssistantService(ctx: Ctx): AssistantService {
         const attempts = can(actor.role, 'restoration.read') ? d.attempts.filter((a) => a.batteryId === battery.id) : [];
         const cites = [cite('battery', battery.id, battery.label), ...tests.map((t) => cite('test', t.id, `${t.kind} test, ${t.status}`)), ...attempts.map((a) => cite('attempt', a.id, `Attempt #${a.attemptNo}`))];
         const tl = tests.map((t) => `• ${(t.reviewedAt ?? t.startedAt).slice(0, 10)} ${t.kind} test (${t.status.replace('_', ' ')}): ${t.result.capacityAh === null ? 'no capacity value' : `${t.result.capacityAh} Ah = ${Math.round((t.result.capacityAh / fam.ratedCapacityAh) * 100)}% of rated ${fam.ratedCapacityAh} Ah`}.`);
-        const al = attempts.map((a) => `• Attempt #${a.attemptNo} in ${a.batchId}: ${a.status.replace('_', ' ')}${a.decisionReason ? ` — ${a.decisionReason}` : ''}.`);
+        const al = attempts.map((a) => `• Attempt #${a.attemptNo} in ${a.batchId}: ${a.status.replace('_', ' ')}${a.decisionReason ? `: ${a.decisionReason}` : ''}.`);
         const restricted = !can(actor.role, 'restoration.read') ? '\nRestoration process details are not available to your role.' : '';
         const body = [...tl, ...al].join('\n') || 'No tests or attempts are on record.';
         return make(`${battery.label} (${LIFECYCLE_LABELS[battery.lifecycleState]}), identity unchanged through every step:\n${body}${restricted}`, cites,
@@ -124,7 +124,7 @@ export function createAssistantService(ctx: Ctx): AssistantService {
         if (!can(actor.role, 'report.generate')) return refusal(prompt, 'Your role cannot generate reports.');
         const w = battery ? d.warranties.find((x) => x.batteryId === battery.id) : null;
         const draft: AssistantDraft = {
-          id: `draft_${++n}`, kind: 'report', title: battery ? `Warranty evidence pack — ${battery.label}` : 'Warranty evidence pack — visible sites',
+          id: `draft_${++n}`, kind: 'report', title: battery ? `Warranty evidence pack: ${battery.label}` : 'Warranty evidence pack: visible sites',
           body: 'A warranty evidence pack (draft) covering warranty terms, claims, original approved test and linked alerts. Generated as a draft; approval stays with an engineer.',
           payload: { templateId: 'warranty_pack', scopeId: battery?.siteId ?? null, from: '2026-01-01', to: ctx.store.now().slice(0, 10) },
         };

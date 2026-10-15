@@ -22,9 +22,10 @@ export const pct = (ah: number) => Math.round((ah / B0002.ratedAh) * 100);
 
 export type StageKey = 'intake' | 'test' | 'restore' | 'qualify';
 
-export const STAGES: { key: StageKey; name: string; clause: string; proof: string }[] = [
-  { key: 'intake', name: 'Intake', clause: 'First, one identity for life', proof: 'The identity never changes. A printed label and a QR reference only point to it.' },
-  { key: 'test', name: 'Test', clause: 'Then, what was measured', proof: 'Every result carries its instrument, calibration, protocol revision and operator.' },
-  { key: 'restore', name: 'Restore', clause: 'Then, the work and its cost', proof: 'Attempts stay on the same identity. A cost nobody entered stays unknown, never zero.' },
-  { key: 'qualify', name: 'Qualify', clause: 'Last, a person decides', proof: 'The rule check informs. A battery engineer approves, with a written reason.' },
+/** The four stages the passport fills in through. `chip` is the lifecycle state the product shows after each. */
+export const STAGES: { key: StageKey; name: string; chip: string; tone: 'neutral' | 'wait' | 'ok'; clause: string; proof: string }[] = [
+  { key: 'intake', name: 'Intake', chip: 'Received', tone: 'neutral', clause: 'First, one identity for life', proof: 'The identity never changes. A printed label and a QR reference only point to it.' },
+  { key: 'test', name: 'Test', chip: 'Restoration candidate', tone: 'wait', clause: 'Then, what was measured', proof: 'Every result carries its instrument, calibration, protocol revision and operator.' },
+  { key: 'restore', name: 'Restore', chip: 'In restoration', tone: 'wait', clause: 'Then, the work and its cost', proof: 'Attempts stay on the same identity. A cost nobody entered stays unknown, never zero.' },
+  { key: 'qualify', name: 'Qualify', chip: 'Qualified', tone: 'ok', clause: 'Last, a person decides', proof: 'The rule check informs. A battery engineer approves, with a written reason.' },
 ];

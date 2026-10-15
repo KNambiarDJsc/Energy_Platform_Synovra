@@ -14,6 +14,14 @@ export function formatDateTime(iso: string | null | undefined): string {
   return `${date}, ${time} GST`;
 }
 
+/** "09:00 GST". */
+export function formatTime(iso: string | null | undefined): string {
+  if (!iso) return 'Unknown';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'Unknown';
+  return `${new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(d)} GST`;
+}
+
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return 'Unknown';
   const d = new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso);
@@ -62,4 +70,14 @@ export function downloadText(fileName: string, text: string, mime = 'text/csv') 
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** "Hamid Rahimi" -> "HR". */
+export function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join('');
 }

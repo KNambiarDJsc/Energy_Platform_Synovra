@@ -1,7 +1,7 @@
 'use client';
 import {
-  AlertTriangle, ArrowRight, BadgeCheck, CircleDot, ClipboardCheck, FileText, FlaskConical, GitBranch, History, Lock, MapPin,
-  Recycle, Repeat, ScanLine, ShieldCheck, Undo2, Wrench, XCircle,
+  AlertTriangle, ArrowRight, BadgeCheck, Check, CircleDot, ClipboardCheck, FileText, FlaskConical, GitBranch, History, Lock, MapPin,
+  Recycle, Repeat, ScanLine, ShieldCheck, Undo2, Wrench, X, XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -10,9 +10,9 @@ import {
 } from '@/components/ui/Badge';
 import { EvidenceDownload, StorageBadge } from '@/components/app/Evidence';
 import { TimeSeriesChart } from '@/components/ui/Charts';
-import { DataTable, type Column } from '@/components/ui/DataTable';
+import { DataTable, DateTimeCell, type Column } from '@/components/ui/DataTable';
 import { Select } from '@/components/ui/Field';
-import { KeyValue, Notice, Section } from '@/components/ui/Layout';
+import { KeyValue, Notice, Section, TableCard } from '@/components/ui/Layout';
 import { EmptyState, QueryView } from '@/components/ui/States';
 import { LIFECYCLE_LABELS } from '@/domain/lifecycle';
 import type {
@@ -31,7 +31,7 @@ export function buildNarrative(p: BatteryPassport): string[] {
   const intake = p.events.find((e) => e.type === 'intake');
   const fam = p.family;
   out.push(
-    `${b.label} is a ${fam.manufacturer} ${fam.model} (${fam.chemistry}, ${fam.ratedVoltageV} V, rated ${fam.ratedCapacityAh} Ah at the ${fam.rateHours}-hour rate).` +
+    `${b.label} is ${/^[aeiou]/i.test(fam.manufacturer) ? 'an' : 'a'} ${fam.manufacturer} ${fam.model} (${fam.chemistry}, ${fam.ratedVoltageV} V, rated ${fam.ratedCapacityAh} Ah at the ${fam.rateHours}-hour rate).` +
       (intake ? ` It was received on ${formatDate(intake.occurredAt)}${intake.dateCertainty === 'approximate' ? ' (date approximate, reconstructed from legacy records)' : ''}.` : ''),
   );
   const approvedBattery = p.tests.filter((t) => t.status === 'approved' && t.result.capacityAh !== null);
@@ -121,24 +121,30 @@ export function storyStages(p: BatteryPassport): Stage[] {
 
 export function StoryStrip({ passport }: { passport: BatteryPassport }) {
   const stages = storyStages(passport);
-  const tone: Record<StageState, string> = {
-    done: 'border-teal bg-teal text-white',
-    current: 'border-teal bg-white text-teal-800 ring-4 ring-teal-100',
-    pending: 'border-[#9FB2BD] bg-white text-muted',
-    skipped: 'border-dashed border-[#9FB2BD] bg-canvas text-muted',
-    problem: 'border-critical bg-critical text-white',
+  // Drawn on the navy passport: done in bright teal, now in white, a problem in light red, the rest left as track.
+  const fill: Record<StageState, string> = {
+    done: 'bg-teal-bright',
+    current: 'bg-white',
+    pending: 'bg-transparent',
+    skipped: 'bg-transparent',
+    problem: 'bg-[#FF8A80]',
   };
+  const word: Record<StageState, string> = { done: 'done', current: 'now', pending: 'not yet', skipped: 'skipped', problem: 'problem' };
   return (
-    <ol className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" aria-label="Lifecycle progress">
+    <ol className="grid grid-cols-3 gap-x-4 gap-y-6 md:grid-cols-6" aria-label="Lifecycle progress">
       {stages.map((st, i) => (
-        <li key={st.key} className="flex items-start gap-3">
-          <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold ${tone[st.state]}`} aria-hidden>
-            {st.state === 'problem' ? <XCircle className="h-4 w-4" /> : st.state === 'done' ? <BadgeCheck className="h-4 w-4" /> : i + 1}
+        <li key={st.key} className="min-w-0">
+          <span aria-hidden className="block h-1 overflow-hidden rounded-full bg-white/15">
+            <span className={`anim-grow block h-full rounded-full ${fill[st.state]}`} style={{ animationDelay: `${250 + i * 110}ms` }} />
           </span>
-          <div>
-            <p className="text-sm font-semibold text-navy">{st.label}</p>
-            <p className="text-xs text-muted">{st.detail}</p>
-          </div>
+          <p className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-white">
+            {st.state === 'done' && <Check className="h-3.5 w-3.5 shrink-0 text-teal-bright" strokeWidth={3} aria-hidden />}
+            {st.state === 'problem' && <X className="h-3.5 w-3.5 shrink-0 text-[#FF8A80]" strokeWidth={3} aria-hidden />}
+            {st.state === 'current' && <span className="h-2 w-2 shrink-0 rounded-full bg-white" aria-hidden />}
+            <span className="truncate">{st.label}</span>
+            <span className="sr-only">, {word[st.state]}.</span>
+          </p>
+          <p className="mt-0.5 text-xs text-[#A9C1CF]">{st.detail}</p>
         </li>
       ))}
     </ol>
@@ -163,7 +169,7 @@ export function IdentityCard({ p }: { p: BatteryPassport }) {
         ]}
       />
       {p.aliases.length > 0 && (
-        <div className="mt-5 border-t border-line pt-4">
+        <div className="mt-5 pt-4">
           <p className="text-[13px] font-medium text-muted">Aliases</p>
           <ul className="mt-2 space-y-1 text-sm">
             {p.aliases.map((a) => (
@@ -175,7 +181,7 @@ export function IdentityCard({ p }: { p: BatteryPassport }) {
         </div>
       )}
       {p.retiredRefs.length > 0 && (
-        <div className="mt-4 border-t border-line pt-4">
+        <div className="mt-4 pt-4">
           <p className="text-[13px] font-medium text-muted">Retired QR references</p>
           <ul className="mt-2 space-y-1 text-sm">
             {p.retiredRefs.map((a) => (
@@ -187,7 +193,7 @@ export function IdentityCard({ p }: { p: BatteryPassport }) {
         </div>
       )}
       {p.relatedBatteries.length > 0 && (
-        <div className="mt-4 border-t border-line pt-4">
+        <div className="mt-4 pt-4">
           <p className="text-[13px] font-medium text-muted">Linked records (not merged)</p>
           <ul className="mt-2 space-y-1 text-sm">
             {p.relatedBatteries.map((r) => (
@@ -202,7 +208,7 @@ export function IdentityCard({ p }: { p: BatteryPassport }) {
           </ul>
         </div>
       )}
-      <p className="mt-4 rounded-md bg-canvas p-3 text-xs text-muted">
+      <p className="mt-4 rounded-lg bg-canvas p-3 text-xs text-muted">
         Restoration keeps this identity. A physical replacement is a different battery and receives a new identity, linked to the one it replaced.
       </p>
     </Section>
@@ -219,44 +225,49 @@ const EVENT_ICON: Record<LifecycleEventType, typeof CircleDot> = {
 export function Timeline({ events }: { events: TimelineEvent[] }) {
   if (events.length === 0) return <EmptyState title="No lifecycle events yet" />;
   const ordered = [...events].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+  const tone = (t: LifecycleEventType) =>
+    t === 'approval' ? 'bg-approved-50 text-approved-700' : t === 'rejection' ? 'bg-critical-50 text-critical-700' : t === 'alert' ? 'bg-amber-50 text-amber-700' : 'bg-fill text-ink-2';
   return (
-    <ol className="relative space-y-5 border-l-2 border-line pl-6" aria-label="Lifecycle timeline, newest first">
-      {ordered.map((e) => {
+    <ol className="card p-5 md:p-7" aria-label="Lifecycle timeline, newest first">
+      {ordered.map((e, i) => {
         const Icon = EVENT_ICON[e.type] ?? CircleDot;
         return (
-          <li key={e.id} className="relative">
-            <span className="absolute -left-[37px] top-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-navy text-white">
-              <Icon className="h-3 w-3" aria-hidden />
+          <li key={e.id} className="relative flex gap-4 pb-7 last:pb-0">
+            {i < ordered.length - 1 && <span aria-hidden className="absolute bottom-1 left-[15px] top-10 w-0.5 rounded-full bg-fill-2" />}
+            <span className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${tone(e.type)}`} aria-hidden>
+              <Icon className="h-4 w-4" />
             </span>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <h3 className="text-sm font-semibold text-navy">{e.title}</h3>
-              {e.approvalState !== 'not_required' && <ApprovalBadge state={e.approvalState} />}
-              {e.dateCertainty === 'approximate' && <Badge tone="amber" title="Reconstructed from legacy records">Date approximate</Badge>}
+            <div className="min-w-0 flex-1 pt-1">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <h3 className="text-[15px] font-semibold leading-snug text-ink">{e.title}</h3>
+                {e.approvalState !== 'not_required' && <ApprovalBadge state={e.approvalState} />}
+                {e.dateCertainty === 'approximate' && <Badge tone="amber" title="Reconstructed from legacy records">Date approximate</Badge>}
+              </div>
+              <p className="mt-1 text-xs text-muted">
+                {formatDateTime(e.occurredAt)} · {e.actorName} · source: {e.sourceSystem}
+                {e.recordedAt !== e.occurredAt && <> · recorded {formatDateTime(e.recordedAt)}</>}
+              </p>
+              {e.previousState && e.newState && e.previousState !== e.newState && (
+                <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                  <LifecycleBadge state={e.previousState} /> <ArrowRight className="h-3.5 w-3.5" aria-hidden /> <LifecycleBadge state={e.newState} />
+                </p>
+              )}
+              {e.reason && <p className="mt-2 text-sm text-ink">{e.reason}</p>}
+              {e.correction && (
+                <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  Correction to <strong>{e.correction.field}</strong>: was “{e.correction.previous ?? 'not recorded'}”, now “{e.correction.next ?? 'not recorded'}”. The original value is retained here.
+                </p>
+              )}
+              {e.evidence.length > 0 && (
+                <ul className="mt-2 flex flex-wrap gap-2">
+                  {e.evidence.map((f) => (
+                    <li key={f.id} className="inline-flex items-center gap-1.5 rounded-full bg-fill px-2.5 py-0.5 text-xs text-ink-2">
+                      <FileText className="h-3 w-3" aria-hidden /> {f.fileName}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-            <p className="mt-0.5 text-xs text-muted">
-              {formatDateTime(e.occurredAt)} · {e.actorName} · source: {e.sourceSystem}
-              {e.recordedAt !== e.occurredAt && <> · recorded {formatDateTime(e.recordedAt)}</>}
-            </p>
-            {e.previousState && e.newState && e.previousState !== e.newState && (
-              <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">
-                <LifecycleBadge state={e.previousState} /> <ArrowRight className="h-3 w-3" aria-hidden /> <LifecycleBadge state={e.newState} />
-              </p>
-            )}
-            {e.reason && <p className="mt-1.5 text-sm text-ink">{e.reason}</p>}
-            {e.correction && (
-              <p className="mt-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700">
-                Correction to <strong>{e.correction.field}</strong>: was “{e.correction.previous ?? 'not recorded'}”, now “{e.correction.next ?? 'not recorded'}”. The original value is retained here.
-              </p>
-            )}
-            {e.evidence.length > 0 && (
-              <ul className="mt-1.5 flex flex-wrap gap-2">
-                {e.evidence.map((f) => (
-                  <li key={f.id} className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2 py-0.5 text-xs">
-                    <FileText className="h-3 w-3" aria-hidden /> {f.fileName}
-                  </li>
-                ))}
-              </ul>
-            )}
           </li>
         );
       })}
@@ -274,7 +285,7 @@ export function TestsPanel({ p }: { p: BatteryPassport }) {
   const rated = p.family.ratedCapacityAh;
   const cols: Column<TestSession>[] = [
     { key: 'kind', header: 'Test', mobile: 'title', cell: (t) => KIND_LABEL[t.kind] ?? t.kind },
-    { key: 'date', header: 'Started', sort: (t) => t.startedAt, cell: (t) => formatDateTime(t.startedAt) },
+    { key: 'date', header: 'Started', sort: (t) => t.startedAt, cell: (t) => <DateTimeCell iso={t.startedAt} /> },
     { key: 'status', header: 'Status', cell: (t) => <TestStatusBadge status={t.status} /> },
     {
       key: 'cap', header: 'Capacity', align: 'right', sort: (t) => t.result.capacityAh,
@@ -298,17 +309,15 @@ export function TestsPanel({ p }: { p: BatteryPassport }) {
         <EmptyState title="No tests recorded" description="Capacity and condition are unknown until a test is recorded and approved." />
       ) : (
         <Section title="Battery-level tests" description="Capacity is a measured discharge under the stated conditions. It is not temperature-corrected." tone="flush">
-          <div className="p-3 md:p-4">
-            <DataTable caption="Battery-level tests" columns={cols} rows={p.tests} rowKey={(t) => t.id} initialSort={{ key: 'date', dir: 'desc' }} />
-          </div>
+          <DataTable caption="Battery-level tests" columns={cols} rows={p.tests} rowKey={(t) => t.id} initialSort={{ key: 'date', dir: 'desc' }} />
         </Section>
       )}
       {p.stringTests.length > 0 && (
         <Section title="String-level tests covering this battery" description="A string result describes the series string. It is never a per-battery capacity.">
           <ul className="space-y-3">
             {p.stringTests.map((t) => (
-              <li key={t.id} className="rounded-md border border-line p-3 text-sm">
-                <p className="font-semibold text-navy">{t.stringName} · {KIND_LABEL[t.kind]}</p>
+              <li key={t.id} className="rounded-lg bg-canvas p-3 text-sm">
+                <p className="font-semibold text-ink">{t.stringName} · {KIND_LABEL[t.kind]}</p>
                 <p className="text-muted">
                   {formatDateTime(t.startedAt)} · {formatNumber(t.result.capacityAh, 0, 'Ah')} string result · <TestStatusBadge status={t.status} />
                 </p>
@@ -337,7 +346,7 @@ export function RestorationPanel({ p }: { p: BatteryPassport }) {
       {p.attempts.map((a: RestorationAttempt) => (
         <li key={a.id} className="card p-4">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-navy">Attempt {a.attemptNo}</h3>
+            <h3 className="text-base font-semibold text-ink">Attempt {a.attemptNo}</h3>
             <Badge tone={a.status === 'approved' ? 'green' : a.status === 'rejected' ? 'red' : a.status === 'rework' ? 'amber' : 'teal'}>{titleCase(a.status)}</Badge>
             <span className="text-sm text-muted">Started {formatDate(a.startedAt)}</span>
           </div>
@@ -352,7 +361,7 @@ export function RestorationPanel({ p }: { p: BatteryPassport }) {
             </p>
           )}
           {a.notes.length > 0 && (
-            <ul className="mt-3 space-y-1.5 border-t border-line pt-3 text-sm">
+            <ul className="mt-3 space-y-1.5 pt-3 text-sm">
               {a.notes.map((n) => (
                 <li key={n.id}>
                   <span className="text-muted">{formatDateTime(n.at)} · {n.actorName}:</span> {n.text}
@@ -372,12 +381,16 @@ export function DeploymentPanel({ p }: { p: BatteryPassport }) {
   const cols: Column<AssignmentView>[] = [
     { key: 'site', header: 'Site', mobile: 'title', cell: (a) => a.siteName },
     { key: 'pos', header: 'Position', cell: (a) => `${a.bankName} / ${a.stringName} / ${a.position}` },
-    { key: 'from', header: 'From', sort: (a) => a.startAt, cell: (a) => formatDateTime(a.startAt) },
-    { key: 'to', header: 'To', cell: (a) => (a.endAt ? formatDateTime(a.endAt) : <Badge tone="teal">Current</Badge>) },
+    { key: 'from', header: 'From', sort: (a) => a.startAt, cell: (a) => <DateTimeCell iso={a.startAt} /> },
+    { key: 'to', header: 'To', cell: (a) => (a.endAt ? <DateTimeCell iso={a.endAt} /> : <Badge tone="teal">Current</Badge>) },
     { key: 'reason', header: 'Reason', cell: (a) => a.reason },
   ];
   if (p.assignments.length === 0) return <EmptyState title="Never deployed" description={`Currently at: ${p.battery.physicalLocation}.`} />;
-  return <DataTable caption="Deployment history" columns={cols} rows={p.assignments} rowKey={(a) => a.id} initialSort={{ key: 'from', dir: 'desc' }} />;
+  return (
+    <TableCard>
+      <DataTable caption="Deployment history" columns={cols} rows={p.assignments} rowKey={(a) => a.id} initialSort={{ key: 'from', dir: 'desc' }} />
+    </TableCard>
+  );
 }
 
 /* ------------------------------ telemetry ------------------------------ */
@@ -413,15 +426,15 @@ export function TelemetryPanel({ p }: { p: BatteryPassport }) {
               t.resistanceSource === 'measured' ? 'measured' : t.resistanceSource === 'inferred' ? 'inferred' : 'unknown',
             ],
           ].map(([label, value, kind]) => (
-            <div key={label} className="rounded-md border border-line p-3">
+            <div key={label} className="rounded-lg bg-canvas p-3">
               <p className="text-[13px] font-medium text-muted">{label}</p>
-              <p className="mt-1 text-xl font-semibold text-navy">{value}</p>
+              <p className="mt-1 text-xl font-semibold text-ink">{value}</p>
               <div className="mt-2">
                 <ValueKindBadge kind={kind as 'measured' | 'inferred' | 'unknown'} />
               </div>
             </div>
           ))}
-          <div className="rounded-md border border-line p-3">
+          <div className="rounded-lg bg-canvas p-3">
             <p className="text-[13px] font-medium text-muted">Freshness</p>
             <p className="mt-1 text-sm text-ink">{t.lastReadingAt ? formatDateTime(t.lastReadingAt) : 'No reading'}</p>
             <div className="mt-2">
@@ -467,7 +480,7 @@ export function TelemetryPanel({ p }: { p: BatteryPassport }) {
             <div className="space-y-6">
               <p className="text-xs text-muted">{s.note} Each point averages {s.bucketHours} hour(s). Gaps are missing readings and are not filled.</p>
               <div>
-                <h3 className="mb-1 text-sm font-semibold text-navy">Voltage (V)</h3>
+                <h3 className="mb-1 text-sm font-semibold text-ink">Voltage (V)</h3>
                 <TimeSeriesChart
                   label="Battery voltage over time"
                   unit="V"
@@ -478,20 +491,20 @@ export function TelemetryPanel({ p }: { p: BatteryPassport }) {
                 />
               </div>
               <div>
-                <h3 className="mb-1 text-sm font-semibold text-navy">Temperature (°C)</h3>
+                <h3 className="mb-1 text-sm font-semibold text-ink">Temperature (°C)</h3>
                 <TimeSeriesChart
                   label="Battery temperature over time"
                   unit="°C"
                   summary={`Temperature over the last ${days} days, with the 30 °C reference.`}
                   points={s.points.map((x) => ({ t: x.t, v: x.temperatureC }))}
-                  series={[{ key: 'v', name: 'Temperature', color: '#946718' }]}
+                  series={[{ key: 'v', name: 'Temperature', color: '#007E83' }]}
                   referenceLine={{ y: 30, label: '30 °C reference' }}
                   height={200}
                 />
               </div>
               {t.resistanceSource !== 'unavailable' && (
                 <div>
-                  <h3 className="mb-1 text-sm font-semibold text-navy">
+                  <h3 className="mb-1 text-sm font-semibold text-ink">
                     Internal resistance (mΩ) {t.resistanceSource === 'inferred' && <span className="font-normal text-muted">· inferred</span>}
                   </h3>
                   <TimeSeriesChart
@@ -499,7 +512,7 @@ export function TelemetryPanel({ p }: { p: BatteryPassport }) {
                     unit="mΩ"
                     summary={`Resistance over the last ${days} days.`}
                     points={s.points.map((x) => ({ t: x.t, v: x.resistanceMOhm }))}
-                    series={[{ key: 'v', name: 'Resistance', color: '#112B40' }]}
+                    series={[{ key: 'v', name: 'Resistance', color: '#007E83' }]}
                     height={200}
                   />
                 </div>
@@ -518,7 +531,7 @@ export function TelemetryPanel({ p }: { p: BatteryPassport }) {
             points={peers.data.points.map((x) => ({ t: x.t, own: x.own, peer: x.peerMedian }))}
             series={[
               { key: 'own', name: 'This battery', color: '#007E83' },
-              { key: 'peer', name: 'String median', color: '#647985', dashed: true },
+              { key: 'peer', name: 'String median', color: '#B4B4B9', dashed: true },
             ]}
             height={220}
           />
@@ -570,7 +583,7 @@ export function CostsPanel({ p }: { p: BatteryPassport }) {
       <div className="card flex flex-wrap items-baseline gap-x-6 gap-y-1 p-4">
         <div>
           <p className="text-[13px] font-medium text-muted">Known costs listed</p>
-          <p className="text-2xl font-semibold text-navy">{formatAed(total)}</p>
+          <p className="text-2xl font-semibold text-ink">{formatAed(total)}</p>
         </div>
         {unknown > 0 && (
           <p className="text-sm text-amber-700">
@@ -578,7 +591,9 @@ export function CostsPanel({ p }: { p: BatteryPassport }) {
           </p>
         )}
       </div>
-      <DataTable caption="Cost entries" columns={cols} rows={p.costs} rowKey={(c) => c.id} />
+      <TableCard>
+        <DataTable caption="Cost entries" columns={cols} rows={p.costs} rowKey={(c) => c.id} />
+      </TableCard>
     </div>
   );
 }
@@ -609,9 +624,9 @@ export function WarrantyPanel({ p }: { p: BatteryPassport }) {
         ) : (
           <ul className="space-y-4">
             {w.claims.map((c) => (
-              <li key={c.id} className="rounded-md border border-line p-4">
+              <li key={c.id} className="rounded-lg bg-canvas p-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-sm font-semibold text-navy">{c.summary}</h3>
+                  <h3 className="text-sm font-semibold text-ink">{c.summary}</h3>
                   <Badge tone={c.status === 'open' ? 'amber' : 'neutral'}>{titleCase(c.status)}</Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted">Opened {formatDate(c.openedOn)}</p>
@@ -671,7 +686,9 @@ export function EvidencePanel({ p }: { p: BatteryPassport }) {
           ? 'Stored files are kept under their SHA-256 checksum and checked on every download. Each download is recorded in the audit trail.'
           : 'Only file names are recorded for these entries; no file contents are stored.'}
       </p>
-      <DataTable caption="Evidence files" columns={cols} rows={p.evidence} rowKey={(e) => e.id} initialSort={{ key: 'by', dir: 'desc' }} />
+      <TableCard>
+        <DataTable caption="Evidence files" columns={cols} rows={p.evidence} rowKey={(e) => e.id} initialSort={{ key: 'by', dir: 'desc' }} />
+      </TableCard>
     </div>
   );
 }
@@ -688,12 +705,16 @@ export function AuditPanel({ p }: { p: BatteryPassport }) {
   }
   if (p.audit.length === 0) return <EmptyState icon={History} title="No audit events" />;
   const cols: Column<AuditEvent>[] = [
-    { key: 'at', header: 'When', mobile: 'title', sort: (a) => a.at, cell: (a) => formatDateTime(a.at) },
+    { key: 'at', header: 'When', mobile: 'title', sort: (a) => a.at, cell: (a) => <DateTimeCell iso={a.at} /> },
     { key: 'who', header: 'Who', cell: (a) => <span>{a.actorName}<span className="block text-xs text-muted">{titleCase(String(a.role))}</span></span> },
     { key: 'action', header: 'Action', cell: (a) => <span className="mono">{a.action}</span> },
     { key: 'sum', header: 'Detail', cell: (a) => a.summary },
     { key: 'out', header: 'Outcome', cell: (a) => (a.outcome === 'denied' ? <Badge tone="red" icon={ShieldCheck}>Denied</Badge> : <Badge tone="green">Recorded</Badge>) },
   ];
-  return <DataTable caption="Audit history" columns={cols} rows={p.audit} rowKey={(a) => a.id} initialSort={{ key: 'at', dir: 'desc' }} pageSize={15} />;
+  return (
+    <TableCard>
+      <DataTable caption="Audit history" columns={cols} rows={p.audit} rowKey={(a) => a.id} initialSort={{ key: 'at', dir: 'desc' }} pageSize={15} />
+    </TableCard>
+  );
 }
 

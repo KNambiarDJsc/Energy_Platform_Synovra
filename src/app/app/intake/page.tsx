@@ -98,12 +98,12 @@ function RegisterForm() {
         </div>
 
         {create.error && !duplicate && (
-          <p role="alert" className="rounded-md border border-[#EBC4C4] bg-critical-50 p-3 text-sm text-critical-700">
+          <p role="alert" className="rounded-lg bg-critical-50 p-3 text-sm text-critical-700">
             {errorMessage(create.error)}
           </p>
         )}
         {duplicate && (
-          <div role="alert" className="rounded-md border border-[#E8D6A8] bg-amber-50 p-4 text-sm">
+          <div role="alert" className="rounded-lg bg-amber-50 p-4 text-sm">
             <p className="font-semibold text-amber-700">Possible duplicate</p>
             <p className="mt-1 text-ink">{errorMessage(create.error)}</p>
             <label className="mt-3 flex items-start gap-2">
@@ -183,8 +183,8 @@ function ImportFlow() {
 
   const cols: Column<ImportRow>[] = [
     { key: 'row', header: 'Row', mobile: 'title', sort: (r) => r.rowNumber, cell: (r) => `Row ${r.rowNumber}` },
-    { key: 'serial', header: 'Serial', cell: (r) => <span className="mono">{r.fields.serial?.original || '—'}</span> },
-    { key: 'model', header: 'Model', cell: (r) => r.fields.model?.original || '—' },
+    { key: 'serial', header: 'Serial', cell: (r) => <span className="mono">{r.fields.serial?.original || 'Not given'}</span> },
+    { key: 'model', header: 'Model', cell: (r) => r.fields.model?.original || <span className="text-muted">Not given</span> },
     { key: 'outcome', header: 'Outcome', cell: (r) => <Badge tone={OUTCOME_TONE[r.outcome]}>{OUTCOME_LABEL[r.outcome]}</Badge> },
     {
       key: 'issues', header: 'What needs attention',
@@ -251,7 +251,7 @@ function ImportFlow() {
           <span className="text-sm text-muted">8 invented rows including a duplicate, a missing serial and a bad date.</span>
         </div>
         {preview.error && (
-          <p role="alert" className="mt-4 rounded-md border border-[#EBC4C4] bg-critical-50 p-3 text-sm text-critical-700">
+          <p role="alert" className="mt-4 rounded-lg bg-critical-50 p-3 text-sm text-critical-700">
             {errorMessage(preview.error)}
           </p>
         )}
@@ -276,14 +276,14 @@ function ImportFlow() {
               ['Skipped', job.counts.skipped, 'neutral'],
               ['Quarantined', job.counts.quarantined, 'red'],
             ].map(([label, n, tone]) => (
-              <div key={label as string} className="rounded-md border border-line p-3">
-                <p className="text-2xl font-semibold text-navy">{n as number}</p>
+              <div key={label as string} className="rounded-lg bg-canvas p-3">
+                <p className="text-2xl font-semibold text-ink">{n as number}</p>
                 <Badge tone={tone as 'green'}>{label as string}</Badge>
               </div>
             ))}
           </div>
           <DataTable caption="Import preview" columns={cols} rows={job.rows} rowKey={(r) => String(r.rowNumber)} pageSize={10} />
-          <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line pt-4">
+          <div className="mt-5 flex flex-wrap items-center gap-3 pt-4">
             {job.status === 'previewed' ? (
               <>
                 <Button
@@ -313,11 +313,11 @@ function ImportFlow() {
       <Section title="Previous imports" tone="flush">
         <QueryView query={history} isEmpty={(d) => d.length === 0} empty={<p className="p-5 text-sm text-muted">No imports yet.</p>}>
           {(rows) => (
-            <ul className="divide-y divide-line">
+            <ul>
               {rows.map((j) => (
-                <li key={j.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm">
+                <li key={j.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-3 text-sm">
                   <span>
-                    <span className="font-medium text-navy">{j.fileName}</span>
+                    <span className="font-medium text-ink">{j.fileName}</span>
                     <span className="block text-xs text-muted">{formatDateTime(j.createdAt)} · {j.actorName}</span>
                   </span>
                   <span className="flex items-center gap-2">

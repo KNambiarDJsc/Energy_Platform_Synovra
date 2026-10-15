@@ -38,12 +38,12 @@ export function Field({ label, hint, error, required, children, className }: Fie
       </label>
       {control}
       {hint && (
-        <p id={`${id}-hint`} className="mt-1 text-xs text-muted">
+        <p id={`${id}-hint`} className="mt-1.5 text-xs text-muted">
           {hint}
         </p>
       )}
       {error && (
-        <p id={`${id}-err`} role="alert" className="mt-1 text-xs font-medium text-critical-700">
+        <p id={`${id}-err`} role="alert" className="mt-1.5 text-xs font-medium text-critical-700">
           {error}
         </p>
       )}
@@ -66,6 +66,54 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
     <select ref={ref} className={cn('input pr-8', className)} {...rest}>
       {children}
     </select>
+  );
+});
+
+/** A filter in a toolbar row: a filled capsule sized to its options. The options say what they filter ("Any severity"). */
+export const ToolbarSelect = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement> & { label: string }>(function ToolbarSelect(
+  { label, className, children, id, ...rest },
+  ref,
+) {
+  const auto = useId();
+  const sid = id ?? auto;
+  return (
+    <span className="min-w-0">
+      <label htmlFor={sid} className="sr-only">
+        {label}
+      </label>
+      <select
+        ref={ref}
+        id={sid}
+        className={cn('input !min-h-[40px] w-auto max-w-full rounded-full border-transparent bg-fill py-1.5 pl-4 font-medium hover:bg-fill-2 focus:bg-white', className)}
+        {...rest}
+      >
+        {children}
+      </select>
+    </span>
+  );
+});
+
+/** The search field of a toolbar: the same filled capsule, with the magnifier inside. */
+export const ToolbarSearch = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { label: string; icon: ReactNode }>(function ToolbarSearch(
+  { label, icon, className, id, ...rest },
+  ref,
+) {
+  const auto = useId();
+  const sid = id ?? auto;
+  return (
+    <span className={cn('relative block min-w-0', className)}>
+      <label htmlFor={sid} className="sr-only">
+        {label}
+      </label>
+      <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">{icon}</span>
+      <input
+        ref={ref}
+        id={sid}
+        type="search"
+        className="input !min-h-[40px] rounded-full border-transparent bg-fill pl-10 hover:bg-fill-2 focus:bg-white"
+        {...rest}
+      />
+    </span>
   );
 });
 

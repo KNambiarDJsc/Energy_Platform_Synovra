@@ -3,6 +3,7 @@ import { Calculator, FilePlus2, MessageSquarePlus } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/Badge';
+import { chipClass } from '@/components/ui/buttonClass';
 import { Button } from '@/components/ui/Button';
 import { Field, Input, Select, Textarea, parseNumberInput } from '@/components/ui/Field';
 import { KeyValue, Notice, PageHeader, Section } from '@/components/ui/Layout';
@@ -53,7 +54,7 @@ function Economics({ batchId, results }: { batchId: string; results: BatchResult
           />
         </div>
         <form
-          className="rounded-md border border-line bg-canvas p-4"
+          className="rounded-lg bg-canvas p-4"
           onSubmit={(e) => {
             e.preventDefault();
             const s = parseNumberInput(sales);
@@ -66,7 +67,7 @@ function Economics({ batchId, results }: { batchId: string; results: BatchResult
             run.mutate({ s, r: rc });
           }}
         >
-          <p className="flex items-center gap-2 text-sm font-semibold text-navy">
+          <p className="flex items-center gap-2 text-sm font-semibold text-ink">
             <Calculator className="h-4 w-4" aria-hidden /> Scenario (your assumptions)
           </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -82,13 +83,13 @@ function Economics({ batchId, results }: { batchId: string; results: BatchResult
             Calculate
           </Button>
           {r && (
-            <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-3 text-sm" aria-live="polite">
-              <div><dt className="text-xs text-muted">Incoming / qualified / rejected</dt><dd className="font-semibold text-navy">{r.incoming} / {r.qualified} / {r.rejects}</dd></div>
-              <div><dt className="text-xs text-muted">Yield</dt><dd className="font-semibold text-navy">{r.yieldPct === null ? 'Unknown' : `${formatNumber(r.yieldPct, 0)}%`}</dd></div>
-              <div><dt className="text-xs text-muted">Assumed value + recovery</dt><dd className="font-semibold text-navy">{formatAed(r.sales + r.recovery)}</dd></div>
-              <div><dt className="text-xs text-muted">Listed costs</dt><dd className="font-semibold text-navy">{formatAed(r.listedCosts)}</dd></div>
-              <div><dt className="text-xs text-muted">Contribution (scenario)</dt><dd className="font-semibold text-navy">{formatAed(r.contribution)}</dd></div>
-              <div><dt className="text-xs text-muted">Net cost per qualified</dt><dd className="font-semibold text-navy">{r.netCostPerQualified === null ? 'Unknown' : formatAed(r.netCostPerQualified)}</dd></div>
+            <dl className="mt-4 grid grid-cols-2 gap-3 pt-3 text-sm" aria-live="polite">
+              <div><dt className="text-xs text-muted">Incoming / qualified / rejected</dt><dd className="font-semibold text-ink">{r.incoming} / {r.qualified} / {r.rejects}</dd></div>
+              <div><dt className="text-xs text-muted">Yield</dt><dd className="font-semibold text-ink">{r.yieldPct === null ? 'Unknown' : `${formatNumber(r.yieldPct, 0)}%`}</dd></div>
+              <div><dt className="text-xs text-muted">Assumed value + recovery</dt><dd className="font-semibold text-ink">{formatAed(r.sales + r.recovery)}</dd></div>
+              <div><dt className="text-xs text-muted">Listed costs</dt><dd className="font-semibold text-ink">{formatAed(r.listedCosts)}</dd></div>
+              <div><dt className="text-xs text-muted">Contribution (scenario)</dt><dd className="font-semibold text-ink">{formatAed(r.contribution)}</dd></div>
+              <div><dt className="text-xs text-muted">Net cost per qualified</dt><dd className="font-semibold text-ink">{r.netCostPerQualified === null ? 'Unknown' : formatAed(r.netCostPerQualified)}</dd></div>
               {r.unknownCostEntries > 0 && (
                 <p className="col-span-2 text-xs text-amber-700">{r.unknownCostEntries} cost entr{r.unknownCostEntries > 1 ? 'ies are' : 'y is'} unknown and excluded, so these figures flatter the result.</p>
               )}
@@ -119,8 +120,8 @@ function BatchPanel({ batchId }: { batchId: string }) {
                 ['Rework', r.counts.rework],
                 ['Rejected', r.counts.rejected],
               ].map(([k, v]) => (
-                <div key={k as string} className="rounded-md border border-line p-3">
-                  <dd className="text-2xl font-semibold text-navy">{v as number}</dd>
+                <div key={k as string} className="rounded-lg bg-canvas p-3">
+                  <dd className="text-2xl font-semibold text-ink">{v as number}</dd>
                   <dt className="text-xs text-muted">{k as string}</dt>
                 </div>
               ))}
@@ -157,9 +158,9 @@ type Dialog =
 function AttemptCard({ a, onDialog }: { a: AttemptView; onDialog: (d: Dialog) => void }) {
   const session = useSession();
   return (
-    <li className="card p-4">
+    <li className="rounded-xl bg-canvas p-4 md:p-5">
       <div className="flex flex-wrap items-center gap-2">
-        <Link href={`/app/batteries/${a.batteryId}`} className="mono text-base font-semibold text-teal-800 underline underline-offset-2">
+        <Link href={`/app/batteries/${a.batteryId}`} className="mono text-base font-semibold text-teal-700 underline-offset-4 hover:underline">
           {a.batteryLabel}
         </Link>
         <span className="text-sm text-muted">{a.familyModel} · attempt {a.attemptNo}</span>
@@ -196,7 +197,7 @@ function AttemptCard({ a, onDialog }: { a: AttemptView; onDialog: (d: Dialog) =>
         </>
       )}
       {a.decisionReason && (
-        <p className="mt-3 rounded-md bg-canvas p-2.5 text-sm">
+        <p className="mt-3 rounded-lg bg-white px-3 py-2.5 text-sm">
           <span className="font-medium">Decision{a.deciderName ? ` by ${a.deciderName}` : ''}:</span> {a.decisionReason}
         </p>
       )}
@@ -332,11 +333,11 @@ function Candidates({ batchId }: { batchId: string }) {
     <Section title="Candidates" description="Batteries that can enter this batch. Restoration keeps each battery’s identity.">
       <div className="space-y-5">
         <div>
-          <h3 className="text-sm font-semibold text-navy">Ready to start ({list.length})</h3>
+          <h3 className="text-sm font-semibold text-ink">Ready to start ({list.length})</h3>
           {list.length === 0 ? (
             <p className="mt-1 text-sm text-muted">No battery is marked as a candidate.</p>
           ) : (
-            <ul className="mt-2 divide-y divide-line rounded-md border border-line">
+            <ul className="mt-2 space-y-0.5 overflow-hidden rounded-lg [&>*]:bg-canvas [&>*]:px-3.5">
               {list.map((b) => (
                 <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm">
                   <span><span className="mono font-semibold">{b.label}</span> <span className="text-muted">{b.model}</span></span>
@@ -347,11 +348,11 @@ function Candidates({ batchId }: { batchId: string }) {
           )}
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-navy">In testing with an approved test ({eligible.length})</h3>
+          <h3 className="text-sm font-semibold text-ink">In testing with an approved test ({eligible.length})</h3>
           {eligible.length === 0 ? (
             <p className="mt-1 text-sm text-muted">None. A battery needs an approved test before it can be marked as a candidate.</p>
           ) : (
-            <ul className="mt-2 divide-y divide-line rounded-md border border-line">
+            <ul className="mt-2 space-y-0.5 overflow-hidden rounded-lg [&>*]:bg-canvas [&>*]:px-3.5">
               {eligible.map((b) => (
                 <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm">
                   <span>
@@ -396,7 +397,7 @@ export default function RestorationPage() {
       <QueryView query={batches} isEmpty={(d) => d.length === 0} empty={<EmptyState title="No restoration batches" />} skeleton={<LoadingBlock rows={3} />}>
         {(list) => (
           <div className="space-y-6">
-            <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Restoration batch">
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Restoration batch">
               {list.map((b) => {
                 const active = b.id === batchId;
                 return (
@@ -405,10 +406,10 @@ export default function RestorationPage() {
                     type="button"
                     aria-pressed={active}
                     onClick={() => setSelected(b.id)}
-                    className={cn('min-h-[44px] whitespace-nowrap rounded-md border px-4 text-sm font-medium', active ? 'border-navy bg-navy text-white' : 'border-[#9FB2BD] bg-white hover:bg-canvas')}
+                    className={chipClass(active, 'min-h-[40px]')}
                   >
                     {b.name}
-                    <span className={cn('ml-2 text-xs', active ? 'text-white/80' : 'text-muted')}>{b.status === 'open' ? 'open' : 'closed'}</span>
+                    <span className={cn('ml-1 text-xs', active ? 'text-white/80' : 'text-ink-2')}>{b.status === 'open' ? 'open' : 'closed'}</span>
                   </button>
                 );
               })}
@@ -417,7 +418,7 @@ export default function RestorationPage() {
             {batchId && <BatchPanel batchId={batchId} />}
 
             <Section title="Attempts in this batch" tone="flush">
-              <div className="p-4 md:p-5">
+              <div className="px-3 pb-3 pt-2">
                 <QueryView
                   query={attempts}
                   isEmpty={(d) => d.length === 0}
@@ -425,7 +426,7 @@ export default function RestorationPage() {
                   skeleton={<LoadingBlock rows={2} />}
                 >
                   {(rows) => (
-                    <ul className="space-y-4">
+                    <ul className="space-y-3">
                       {rows.map((a) => (
                         <AttemptCard key={a.id} a={a} onDialog={setDialog} />
                       ))}

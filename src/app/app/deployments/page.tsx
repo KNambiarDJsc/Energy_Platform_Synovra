@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useRef, useState } from 'react';
 import { Badge, LifecycleBadge } from '@/components/ui/Badge';
+import { chipClass } from '@/components/ui/buttonClass';
 import { Button } from '@/components/ui/Button';
 import { Field, Select } from '@/components/ui/Field';
 import { Notice, PageHeader, Section } from '@/components/ui/Layout';
@@ -69,11 +70,11 @@ function Allocate({ sites, preselectSlot }: { sites: SiteView[]; preselectSlot: 
 
       {batteryId && effectiveSlot && (
         <div className="mt-5" aria-live="polite">
-          <h3 className="text-sm font-semibold text-navy">Compatibility checks</h3>
+          <h3 className="text-sm font-semibold text-ink">Compatibility checks</h3>
           {validation.isLoading && <p className="mt-2 text-sm text-muted">Checking…</p>}
           {validation.isError && <p role="alert" className="mt-2 text-sm text-critical-700">{errorMessage(validation.error)}</p>}
           {v && (
-            <ul className="mt-2 divide-y divide-line rounded-md border border-line">
+            <ul className="mt-2 space-y-0.5 overflow-hidden rounded-lg [&>*]:bg-canvas [&>*]:px-3.5">
               {v.checks.map((c) => (
                 <li key={c.id} className="flex items-start gap-3 px-3 py-2.5 text-sm">
                   <CheckIcon status={c.status} />
@@ -119,12 +120,12 @@ function SlotCell({ s, onPick }: { s: SlotView; onPick: (s: SlotView) => void })
       type="button"
       onClick={() => onPick(s)}
       className={cn(
-        'min-h-[64px] rounded-md border p-2 text-left text-xs transition-colors',
-        occupied ? 'border-navy bg-navy text-white hover:bg-navy-800' : 'border-dashed border-[#9FB2BD] bg-white text-muted hover:border-teal hover:text-ink',
+        'min-h-[64px] rounded-lg p-2.5 text-left text-xs transition-[background-color,transform] duration-150 ease-out active:scale-[0.97]',
+        occupied ? 'bg-navy text-white hover:bg-navy-800' : 'bg-fill text-ink-2 hover:bg-fill-2 hover:text-ink',
       )}
       aria-label={occupied ? `Position ${s.slot.position}: ${s.battery!.label}. Open details.` : `Position ${s.slot.position}: empty. Select for allocation.`}
     >
-      <span className="block text-[11px]">Pos {s.slot.position}</span>
+      <span className="block text-xs opacity-80">Pos {s.slot.position}</span>
       <span className="mt-0.5 block text-sm font-semibold">{occupied ? s.battery!.label : 'Empty'}</span>
     </button>
   );
@@ -167,7 +168,7 @@ export default function DeploymentsPage() {
                       type="button"
                       aria-pressed={active}
                       onClick={() => { setSiteId(s.site.id); setPreselect(''); }}
-                      className={cn('min-h-[44px] whitespace-nowrap rounded-md border px-4 text-sm font-medium', active ? 'border-navy bg-navy text-white' : 'border-[#9FB2BD] bg-white hover:bg-canvas')}
+                      className={chipClass(active, 'min-h-[40px]')}
                     >
                       {s.site.name}
                     </button>
@@ -190,7 +191,7 @@ export default function DeploymentsPage() {
                   <div className="space-y-6">
                     {site.strings.map((st) => (
                       <div key={st.string.id}>
-                        <h3 className="text-sm font-semibold text-navy">
+                        <h3 className="text-sm font-semibold text-ink">
                           {st.bank.name} / {st.string.name}{' '}
                           <span className="font-normal text-muted">· {st.familyModel} · {st.string.nominalVoltageV} V nominal</span>
                         </h3>

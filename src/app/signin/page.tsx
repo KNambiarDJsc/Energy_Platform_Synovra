@@ -1,15 +1,16 @@
 'use client';
-import { ArrowRight, Building2, Loader2 } from 'lucide-react';
+import { Building2, ChevronRight, FlaskConical } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
-import { Brand } from '@/components/app/Brand';
+import { BrandMark } from '@/components/app/Brand';
 import { DemoBanner } from '@/components/app/DemoBanner';
 import { Notice } from '@/components/ui/Layout';
+import { Spinner } from '@/components/ui/States';
 import { buttonClass } from '@/components/ui/buttonClass';
 import { getStore } from '@/data/store';
 import { ROLE_LABELS, ROLE_SUMMARIES, permissionsFor } from '@/domain/permissions';
 import type { Role, User } from '@/domain/types';
-import { cn } from '@/lib/format';
+import { initials } from '@/lib/format';
 import { useHydrated, useRuntime, useSession } from '@/lib/hooks';
 import { API_BASE_URL, DATA_SOURCE } from '@/lib/runtime';
 import { beginSignIn, safeNext } from '@/services/http/oidc';
@@ -18,6 +19,23 @@ import { DEMO_USER_FOR_ROLE, setSessionUserId } from '@/services/session';
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
 
 type PickerUser = Pick<User, 'id' | 'name' | 'title' | 'role'> & { siteScope?: User['siteScope'] };
+
+/** The one column every sign-in screen uses: the mark, a title, a sentence, then the choice. */
+function SignInColumn({ title, lede, children }: { title: string; lede: string; children: React.ReactNode }) {
+  return (
+    <div className="min-h-[100dvh] bg-canvas">
+      <DemoBanner />
+      <main id="main" className="mx-auto max-w-[600px] px-4 pb-16 pt-10 md:pt-16">
+        <div className="app-enter text-center">
+          <BrandMark size={56} className="mx-auto" />
+          <h1 className="mt-6 text-[34px] font-semibold leading-[40px] tracking-[-0.022em] text-ink md:text-[40px] md:leading-[46px]">{title}</h1>
+          <p className="mx-auto mt-3 max-w-[460px] text-[17px] leading-[26px] text-muted">{lede}</p>
+        </div>
+        {children}
+      </main>
+    </div>
+  );
+}
 
 /** Company sign-in: the browser goes to the organisation's identity provider and comes back to /auth/callback. */
 function CompanySignIn({ next }: { next: string }) {
@@ -40,36 +58,31 @@ function CompanySignIn({ next }: { next: string }) {
   };
 
   return (
-    <div className="min-h-screen bg-canvas">
-      <DemoBanner />
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-8 md:grid-cols-[5fr_6fr] md:px-8 md:py-14">
-        <div>
-          <Brand />
-          <main id="main" className="app-enter mt-16 md:mt-24">
-            <h1 className="text-4xl font-semibold tracking-tight text-navy md:text-5xl">Sign in</h1>
-            <p className="mt-4 max-w-md text-lg text-ink">Use your organisation&apos;s account. What you can see and do follows the role an administrator gave you.</p>
-            {!runtime.loaded ? (
-              <p className="mt-8 flex items-center gap-2 text-muted"><Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Checking how this deployment signs people in…</p>
-            ) : cfg ? (
-              <button type="button" onClick={start} disabled={busy} className={buttonClass('primary', 'md', 'mt-8 px-6 text-base')}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Building2 className="h-4 w-4" aria-hidden />}
-                Sign in with your organisation
-              </button>
-            ) : (
-              <Notice tone="warn" className="mt-8" title="Company sign-in is not configured">
-                The API uses OIDC but publishes no client ID. Set OIDC_CLIENT_ID on the API server (see server/README.md).
-              </Notice>
-            )}
-            {provider && <p className="mt-3 text-sm text-muted">You will be sent to {provider} and brought back here.</p>}
-            {(error ?? runtime.error) && <Notice tone="danger" className="mt-6" title="Cannot sign in">{error ?? runtime.error}</Notice>}
-          </main>
-        </div>
-        <aside className="hidden self-end rounded-lg bg-navy p-8 text-[#E6EEF2] md:block" aria-label="About access">
-          <p className="text-2xl font-semibold leading-snug text-white">A label finds a battery. Your sign-in decides what you see of it.</p>
-          <p className="mt-4 text-[#C9D8E0]">Every read and write is checked against your role and site scope, and refusals are recorded with the reason.</p>
-        </aside>
+    <SignInColumn title="Sign in" lede="Use your organisation’s account. What you can see and do follows the role an administrator gave you.">
+      <div className="app-enter mx-auto mt-10 max-w-[400px] text-center" style={{ animationDelay: '120ms' }}>
+        {!runtime.loaded ? (
+          <p role="status" className="flex items-center justify-center gap-2 text-muted">
+            <Spinner /> Checking how this deployment signs people in…
+          </p>
+        ) : cfg ? (
+          <button type="button" onClick={start} disabled={busy} className={buttonClass('primary', 'md', 'w-full text-base')}>
+            {busy ? <Spinner className="text-white" /> : <Building2 className="h-4 w-4" aria-hidden />}
+            Sign in with your organisation
+          </button>
+        ) : (
+          <Notice tone="warn" className="text-left" title="Company sign-in is not configured">
+            The API uses OIDC but publishes no client ID. Set OIDC_CLIENT_ID on the API server (see server/README.md).
+          </Notice>
+        )}
+        {provider && <p className="mt-3 text-sm text-muted">You will be sent to {provider} and brought back here.</p>}
+        {(error ?? runtime.error) && (
+          <Notice tone="danger" className="mt-6 text-left" title="Cannot sign in">
+            {error ?? runtime.error}
+          </Notice>
+        )}
+        <p className="mt-12 text-sm text-muted">A label finds a battery. Your sign-in decides what you see of it. Every refusal is recorded with its reason.</p>
       </div>
-    </div>
+    </SignInColumn>
   );
 }
 
@@ -91,61 +104,59 @@ function SignInInner() {
   if (DATA_SOURCE === 'http' && runtime.loaded && runtime.authMode === 'oidc') return <CompanySignIn next={next} />;
 
   return (
-    <div className="min-h-screen bg-canvas">
-      <DemoBanner />
-      <div className="mx-auto grid max-w-6xl gap-x-12 gap-y-8 px-4 py-8 md:px-8 md:py-14 lg:grid-cols-[4fr_7fr]">
-        <div className="lg:sticky lg:top-10 lg:self-start">
-          <Brand />
-          <main id="main" className="app-enter mt-12 lg:mt-20">
-            <h1 className="text-4xl font-semibold tracking-tight text-navy md:text-5xl">Choose a demo role</h1>
-            <p className="mt-4 max-w-md text-lg text-ink">
-              There are no passwords. The role decides what you can see and do, and the service layer enforces it on every call. Switch any time from the top bar.
-            </p>
-            <Notice tone="synthetic" className="mt-6 max-w-md" title={DATA_SOURCE === 'http' ? 'Development sign-in' : 'Demonstration sign-in only'}>
-              {DATA_SOURCE === 'http'
-                ? 'Anyone who can reach this API can act as any user. Production uses your identity provider (OIDC) and the same permission model.'
-                : 'This is not authentication. A production deployment uses your identity provider (OIDC) and the same permission model.'}
-            </Notice>
-            {connectionError && (
-              <Notice tone="danger" className="mt-4 max-w-md" title="Cannot sign in">
-                {connectionError}
-              </Notice>
-            )}
-          </main>
-        </div>
+    <SignInColumn
+      title="Choose a demo role"
+      lede="There are no passwords. The role decides what you can see and do, and every call checks it. Switch any time from the top bar."
+    >
+      {connectionError && (
+        <Notice tone="danger" className="mt-8" title="Cannot sign in">
+          {connectionError}
+        </Notice>
+      )}
 
-        <ul className="grid gap-1 self-start lg:mt-16" aria-label="Demo roles">
-          {ROLES.map((role, i) => {
-            const user = users.find((u) => u.id === DEMO_USER_FOR_ROLE[role]);
-            return (
-              <li key={role} className="anim-row" style={{ animationDelay: `${120 + i * 50}ms` }}>
-                <button
-                  type="button"
-                  data-testid={`role-${role}`}
-                  onClick={() => {
-                    setSessionUserId(DEMO_USER_FOR_ROLE[role]);
-                    router.push(next);
-                  }}
-                  className={cn(
-                    'group grid w-full grid-cols-[1fr_auto] items-center gap-x-6 gap-y-1 rounded-md px-5 py-4 text-left transition-[background-color,transform] duration-150 ease-out active:scale-[0.99]',
-                    i % 2 === 0 ? 'bg-white' : 'bg-[#F7FAFB]',
-                    'hover:bg-teal-50 focus-visible:bg-teal-50',
-                  )}
-                >
-                  <span className="text-lg font-semibold text-navy">{ROLE_LABELS[role]}</span>
-                  <ArrowRight className="row-span-3 h-5 w-5 text-teal transition-transform duration-200 ease-out group-hover:translate-x-1" aria-hidden />
-                  <span className="text-base text-ink">{ROLE_SUMMARIES[role]}</span>
-                  <span className="text-sm text-muted">
-                    {user ? `${user.name}, ${user.title}` : 'Synthetic user'} · {permissionsFor(role).length} permissions
-                    {user?.siteScope && ` · ${user.siteScope === 'all' ? 'all sites in tenant' : `${user.siteScope.length} site(s)`}`}
+      {/* An inset grouped list: white rows on the canvas, parted by a 2px gap rather than a rule. */}
+      <ul className="mt-10 space-y-0.5 overflow-hidden rounded-2xl" aria-label="Demo roles">
+        {ROLES.map((role, i) => {
+          const user = users.find((u) => u.id === DEMO_USER_FOR_ROLE[role]);
+          const scope = user?.siteScope ? (user.siteScope === 'all' ? 'all sites' : `${user.siteScope.length} site${user.siteScope.length === 1 ? '' : 's'}`) : null;
+          return (
+            <li key={role} className="anim-row" style={{ animationDelay: `${140 + i * 45}ms` }}>
+              <button
+                type="button"
+                data-testid={`role-${role}`}
+                onClick={() => {
+                  setSessionUserId(DEMO_USER_FOR_ROLE[role]);
+                  router.push(next);
+                }}
+                className="group flex w-full items-center gap-4 bg-white px-4 py-4 text-left transition-colors duration-150 ease-out hover:bg-[#FAFAFC] active:bg-[#F0F0F3] md:px-5"
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-navy text-[15px] font-semibold text-white" aria-hidden>
+                  {initials(user?.name ?? ROLE_LABELS[role])}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[17px] font-semibold leading-6 text-ink">{ROLE_LABELS[role]}</span>
+                  <span className="mt-0.5 block text-[15px] leading-[22px] text-ink-2">{ROLE_SUMMARIES[role]}</span>
+                  <span className="mt-1 block text-[13px] leading-[18px] text-muted">
+                    {user ? user.name : 'Synthetic user'} · {permissionsFor(role).length} permissions{scope && ` · ${scope}`}
                   </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                </span>
+                <ChevronRight className="h-5 w-5 shrink-0 text-muted transition-transform duration-200 ease-out group-hover:translate-x-0.5" aria-hidden />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="mx-auto mt-6 flex max-w-[480px] items-start gap-2.5 px-2 text-sm text-muted">
+        <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden />
+        <p>
+          <span className="font-semibold text-ink">{DATA_SOURCE === 'http' ? 'Development sign-in.' : 'Demonstration sign-in only.'}</span>{' '}
+          {DATA_SOURCE === 'http'
+            ? 'Anyone who can reach this API can act as any user. Production uses your identity provider (OIDC) and the same permission model.'
+            : 'This is not authentication. A production deployment uses your identity provider (OIDC) and the same permission model.'}
+        </p>
       </div>
-    </div>
+    </SignInColumn>
   );
 }
 

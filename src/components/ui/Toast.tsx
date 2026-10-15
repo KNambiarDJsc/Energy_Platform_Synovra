@@ -16,6 +16,11 @@ interface ToastApi {
 
 const ToastContext = createContext<ToastApi>({ success() {}, error() {}, info() {} });
 
+const ICON = { success: CheckCircle2, error: XCircle, info: Info } as const;
+// Light tints that read on the dark notification surface (icons are not text; each is above 3:1).
+const ICON_TONE = { success: 'text-[#4ADE80]', error: 'text-[#FF8A80]', info: 'text-teal-bright' } as const;
+
+/** Notifications float above the page as one dark capsule, centred, and leave on their own. */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
   const counter = useRef(0);
@@ -43,31 +48,25 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={api}>
       {children}
       <div
-        className="no-print pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 md:bottom-6 md:items-end md:pr-6"
+        className="no-print pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 md:bottom-8"
         role="region"
         aria-label="Notifications"
         aria-live="polite"
       >
         {items.map((t) => {
-          const Icon = t.kind === 'success' ? CheckCircle2 : t.kind === 'error' ? XCircle : Info;
-          const tone =
-            t.kind === 'success'
-              ? 'border-[#BFDCCB] text-approved-700'
-              : t.kind === 'error'
-                ? 'border-[#EBC4C4] text-critical-700'
-                : 'border-line text-ink';
+          const Icon = ICON[t.kind];
           return (
             <div
               key={t.id}
               role={t.kind === 'error' ? 'alert' : 'status'}
-              className={`anim-toast pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-md border bg-white p-3 text-sm shadow-pop ${tone}`}
+              className="anim-toast pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-lg bg-[#1D1D1F] py-3 pl-4 pr-3 text-sm text-white shadow-hud"
             >
-              <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <p className="flex-1 text-ink">{t.message}</p>
+              <Icon className={`mt-0.5 h-[18px] w-[18px] shrink-0 ${ICON_TONE[t.kind]}`} aria-hidden />
+              <p className="flex-1 text-white">{t.message}</p>
               <button
                 type="button"
                 onClick={() => dismiss(t.id)}
-                className="-m-1 rounded p-1 text-muted hover:bg-canvas"
+                className="-my-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/75 transition-colors hover:bg-white/10 hover:text-white"
                 aria-label="Dismiss notification"
               >
                 <X className="h-4 w-4" aria-hidden />

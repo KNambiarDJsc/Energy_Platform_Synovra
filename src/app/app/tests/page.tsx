@@ -4,10 +4,11 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState } from 'react';
 import { Badge, TestStatusBadge } from '@/components/ui/Badge';
+import { chipClass } from '@/components/ui/buttonClass';
 import { Button } from '@/components/ui/Button';
-import { DataTable, type Column } from '@/components/ui/DataTable';
+import { DataTable, DateTimeCell, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea, parseNumberInput } from '@/components/ui/Field';
-import { KeyValue, Notice, PageHeader } from '@/components/ui/Layout';
+import { KeyValue, Notice, PageHeader, TableCard } from '@/components/ui/Layout';
 import { Drawer, Modal } from '@/components/ui/Overlay';
 import { ReasonDialog } from '@/components/ui/ReasonDialog';
 import { EmptyState, LoadingBlock, QueryView } from '@/components/ui/States';
@@ -148,7 +149,7 @@ function RecordTestModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
         </div>
 
         <fieldset>
-          <legend className="mb-2 text-sm font-semibold text-navy">Measurements</legend>
+          <legend className="mb-2 text-sm font-semibold text-ink">Measurements</legend>
           <div className="grid gap-4 sm:grid-cols-2">
             {num('voltage', 'Open-circuit voltage', 'V')}
             {num('resistance', 'Internal resistance', 'mΩ')}
@@ -157,7 +158,7 @@ function RecordTestModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
           </div>
         </fieldset>
         <fieldset>
-          <legend className="mb-2 text-sm font-semibold text-navy">Conditions</legend>
+          <legend className="mb-2 text-sm font-semibold text-ink">Conditions</legend>
           <div className="grid gap-4 sm:grid-cols-2">
             {num('ambient', 'Ambient temperature', '°C')}
             {num('load', 'Load current', 'A')}
@@ -166,7 +167,7 @@ function RecordTestModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
           </div>
         </fieldset>
         <fieldset>
-          <legend className="mb-2 text-sm font-semibold text-navy">Evidence</legend>
+          <legend className="mb-2 text-sm font-semibold text-ink">Evidence</legend>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Instrument" required error={errs.instrument}>
               <Input value={f.instrument} onChange={(e) => set({ instrument: e.target.value })} />
@@ -186,7 +187,7 @@ function RecordTestModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
           </div>
         </fieldset>
         {create.error && (
-          <p role="alert" className="rounded-md border border-[#EBC4C4] bg-critical-50 p-3 text-sm text-critical-700">
+          <p role="alert" className="rounded-lg bg-critical-50 p-3 text-sm text-critical-700">
             {errorMessage(create.error)}
           </p>
         )}
@@ -235,9 +236,9 @@ function TestDrawer({ id, onClose }: { id: string | null; onClose: () => void })
               {t.level === 'string' && <Badge tone="amber">String-level result</Badge>}
             </div>
 
-            <div className="rounded-md border border-line p-4">
+            <div className="rounded-lg bg-canvas p-4">
               <p className="text-[13px] font-medium text-muted">Measured capacity</p>
-              <p className="mt-1 text-3xl font-semibold text-navy">{formatNumber(t.result.capacityAh, 0, 'Ah')}</p>
+              <p className="mt-1 text-3xl font-semibold text-ink">{formatNumber(t.result.capacityAh, 0, 'Ah')}</p>
               {t.level === 'battery' ? (
                 <p className="text-sm text-muted">
                   {t.pctOfRated === null ? 'Percent of rated unknown' : `${formatNumber(t.pctOfRated, 0)}% of rated ${t.ratedCapacityAh} Ah`}
@@ -287,15 +288,15 @@ function TestDrawer({ id, onClose }: { id: string | null; onClose: () => void })
               </div>
             )}
             {session.can('test.create') && ['draft', 'requires_rework', 'submitted'].includes(t.status) && (
-              <div className="space-y-2 rounded-md border border-line p-3">
+              <div className="space-y-2 rounded-lg bg-canvas p-3">
                 <EvidenceFileInput label="Attach another evidence file" file={file} onChange={setFile} />
                 <Button size="sm" variant="secondary" disabled={!file} loading={attach.isPending} onClick={() => file && attach.mutate(file)}>Attach file</Button>
               </div>
             )}
 
             {t.reviewedAt && (
-              <div className="rounded-md bg-canvas p-3 text-sm">
-                <p className="font-semibold text-navy">Review: {titleCase(t.status)}</p>
+              <div className="rounded-lg bg-canvas p-3 text-sm">
+                <p className="font-semibold text-ink">Review: {titleCase(t.status)}</p>
                 <p className="text-muted">
                   {t.reviewerName} · {formatDateTime(t.reviewedAt)}
                 </p>
@@ -309,7 +310,7 @@ function TestDrawer({ id, onClose }: { id: string | null; onClose: () => void })
               </Link>
             )}
 
-            <div className="flex flex-wrap gap-2 border-t border-line pt-4">
+            <div className="flex flex-wrap gap-2 pt-4">
               {(t.status === 'draft' || t.status === 'requires_rework') && session.can('test.create') && (
                 <Button loading={submit.isPending} onClick={() => submit.mutate(t.id)}>Submit for review</Button>
               )}
@@ -399,7 +400,7 @@ function TestsInner() {
         ),
     },
     { key: 'who', header: 'Operator', cell: (t) => t.operatorName },
-    { key: 'when', header: 'Started', sort: (t) => t.startedAt, cell: (t) => formatDateTime(t.startedAt) },
+    { key: 'when', header: 'Started', sort: (t) => t.startedAt, cell: (t) => <DateTimeCell iso={t.startedAt} /> },
     {
       key: 'open', header: 'Details', mobile: 'show',
       cell: (t) => (
@@ -433,12 +434,9 @@ function TestsInner() {
               type="button"
               aria-pressed={active}
               onClick={() => setStatus(f.value)}
-              className={cn(
-                'min-h-[40px] whitespace-nowrap rounded-full border px-3.5 text-sm font-medium',
-                active ? 'border-navy bg-navy text-white' : 'border-[#9FB2BD] bg-white text-ink hover:bg-canvas',
-              )}
+              className={chipClass(active, 'min-h-[40px]')}
             >
-              {f.label} <span className={active ? 'text-white/80' : 'text-muted'}>{counts[f.value] ?? 0}</span>
+              {f.label} <span className={cn('num', active ? 'text-white/80' : 'text-ink-2')}>{counts[f.value] ?? 0}</span>
             </button>
           );
         })}
@@ -456,9 +454,9 @@ function TestsInner() {
         }
       >
         {() => (
-          <div className="card p-3 md:p-2">
+          <TableCard>
             <DataTable caption="Test sessions" columns={cols} rows={rows} rowKey={(t) => t.id} initialSort={{ key: 'when', dir: 'desc' }} pageSize={12} />
-          </div>
+          </TableCard>
         )}
       </QueryView>
 

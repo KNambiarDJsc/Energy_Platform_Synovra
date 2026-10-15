@@ -35,7 +35,7 @@ export function EvidenceFileInput({ label = 'Evidence file', required, file, onC
         accept={ACCEPT}
         aria-describedby={`${id}-hint${error ? ` ${id}-err` : ''}`}
         aria-invalid={error ? true : undefined}
-        className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-line file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-navy hover:file:border-teal"
+        className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-line file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink hover:file:border-teal"
         onChange={(e) => {
           const f = e.target.files?.[0] ?? null;
           if (f && !EXT.test(f.name)) { setError('Choose a PDF, PNG, JPG, CSV or XLSX file.'); onChange(null); return; }
