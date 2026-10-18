@@ -215,7 +215,9 @@ export type LifecycleEventType =
   | 'service'
   | 'return'
   | 'recycling'
-  | 'identity';
+  | 'identity'
+  | 'value'
+  | 'route_decision';
 
 export type ApprovalState = 'not_required' | 'pending' | 'approved' | 'rejected';
 
@@ -320,6 +322,12 @@ export interface RestorationBatch {
   openedOn: ISODate;
   status: 'open' | 'closed';
   plannedCount: number;
+  /**
+   * The approved process version every attempt in this batch follows, by reference only (the procedure itself
+   * stays in the controlled lab system). Null when it was not recorded. This is what lets outcomes be compared
+   * by process rather than by batch.
+   */
+  processVersion: string | null;
 }
 export type AttemptStatus = 'in_restoration' | 'awaiting_review' | 'approved' | 'rejected' | 'rework';
 /** Why an attempt did not qualify. The training label for restoration outcomes (docs/ML_PLAN.md). */
@@ -382,6 +390,25 @@ export interface CostEntry {
   /** How a shared cost was split (required for allocated entries). */
   allocationBasis: string | null;
 }
+/**
+ * Money that came in for a battery: the other side of the cost ledger. Without it nothing can say whether
+ * reviving a battery paid. Recorded once; a correction is a new record with a note, never an edit.
+ */
+export type ValueKind = 'sale' | 'swap_fee' | 'restoration_fee' | 'recycling_settlement';
+export interface ValueRecord {
+  id: string;
+  batteryId: string;
+  kind: ValueKind;
+  /** `null` means agreed but not yet known (for example an unsettled invoice). Never treated as zero. */
+  amountAed: number | null;
+  recordedOn: ISODate;
+  counterparty: string;
+  reference: string | null;
+  source: string;
+  note: string;
+  recordedByName: string;
+}
+
 export interface WarrantyRecord {
   id: string;
   batteryId: string;
@@ -635,6 +662,7 @@ export interface DemoDb {
   batches: RestorationBatch[];
   attempts: RestorationAttempt[];
   costs: CostEntry[];
+  values: ValueRecord[];
   warranties: WarrantyRecord[];
   recycling: RecyclingRecord[];
   evidence: EvidenceFile[];

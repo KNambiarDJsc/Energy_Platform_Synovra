@@ -268,8 +268,9 @@ test.describe('states', () => {
     await page.getByRole('button', { name: 'Pause simulator' }).click();
 
     await page.getByRole('tab', { name: 'Agents' }).click();
-    await page.getByRole('button', { name: 'Compare outcomes' }).click();
-    await expect(page.getByText(/sale price per battery/)).toBeVisible();
+    await page.getByRole('button', { name: 'Compare outcomes', exact: true }).click();
+    await expect(page.getByText(/By process version: RP-/).first()).toBeVisible();
+    await expect(page.getByText(/controlled comparison/)).toBeVisible();
   });
 
   test('the analyst routes a question, shows its tools, and says when the records cannot answer', async ({ page }) => {
@@ -282,7 +283,7 @@ test.describe('states', () => {
     await page.getByRole('textbox', { name: 'Your question' }).fill('Show batteries where treatment cost exceeded the value recovered.');
     await page.getByRole('button', { name: 'Ask', exact: true }).click();
     await expect(page.getByText('The records cannot answer this yet')).toBeVisible();
-    await expect(page.getByText(/no battery has a recorded sale price/)).toBeVisible();
+    await expect(page.getByText(/not shown to your role/)).toBeVisible();
   });
 
   test('the route calculator needs a sale price before it suggests revive, test or recycle', async ({ page }) => {
@@ -297,6 +298,30 @@ test.describe('states', () => {
     await dialog.getByRole('textbox', { name: 'Logistics if recycled (AED)' }).fill('15');
     await expect(dialog.getByText(/Suggested route/)).toBeVisible();
     await expect(dialog.getByText('Break-even chance')).toBeVisible();
+  });
+
+  test('bench results import quarantines doubtful rows and submits the rest for review', async ({ page }) => {
+    await signInAs(page, USERS.lab);
+    await openApp(page, '/app/intake');
+    await page.getByRole('tab', { name: 'Import bench results (CSV)' }).click();
+    await page.getByRole('button', { name: 'Use the sample bench file' }).click();
+    await expect(page.getByText(/more than 130% of rated/).first()).toBeVisible();
+    await page.getByRole('button', { name: 'Submit 3 test(s) for review' }).click();
+    await expect(page.getByText(/3 test\(s\) submitted/).first()).toBeVisible();
+  });
+
+  test('finance records money in on a battery, and the amount stays out of the timeline', async ({ page }) => {
+    await signInAs(page, USERS.finance);
+    await openApp(page, '/app/scan?label=B-0002');
+    await page.getByRole('tab', { name: 'Costs and value' }).click();
+    await page.getByRole('button', { name: 'Record money in' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('textbox', { name: 'Amount (AED)' }).fill('437');
+    await dialog.getByRole('textbox', { name: 'Paid by' }).fill('Demo Telecom (fictional)');
+    await dialog.getByRole('button', { name: 'Record', exact: true }).click();
+    await expect(page.getByText('AED 437').first()).toBeVisible();
+    await page.getByRole('tab', { name: /Lifecycle timeline/ }).click();
+    await expect(page.getByRole('heading', { name: 'Sale recorded' })).toBeVisible();
   });
 
   test('every intelligence output carries the demonstration label and provenance', async ({ page }) => {

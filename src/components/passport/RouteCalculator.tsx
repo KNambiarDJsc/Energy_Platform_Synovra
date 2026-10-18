@@ -3,13 +3,13 @@ import { Calculator, Recycle, RotateCcw, Scale, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Field, Input, parseNumberInput } from '@/components/ui/Field';
+import { Field, Input, Select, parseNumberInput } from '@/components/ui/Field';
 import { Notice } from '@/components/ui/Layout';
 import { Modal } from '@/components/ui/Overlay';
 import { LoadingBlock, QueryView } from '@/components/ui/States';
 import { routeEconomics, type Route, type RouteInputs } from '@/domain/routeEconomics';
 import { cn, formatNumber } from '@/lib/format';
-import { useSvcQuery } from '@/lib/hooks';
+import { errorMessage, useAction, useSession, useSvcQuery } from '@/lib/hooks';
 import type { RouteInputsView } from '@/services/types';
 
 const ORDER: { key: keyof RouteInputs; label: string; unit: 'AED' | '%'; group: 'chance' | 'value' | 'cost' }[] = [
@@ -30,6 +30,51 @@ const ROUTE: Record<Route, { label: string; icon: typeof Recycle }> = {
 };
 
 const aed = (n: number) => `${n < 0 ? '−' : ''}AED ${formatNumber(Math.abs(n), 0)}`;
+
+/** The calculator's state in words, kept with the decision in the audit history. */
+function describe(i: RouteInputs, r: ReturnType<typeof routeEconomics>): string {
+  const f = (n: number | null, unit = 'AED') => (n === null ? 'not entered' : unit === '%' ? `${Math.round(n * 100)}%` : `AED ${n}`);
+  return [
+    `chance ${f(i.pSaleable, '%')}${i.cohortN ? ` (n=${i.cohortN})` : ' (entered)'}`, `sale ${f(i.salePriceAed)}`, `recycling ${f(i.recyclingValueAed)}`,
+    `treatment ${f(i.treatmentCostAed)}`, `logistics ${f(i.reviveLogisticsAed)} / ${f(i.recycleLogisticsAed)}`, `warranty ${f(i.warrantyAllowanceAed)}`,
+    `revive ${r.revive.value === null ? '—' : `AED ${r.revive.value}`}`, `recycle ${r.recycle.value === null ? '—' : `AED ${r.recycle.value}`}`,
+    `suggested ${r.suggestion ?? 'none'}`,
+  ].join('; ');
+}
+
+/** A person picks the route; the calculator only informs it. Engineers only. */
+function RecordDecision({ view, suggestion, assumptions }: { view: RouteInputsView; suggestion: Route | null; assumptions: string }) {
+  const session = useSession();
+  const [route, setRoute] = useState<Route | ''>('');
+  const [reason, setReason] = useState('');
+  const chosen = route || suggestion || '';
+  const act = useAction<void, unknown>((s) => s.insights.recordRoute({ batteryId: view.batteryId, route: chosen as Route, reason, assumptions }), {
+    success: 'Decision recorded on the battery’s timeline, with these assumptions in the audit history.', toastError: false,
+    onSuccess: () => setReason(''),
+  });
+  if (!session.can('restoration.review')) return null;
+  return (
+    <div className="rounded-xl border border-line p-4">
+      <p className="text-sm font-medium text-ink">Record your decision</p>
+      <p className="text-[13px] text-muted">You decide; the suggestion is one input. The numbers above are kept with it.</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-[150px_minmax(0,1fr)]">
+        <Field label="Route">
+          <Select value={chosen} onChange={(e) => setRoute(e.target.value as Route)}>
+            <option value="">Choose</option>
+            <option value="revive">Revive</option>
+            <option value="test">Test further</option>
+            <option value="recycle">Recycle</option>
+          </Select>
+        </Field>
+        <Field label="Reason" required>
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} placeholder="Why this route" />
+        </Field>
+      </div>
+      {act.error && <p role="alert" className="mt-2 text-sm font-medium text-critical-700">{errorMessage(act.error)}</p>}
+      <Button size="sm" className="mt-3" loading={act.isPending} disabled={!chosen || reason.trim().length < 5} onClick={() => act.mutate()}>Record decision</Button>
+    </div>
+  );
+}
 
 function Calculator_({ view }: { view: RouteInputsView }) {
   // Text state per field, so a person can clear a box without it snapping back.
@@ -116,6 +161,7 @@ function Calculator_({ view }: { view: RouteInputsView }) {
         {view.sunkCostsAed !== null && (
           <p className="text-[13px] text-muted">{aed(view.sunkCostsAed)} already spent on {view.batteryLabel} is left out: it is the same on every route.</p>
         )}
+        <RecordDecision view={view} suggestion={r.suggestion} assumptions={describe(inputs, r)} />
         <details className="rounded-xl bg-canvas p-4 text-[13px] leading-5 text-ink-2">
           <summary className="cursor-pointer font-medium text-copper-700">How this is calculated</summary>
           <p className="mt-2">Revive = chance × sale price + (1 − chance) × recycling value − treatment − logistics − chance × warranty allowance.</p>

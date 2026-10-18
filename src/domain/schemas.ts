@@ -98,6 +98,26 @@ export const userUpdateSchema = z.object({
 });
 export type UserUpdate = z.infer<typeof userUpdateSchema>;
 
+export const valueInputSchema = z.object({
+  batteryId: z.string().min(1),
+  kind: z.enum(['sale', 'swap_fee', 'restoration_fee', 'recycling_settlement']),
+  amountAed: z.number().nonnegative('Amount cannot be negative').nullable(),
+  recordedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD'),
+  counterparty: z.string().trim().min(2, 'Who paid is required').max(120),
+  reference: z.string().trim().max(80).nullable().optional(),
+  note: z.string().trim().max(300).optional(),
+});
+export type ValueInput = z.infer<typeof valueInputSchema>;
+
+export const routeDecisionSchema = z.object({
+  batteryId: z.string().min(1),
+  route: z.enum(['revive', 'test', 'recycle']),
+  reason: reasonSchema,
+  /** The calculator's inputs and result at the moment of deciding, as plain text for the audit history. */
+  assumptions: z.string().trim().max(1500),
+});
+export type RouteDecisionInput = z.infer<typeof routeDecisionSchema>;
+
 export const correctionSchema = z.object({
   batteryId: z.string(),
   field: z.enum(['manufacturerSerial', 'manufacturedOn', 'physicalLocation']),

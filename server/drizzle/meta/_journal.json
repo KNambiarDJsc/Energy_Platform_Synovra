@@ -43,6 +43,13 @@
       "when": 1792259479170,
       "tag": "0005_ml_views",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792317031475,
+      "tag": "0006_value_records_process_version",
+      "breakpoints": true
     }
   ]
 }

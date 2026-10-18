@@ -37,6 +37,13 @@ describe('ml_restoration_attempt_features', () => {
     expect(loop.stages.find((s: Row) => s.key === 'eligible').count).toBe(n);
   });
 
+  it('carries the process version as a feature and value recovered as a label', async () => {
+    const view = await features();
+    expect(view.every((r) => typeof r.process_version === 'string' && r.process_version.length > 0)).toBe(true);
+    expect(view.some((r) => r.label_value_aed !== null && Number(r.label_value_aed) > 0)).toBe(true);
+    await expect(db().update(s.valueRecords).set({ note: 'edited' })).rejects.toThrow(/append-only/);
+  });
+
   it('has one row per attempt, with labels only once an engineer has decided', async () => {
     const attempts = await db().select().from(s.restorationAttempts);
     const view = await features();

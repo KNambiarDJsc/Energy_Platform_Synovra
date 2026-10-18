@@ -1,10 +1,11 @@
 import { LIFECYCLE_LABELS } from '@/domain/lifecycle';
 import { RESTORATION_REASON_LABELS } from '@/domain/outcomes';
 import { THIN_COHORT, routeEconomics, type RouteInputs } from '@/domain/routeEconomics';
-import { NotFoundError, can } from '@/domain/permissions';
+import { routeDecisionSchema } from '@/domain/schemas';
+import { ConflictError, NotFoundError, ValidationError, can } from '@/domain/permissions';
 import type { Battery, CostEntry, RestorationAttempt, RestorationReasonCode } from '@/domain/types';
 import {
-  audit, authorize, canSeeBattery, db, evidenceStatus, familyOf, hashText, lastApprovedTest, latency, qualityOf, type Ctx,
+  audit, authorize, canSeeBattery, db, evidenceStatus, familyOf, getBatteryOrThrow, hashText, lastApprovedTest, latency, pushEvent, qualityOf, type Ctx,
 } from '../core';
 import type {
   AgentFinding, AgentKind, AgentReport, AnalystAnswer, AnalystToolCall, AssistantCitation, CollectionPipeline, CollectionStep,
@@ -74,6 +75,18 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
     return { decided, qualified, n: decided.length };
   }
 
+  /** Known money in per battery (sales, fees, settlements). Unknown amounts are left out, so sums are minimums. */
+  function knownValue(batteryId: string, kinds?: string[]) {
+    const vs = db(ctx).values.filter((v) => v.batteryId === batteryId && v.amountAed !== null && (!kinds || kinds.includes(v.kind)));
+    return vs.length ? vs.reduce((n, v) => n + (v.amountAed ?? 0), 0) : null;
+  }
+
+  /** Average recorded value of some kinds per battery of a family. */
+  function avgValue(familyId: string, kinds: string[]) {
+    const per = visibleBatteries().filter((b) => b.familyId === familyId).map((b) => knownValue(b.id, kinds)).filter((x): x is number => x !== null);
+    return { value: avg(per), n: per.length };
+  }
+
   /** Known battery-level costs of some kinds, averaged per battery of a family. */
   function avgCost(familyId: string, kinds: CostEntry['kind'][]) {
     const d = db(ctx);
@@ -106,8 +119,16 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
         ? { value: Math.round((c.qualified / c.n) * 1000) / 1000, source: `Observed: ${c.qualified} of ${c.n} decided ${fam.model} attempts qualified. Synthetic data; not a model.` }
         : { value: null, source: `No decided ${fam.model} attempts yet. Enter an estimate and say where it came from.` },
       cohortN: { value: c.n || null, source: 'Decided attempts behind the chance above' },
-      salePriceAed: { value: null, source: 'No sale price is recorded for any battery. Enter the price you expect.' },
-      recyclingValueAed: { value: null, source: 'Recycling value depends on mass and the current lead price; neither is recorded for this battery. Enter a value.' },
+      salePriceAed: !showCosts ? hidden : (() => {
+        const sv = avgValue(b.familyId, ['sale', 'swap_fee']);
+        return sv.value === null ? { value: null, source: `No sale recorded for ${fam.model} yet. Enter the price you expect.` }
+          : { value: sv.value, source: `Average of ${sv.n} recorded ${fam.model} sales (demo ledger)` };
+      })(),
+      recyclingValueAed: !showCosts ? hidden : (() => {
+        const rv = avgValue(b.familyId, ['recycling_settlement']);
+        return rv.value === null ? { value: null, source: `No recycler settlement recorded for ${fam.model}. Enter a value.` }
+          : { value: rv.value, source: `Average of ${rv.n} recorded ${fam.model} recycler settlements (demo ledger)` };
+      })(),
       treatmentCostAed: fromCost(treat, 'testing and restoration-input costs'),
       reviveLogisticsAed: fromCost(logistics, 'logistics costs'),
       recycleLogisticsAed: { value: null, source: 'Not recorded separately. Enter a value.' },
@@ -157,7 +178,8 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
         return t?.status === 'approved' && t.result.capacityAh !== null;
       }).map((a) => a.batteryId));
       const withOutcome = new Set(leftLab.map((b) => b.id));
-      const chainSets = [withInitial, withAttempt, labelled, withOutcome];
+      const withValue = new Set(bats.filter((b) => knownValue(b.id) !== null).map((b) => b.id));
+      const chainSets = [withInitial, withAttempt, labelled, withOutcome, withValue];
       const through = (k: number) => bats.filter((b) => chainSets.slice(0, k).every((set) => set.has(b.id))).length;
 
       return {
@@ -167,7 +189,7 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
           { key: 'treated', label: 'Restoration attempted', count: through(2) },
           { key: 'labelled', label: 'Retested and decided, with a reason', count: through(3) },
           { key: 'outcome', label: 'Outcome recorded (deployed, returned or recycled)', count: through(4) },
-          { key: 'value', label: 'Sale price or recovered value recorded', count: 0 },
+          { key: 'value', label: 'Sale price or recovered value recorded', count: through(5) },
         ],
         steps: [
           step({
@@ -189,7 +211,7 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
               { field: 'Batch', present: count(attempts, (a) => !!a.batchId) },
               { field: 'Material and solvent lot references', present: count(attempts, (a) => a.lotRefs.length > 0) },
               { field: 'Before-test linked', present: count(attempts, (a) => !!a.beforeTestId) },
-              { field: 'Process version', present: 0 },
+              { field: 'Process version', present: count(attempts, (a) => !!d.batches.find((x) => x.id === a.batchId)?.processVersion) },
             ],
           }),
           step({
@@ -208,13 +230,13 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
             fields: [
               { field: 'Where it went, with dates', present: count(leftLab, (b) => d.assignments.some((x) => x.batteryId === b.id) || d.recycling.some((r) => r.batteryId === b.id)) },
               { field: 'Warranty terms', present: count(leftLab, (b) => d.warranties.some((w) => w.batteryId === b.id && !!w.termsRef)) },
-              { field: 'Sale price or recovered value', present: 0 },
+              { field: 'Sale price or recovered value', present: count(leftLab, (b) => knownValue(b.id) !== null) },
             ],
           }),
           step({
             key: 'cost', step: 'Costs', capturedIn: 'Cost entries per battery and batch', href: '/app/restoration', applicable: costs.length,
             fields: [
-              { field: 'Amount known', present: count(costs, (c) => c.amountAed !== null) },
+              { field: 'Amount', present: count(costs, (c) => c.amountAed !== null) },
               { field: 'Allocation basis for shared costs', present: count(costs, (c) => c.allocation !== 'allocated' || !!c.allocationBasis) },
             ],
           }),
@@ -299,10 +321,13 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
         },
         {
           key: 'commercial', name: 'Costs and sales', channel: 'Cost entries per battery and per batch', status: 'in_use',
-          provides: 'Acquisition, collection, testing, process inputs, logistics and warranty provision.',
-          statusNote: 'A sale price per battery is not recorded yet, so contribution per battery cannot be calculated.',
-          records: costs.length, lastAt: latest(costs.map((c) => c.recordedOn)),
-          issues: [{ label: 'Amount unknown', count: costs.filter((c) => c.amountAed === null).length }],
+          provides: 'Acquisition, collection, testing, process inputs, logistics, warranty provision, and the sale or settlement each battery earned.',
+          statusNote: 'Costs and money in (sales, fees, recycler settlements) per battery. Values in this demonstration are invented.',
+          records: costs.length + d.values.filter((v) => ids.has(v.batteryId)).length, lastAt: latest([...costs.map((c) => c.recordedOn), ...d.values.map((v) => v.recordedOn)]),
+          issues: [
+            { label: 'Cost amount unknown', count: costs.filter((c) => c.amountAed === null).length },
+            { label: 'Value amount unknown', count: d.values.filter((v) => ids.has(v.batteryId) && v.amountAed === null).length },
+          ],
         },
         {
           key: 'field', name: 'Deployment, service and warranty', channel: 'Assignments, service tasks and claims', status: 'in_use',
@@ -424,10 +449,21 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
             basis: `${qualifiedBatteries} qualified batteries; known costs only, excluding warranty provision.${unknown ? ` ${unknown} entries are unknown, so this is a minimum.` : ''}`,
           }
           : { key: 'cost_per_qualified', label: 'Cost per qualified battery', value: null, status: 'hidden', basis: 'Costs are not shown to your role.' },
-        {
-          key: 'contribution', label: 'Recovery contribution per battery', value: null, status: 'not_calculated',
-          basis: 'A sale price per battery is not recorded. Batch scenarios on the Restoration page use prices you enter.',
-        },
+        (() => {
+          if (!showCosts) return { key: 'contribution', label: 'Recovery contribution per battery', value: null, status: 'hidden' as const, basis: 'Costs and values are not shown to your role.' };
+          const rows = bats.map((b) => ({ b, value: knownValue(b.id) })).filter((x) => x.value !== null).map((x) => {
+            const cost = d.costs.filter((c) => c.batteryId === x.b.id && c.amountAed !== null).reduce((n, c) => n + (c.amountAed ?? 0), 0);
+            return x.value! - cost;
+          });
+          const unknownValues = d.values.filter((v) => ids.has(v.batteryId) && v.amountAed === null).length;
+          return rows.length
+            ? {
+              key: 'contribution', label: 'Recovery contribution per battery', value: `AED ${Math.round(rows.reduce((a, b) => a + b, 0) / rows.length).toLocaleString('en-GB')}`,
+              status: 'calculated' as const,
+              basis: `Average of value recorded minus known battery-level costs, over ${rows.length} batteries with a known value. Batch-level costs are not allocated here, so this is an upper bound.${unknownValues ? ` ${unknownValues} values are not yet known.` : ''} Demo ledger.`,
+            }
+            : { key: 'contribution', label: 'Recovery contribution per battery', value: null, status: 'not_calculated' as const, basis: 'No battery has a recorded sale or settlement yet.' };
+        })(),
         {
           key: 'return_rate', label: 'Warranty claims per deployed battery', value: pct(claims, everDeployed), status: everDeployed ? 'calculated' : 'not_calculated',
           basis: `${claims} claims across ${everDeployed} batteries ever deployed; ${returned} currently returned. Follow-up periods differ, so this is not yet a failure rate.`,
@@ -569,20 +605,22 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
           reasons.set(k, (reasons.get(k) ?? 0) + 1);
         });
         const why = [...reasons.entries()].map(([k, n]) => `${n} ${k}`).join(', ');
-        const batches = [...new Set(decided.map((a) => a.batchId))].map((id) => {
-          const inB = decided.filter((a) => a.batchId === id);
-          return `${id}: ${inB.filter((a) => a.status === 'approved').length} of ${inB.length}`;
+        const versionOf = (a: RestorationAttempt) => d.batches.find((x) => x.id === a.batchId)?.processVersion ?? `${a.batchId} (version not recorded)`;
+        const versions = [...new Set(decided.map(versionOf))].map((v) => {
+          const inV = decided.filter((a) => versionOf(a) === v);
+          const k = inV.filter((a) => a.status === 'approved').length;
+          const vi = wilson(k, inV.length)!;
+          return `${v}: ${k} of ${inV.length} (${vi[0]}–${vi[1]}%)`;
         });
         findings.push({
-          text: `${fam.model} (${fam.chemistry}): ${ok} of ${decided.length} decided attempts qualified, 95% interval ${ci[0]}–${ci[1]}%${why ? `; not qualified: ${why}` : ''}. By batch: ${batches.join('; ')}.${decided.length < 30 ? ' Too few decisions to rank families or batches with confidence.' : ''}`,
+          text: `${fam.model} (${fam.chemistry}): ${ok} of ${decided.length} decided attempts qualified, 95% interval ${ci[0]}–${ci[1]}%${why ? `; not qualified: ${why}` : ''}. By process version: ${versions.join('; ')}.${decided.length < 30 ? ' Too few decisions to rank families or process versions with confidence.' : ''}`,
           attention: false,
           citations: [...new Set(decided.map((a) => a.batchId))].map((id) => cite('batch', id, id)),
         });
       }
       const missing = [
         ...(findings.length === 0 ? [since ? `Decided attempts in the last ${input.periodDays} days.` : 'Decided restoration attempts.'] : []),
-        'A recorded process version per attempt. Batches stand in for process here, and batches also differ in intake condition, so a difference between them is not proof that one process works better.',
-        'A sale price per battery, so contribution per battery and revive-or-recycle value are not calculated.',
+        'A controlled comparison. Process versions ran on different batches with different intake condition, so a difference between them is not proof that one process works better.',
       ];
       if (!can(actor.role, 'cost.read')) missing.push('Costs, which your role cannot see.');
       return {
@@ -597,6 +635,23 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
       const b = visibleBatteries().find((x) => x.id === batteryId);
       if (!b) throw new NotFoundError('Battery');
       return routeFieldsFor(b);
+    },
+
+    async recordRoute(input) {
+      await latency(ctx);
+      const actor = authorize(ctx, 'restoration.review');
+      const v = routeDecisionSchema.safeParse(input);
+      if (!v.success) throw new ValidationError(v.error.issues[0].message);
+      const b = getBatteryOrThrow(ctx, v.data.batteryId);
+      if (['recycled', 'deployed'].includes(b.lifecycleState)) throw new ConflictError(`${b.label} is already ${b.lifecycleState}; there is no route left to choose.`);
+      const word = { revive: 'revive', test: 'test further', recycle: 'recycle' }[v.data.route];
+      const e = pushEvent(ctx, b.id, 'route_decision', `Route chosen: ${word}`, v.data.reason, {
+        approvalState: 'approved', ref: { kind: 'route', id: v.data.route },
+      });
+      // The numbers behind the decision go to the audit history, which only internal roles can read.
+      audit(ctx, 'route.decide', 'battery', b.id, `${word} by ${actor.name}. ${v.data.reason} Assumptions: ${v.data.assumptions}`);
+      ctx.store.save();
+      return e;
     },
 
     async ask(question, context = {}): Promise<AnalystAnswer> {
@@ -621,15 +676,36 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
         return answer(null, true, `${label} is not a battery you can see, so I did not read anything about it.`);
       }
       if (r.costVsValue) {
-        const showCosts = can(ctx.actor().role, 'cost.read');
-        const withCosts = new Set(d.costs.filter((c) => c.batteryId && c.amountAed !== null).map((c) => c.batteryId)).size;
-        tools.push({ tool: 'get_cost_lines', input: 'all visible batteries', result: showCosts ? `${withCosts} batteries have known costs` : 'not permitted for your role' });
-        tools.push({ tool: 'calculate_route_economics', input: 'cost vs value recovered', result: 'not run: no recovered value is recorded' });
-        return answer({
-          kind: 'recovery_decision', title: 'Recovery decision', generatedAt: ctx.store.now(), findings: [],
-          missing: ['A sale price or recovered value per battery. Without it, cost cannot be compared with value for any battery.'],
-          scope: 'Read cost lines only. Changed nothing.',
-        }, true, `This cannot be answered from the records: ${showCosts ? `${withCosts} batteries have recorded costs, but` : 'whatever the costs are,'} no battery has a recorded sale price or recovered value to compare them with.`);
+        if (!can(ctx.actor().role, 'cost.read')) {
+          tools.push({ tool: 'get_cost_lines', input: 'all visible batteries', result: 'not permitted for your role' });
+          return answer(null, true, 'Costs and values are not shown to your role, so this cannot be answered for you.');
+        }
+        const rows = visibleBatteries().map((b) => {
+          const value = knownValue(b.id);
+          const known = d.costs.filter((c) => c.batteryId === b.id && c.amountAed !== null);
+          return { b, value, cost: known.reduce((n, c) => n + (c.amountAed ?? 0), 0), costLines: known.length };
+        });
+        const comparable = rows.filter((x) => x.value !== null && x.costLines > 0);
+        const losses = comparable.filter((x) => x.cost > x.value!).sort((x, y) => (y.cost - y.value!) - (x.cost - x.value!));
+        tools.push({ tool: 'get_cost_lines', input: 'all visible batteries', result: `${rows.filter((x) => x.costLines > 0).length} batteries with known costs` });
+        tools.push({ tool: 'calculate_route_economics', input: 'value recorded minus known battery-level costs', result: `${comparable.length} comparable, ${losses.length} where cost exceeded value` });
+        const report: AgentReport = {
+          kind: 'recovery_decision', title: 'Recovery decision', generatedAt: ctx.store.now(),
+          findings: losses.map((x) => ({
+            text: `${x.b.label}: known costs AED ${Math.round(x.cost)} against recorded value AED ${Math.round(x.value!)}, a shortfall of AED ${Math.round(x.cost - x.value!)}.`,
+            attention: true, citations: [cite('battery', x.b.id, x.b.label)],
+          })),
+          missing: [
+            `${rows.length - comparable.length} batteries have no recorded value or no known cost, so they cannot be compared.`,
+            'Batch-level costs (shared collection, energy, labour) are not allocated per battery here, so battery costs are understated.',
+          ],
+          scope: 'Read cost lines and value records for the batteries you can see. Demo ledger; changed nothing.',
+        };
+        return answer(report, comparable.length === 0, comparable.length === 0
+          ? 'No battery has both a recorded value and known costs, so nothing can be compared.'
+          : losses.length
+            ? `${losses.length} of ${comparable.length} comparable batteries cost more than the value recorded for them.`
+            : `None of the ${comparable.length} comparable batteries cost more than the value recorded for them, counting battery-level costs only.`);
       }
 
       if (r.kind === 'data_steward') {

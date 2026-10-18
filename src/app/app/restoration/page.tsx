@@ -112,7 +112,7 @@ function BatchPanel({ batchId }: { batchId: string }) {
         <div className="space-y-6">
           <Section
             title={`${r.batch.name} · ${r.familyModel}`}
-            description={`Opened ${formatDate(r.batch.openedOn)} · ${r.batch.status === 'open' ? 'Open' : 'Closed'} · planned ${r.batch.plannedCount} units`}
+            description={`Opened ${formatDate(r.batch.openedOn)} · ${r.batch.status === 'open' ? 'Open' : 'Closed'} · planned ${r.batch.plannedCount} units · process ${r.batch.processVersion ?? 'not recorded'}`}
           >
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               {[

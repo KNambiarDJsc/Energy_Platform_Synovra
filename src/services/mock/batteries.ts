@@ -215,6 +215,7 @@ export function createBatteryRepository(ctx: Ctx): BatteryRepository {
         family, aliases, retiredRefs, quality: q, evidenceStatus: evidenceStatus(d, b), location: loc,
         lastApprovedTest: lastApprovedTest(d, b.id), events, tests, stringTests, attempts, assignments, telemetry,
         costs: showCosts ? d.costs.filter((c) => c.batteryId === b.id) : null,
+        values: showCosts ? d.values.filter((v) => v.batteryId === b.id) : null,
         warranty: can(actor.role, 'warranty.read') ? d.warranties.find((w) => w.batteryId === b.id) ?? null : null,
         recycling: d.recycling.find((r) => r.batteryId === b.id) ?? null,
         evidence,

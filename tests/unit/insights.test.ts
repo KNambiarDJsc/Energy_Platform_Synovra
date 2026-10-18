@@ -57,12 +57,14 @@ describe('recovery metrics', () => {
     const by = (list: typeof fin, k: string) => list.find((m) => m.key === k)!;
     expect(by(fin, 'cost_per_qualified').status).toBe('calculated');
     expect(by(fin, 'cost_per_qualified').basis).toMatch(/minimum/);
-    expect(by(fin, 'contribution')).toMatchObject({ status: 'not_calculated', value: null });
+    expect(by(fin, 'contribution').status).toBe('calculated');
+    expect(by(fin, 'contribution').basis).toMatch(/upper bound/);
     expect(by(fin, 'retest_pass').value).toMatch(/%$/);
 
     h.as(USERS.eng);
     const eng = await h.svc.insights.recovery();
     expect(by(eng, 'cost_per_qualified')).toMatchObject({ status: 'hidden', value: null });
+    expect(by(eng, 'contribution')).toMatchObject({ status: 'hidden', value: null });
 
     h.as(USERS.noc);
     expect(await rejects(h.svc.insights.recovery())).toBeInstanceOf(ForbiddenError);
@@ -94,7 +96,8 @@ describe('data sources and agents', () => {
     expect(steward.findings.every((f) => f.text.endsWith('.'))).toBe(true);
 
     const analyst = await h.svc.insights.runAgent('recovery_analyst');
-    expect(analyst.missing.join(' ')).toMatch(/sale price/);
+    expect(analyst.missing.join(' ')).toMatch(/controlled comparison/);
+    expect(analyst.findings[0].text).toMatch(/By process version: RP-/);
 
     expect(JSON.stringify({ ...h.store.db, audit: [] })).toBe(before);
 
@@ -110,12 +113,14 @@ describe('data collection pipeline', () => {
     const counts = c.chain.map((l) => l.count);
     expect(counts[0]).toBe(h.store.db.batteries.length);
     counts.slice(1).forEach((n, i) => expect(n, c.chain[i + 1].label).toBeLessThanOrEqual(counts[i]));
-    expect(c.chain.at(-1)).toMatchObject({ key: 'value', count: 0 });
+    expect(c.chain.at(-1)!.key).toBe('value');
+    expect(c.chain.at(-1)!.count).toBeGreaterThan(0);
     for (const s of c.steps) {
       expect(s.complete, s.step).toBeLessThanOrEqual(s.applicable);
       s.fields.forEach((f) => expect(f.present, `${s.step}: ${f.field}`).toBeLessThanOrEqual(s.applicable));
     }
-    expect(c.steps.find((s) => s.key === 'treatment')!.fields.find((f) => f.field === 'Process version')!.present).toBe(0);
+    const treatment = c.steps.find((s) => s.key === 'treatment')!;
+    expect(treatment.fields.find((f) => f.field === 'Process version')!.present).toBe(treatment.applicable);
     h.as(USERS.lab);
     expect(await rejects(h.svc.insights.collection())).toBeInstanceOf(ForbiddenError);
   });

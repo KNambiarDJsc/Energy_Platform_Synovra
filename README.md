@@ -80,6 +80,7 @@ Battery (identity, `publicRef`, aliases, retired refs) → family (rated values,
 | `docs/ML_PLAN.md` | Which models, on which labels, by version; learning versus unlearning; compute |
 | `docs/research/papers.md` | What the battery and agent research supports here, and what it does not; unverified citations listed separately |
 | `docs/research/datasets.md` | Public datasets, their licences, and the rule that they never enter Synovra's records |
+| `ml/README.md` | The training pipeline, its readiness gate, registration, and the public OPzS benchmark |
 | `docs/API_ADAPTER.md`, `server/README.md` | API contract, server setup and operations |
 
 ## Behaviour worth knowing
@@ -91,6 +92,9 @@ Battery (identity, `publicRef`, aliases, retired refs) → family (rated values,
 - **The illustration is not the battery.** It is drawn for the unit type (12 V block or 2 V cell). Its tint follows the one measured block temperature; cell temperatures are not measured.
 - **Revive, test or recycle is arithmetic you can see.** The route calculator (deep dive → Outlook) prefills what the records hold, says where each number came from, and suggests nothing until the missing inputs are entered. No sale price is recorded anywhere, so a person always enters one. The chance of reaching a saleable grade is an observed family rate with its sample size, not a prediction.
 - **One question box, four capabilities.** Intelligence → Agents → Ask the analyst routes a question to data quality, battery evidence, recovery decision or process learning. It lists the tools it called, cites the records, and says "the records cannot answer this yet" when that is the truth.
+- **Money in is recorded per battery.** Sales, fees and recycler settlements live next to costs (Costs and value tab; finance records them). They are never edited, amounts stay out of the timeline, and the demo figures are invented. Contribution per battery and cost-versus-value are calculated from them.
+- **Bench results arrive by CSV too.** Intake → Import bench results checks every row against its battery, quarantines doubtful rows with the reason (a capacity in mAh, a missing calibration, an unknown battery), and submits the rest as tests for an engineer's review. Never approved on import.
+- **An agent on a local model.** Intelligence → Agents can run a goal on a model served by Ollama on this machine. It plans read-only look-ups, shows each one, and flags any number it wrote that no tool returned. Without Ollama, the rule-based analyst still answers.
 - **Agents read, cite and stop.** The three agents on Intelligence are fixed rules that read the records you may see, cite them and list what is missing. They cannot write, control equipment or decide a battery's route.
 - **Unknown stays unknown.** Missing costs, mass, resistance and readings render as "Unknown" or "Not recorded" and are excluded from totals (totals are labelled as minimums).
 - **Customer redaction** hides internal costs, margins, process notes, lot references and audit history, and the passport says what was withheld.
@@ -103,8 +107,8 @@ Battery (identity, `publicRef`, aliases, retired refs) → family (rated values,
 | `tsc --noEmit` | clean |
 | `next lint` | no warnings or errors |
 | `next build` | succeeds, 19 pages |
-| Unit and server tests | 65 unit (4 files) and 82 server (8 files, embedded PostgreSQL), including the route arithmetic, the analyst's routing and "cannot answer" cases, the ML views, the ML role's permissions, and a check that the app and the database count the same training rows |
-| Playwright | 51 passed: 26 desktop flows at 1440 px, 5 mobile at 390 px, 20 accessibility audits |
+| Unit and server tests | 73 unit (6 files) and 83 server (8 files), on embedded PostgreSQL and on real PostgreSQL 16.4 in Docker, including the route arithmetic, the analyst's routing and "cannot answer" cases, the ML views, the ML role's permissions, and a check that the app and the database count the same training rows |
+| Playwright | 53 passed: 28 desktop flows at 1440 px, 5 mobile at 390 px, 20 accessibility audits |
 | Accessibility | axe-core, WCAG 2.1 A/AA rules, zero violations on landing, sign-in, every app route and Intelligence view, every passport tab and deep-dive lens, alert drawer and assistant. Audits wait for transitions to settle before measuring contrast |
 | Page switch time | about 100–250 ms per sidebar click on the production build (measured in Chromium) |
 

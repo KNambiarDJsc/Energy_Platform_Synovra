@@ -143,7 +143,9 @@ stateDiagram-v2
 - **Visible working.** Every answer lists the tools called, the records cited and what was missing. When the records cannot support an answer, it says so.
 - **Audit.** Each question is logged (`analyst.ask`) with the capability it went to.
 - **Tests as evaluation.** The example questions are fixed test cases (`tests/unit/analyst.test.ts`). Before a language model is ever added, those cases become its evaluation set, plus refusal cases: equipment control, other tenants, invented numbers.
-- **If a language model is added:** run it server-side with the caller's permissions, let it choose only from the allowlist, keep the deterministic router as the fallback, and never let it produce a number that did not come from a tool.
+- **Local model agent (development).** `src/services/agent` runs a tool loop on a model served by Ollama on the same machine. The model chooses which of eight read-only tools to call and in what order (up to six steps), then summarises. Tools run through the same services, so with the caller's permissions. A tool outside the allowlist is refused. Every number in the answer is checked against the tool results and any that are not found are shown to the reader. In the browser demo it calls `localhost:11434`; through the API, the loop runs outside any database transaction and each tool call is its own short read, so a slow model never holds the database. Runs are audited (`agent.run`). Nothing leaves the machine.
+- **What the first live runs showed.** A 9B model on CPU took about two minutes per goal. It chained tools on its own, but it misread an ambiguous tool result ("45/49" read as missing rather than recorded). The fix was in the tool output (name both "recorded" and "missing"), not the prompt. The grounding check alone would not have caught it, because the numbers were real; that is why tool results are always shown under the answer and a person decides.
+- **Model choice.** The model is a setting (`OLLAMA_MODEL`, `NEXT_PUBLIC_OLLAMA_MODEL`). Prefer a standard instruction-tuned model with tool support (for example `qwen2.5:7b`) for anything shown outside development.
 
 ## Threat model (short)
 
@@ -167,7 +169,7 @@ stateDiagram-v2
 | Shared service layer in browser and API | One copy of the business rules | The API needs SQL-level performance for hot reads |
 | PostgreSQL, with PGlite locally | Constraints, views and roles; runs with no Docker | — |
 | Rules and arithmetic before models | Too few labelled outcomes; transparent baselines are needed anyway | Enough labelled attempts per family |
-| Deterministic analyst router, no LLM yet | Testable, no data leaves the system, no invented numbers | Evaluation cases are agreed and a provider is approved |
+| Deterministic analyst router as the fallback; local model through Ollama for the agent | Testable, no data leaves the machine, numbers checked against tools | A hosted provider is approved, with an evaluation set |
 | No device integration | No register map or authorised access | Synovra supplies documentation and permission |
 
 ## Known unknowns

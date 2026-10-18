@@ -8,11 +8,13 @@ import type {
   DataQuality, EvidenceFile, ImportJob, ImportTemplate, LifecycleEvent, LifecycleState, NotificationSetting,
   Prediction, PredictionKind, RecyclingRecord, Report, ReportTemplateId, RestorationAttempt, RestorationBatch,
   Role, ServiceTask, Severity, Site, StringUnit, Slot, Bank, Tenant, TestProtocolRevision, TestSession, User,
-  WarrantyRecord, Gateway, Sensor, SensorAssignment, Actor, StoredEvidence, RestorationReasonCode, TestReviewReasonCode,
+  WarrantyRecord, Gateway, Sensor, SensorAssignment, Actor, StoredEvidence, RestorationReasonCode, TestKind, TestReviewReasonCode, ValueRecord,
 } from '@/domain/types';
 import type { InventoryGroup } from '@/domain/lifecycle';
 import type { RouteInputs } from '@/domain/routeEconomics';
-import type { CorrectionInput, CreateBatteryInput, DeploymentInput, ReportInput, TaskInput, TestInput, UserInput, UserUpdate } from '@/domain/schemas';
+import type {
+  CorrectionInput, CreateBatteryInput, DeploymentInput, ReportInput, RouteDecisionInput, TaskInput, TestInput, UserInput, UserUpdate, ValueInput,
+} from '@/domain/schemas';
 import type { EvidenceStatusCode } from './core';
 
 /* ------------------------------ Batteries ------------------------------ */
@@ -102,6 +104,8 @@ export interface BatteryPassport {
   assignments: AssignmentView[];
   telemetry: TelemetrySummary;
   costs: CostEntry[] | null;
+  /** Sales, fees and settlements. Null for roles that may not see money. */
+  values: ValueRecord[] | null;
   warranty: WarrantyRecord | null;
   recycling: RecyclingRecord | null;
   evidence: EvidenceFile[];
@@ -582,12 +586,85 @@ export interface InsightsRepository {
   runAgent(kind: AgentKind, input?: { batteryId?: string | null; periodDays?: number | null }): Promise<AgentReport>;
   /** Prefilled, editable inputs for the revive / test / recycle calculator (src/domain/routeEconomics.ts). */
   routeInputs(batteryId: string): Promise<RouteInputsView>;
+  /** Records the route a person chose, with the assumptions behind it, as an appended event. Engineers only. */
+  recordRoute(input: RouteDecisionInput): Promise<LifecycleEvent>;
   /** One entry point: routes a question to a bounded capability and shows the tools it called. */
   ask(question: string, context?: { batteryId?: string | null }): Promise<AnalystAnswer>;
 }
 
+/* ------------------------------ Agent (local model through Ollama) ------------------------------ */
+
+export interface AgentStep { tool: string; args: Record<string, unknown>; resultPreview: string; allowed: boolean }
+export interface AgentRun {
+  goal: string;
+  model: string;
+  answer: string;
+  steps: AgentStep[];
+  stoppedBecause: 'answered' | 'step_limit';
+  /** Numbers in the answer that no tool returned. Shown to the reader as a warning. */
+  ungroundedNumbers: string[];
+  seconds: number;
+}
+export interface AgentStatus { available: boolean; url: string; model: string | null; models: string[]; reason: string | null }
+export interface AgentService {
+  tools(): { name: string; description: string }[];
+  status(): Promise<AgentStatus>;
+  /** Throws unless the caller may use the agent. */
+  checkAccess(): void;
+  /** Plans and runs read-only tool calls toward a goal, then summarises. `onStep` reports each tool call as it happens. */
+  run(goal: string, opts?: { model?: string; onStep?: (step: AgentStep) => void }): Promise<AgentRun>;
+  /** Writes the run to the audit log. */
+  recordRun(run: AgentRun): void;
+}
+
+/** One row of a bench results file, as checked before anything is created. */
+export interface BenchRow {
+  rowNumber: number;
+  batteryLabel: string;
+  batteryId: string | null;
+  kind: TestKind | null;
+  date: string;
+  capacityAh: number | null;
+  attemptId: string | null;
+  issues: string[];
+  outcome: 'create' | 'skip' | 'quarantine';
+  note: string;
+  /** The row as received, by column name. Nothing in it is converted. */
+  fields: Record<string, string>;
+}
+export interface BenchPreview {
+  fileName: string;
+  fileHash: string;
+  priorCommitAt: string | null;
+  rows: BenchRow[];
+  counts: { create: number; skipped: number; quarantined: number };
+}
+export interface BenchCommitResult {
+  fileName: string;
+  fileHash: string;
+  created: number;
+  counts: { create: number; skipped: number; quarantined: number };
+  testIds: string[];
+  alreadyCommittedAt: string | null;
+}
+/** Bench results by CSV: checked rows become tests submitted for review; doubtful rows are quarantined. */
+export interface BenchImportRepository {
+  columns(): string[];
+  sample(): string;
+  preview(input: { fileName: string; text: string }): Promise<BenchPreview>;
+  commit(input: { fileName: string; text: string }): Promise<BenchCommitResult>;
+}
+
+/** Money in per battery. Records are only ever added; a correction is a new record with a note. */
+export interface ValueRepository {
+  record(input: ValueInput): Promise<ValueRecord>;
+}
+
 export interface Services {
   insights: InsightsRepository;
+  values: ValueRepository;
+  bench: BenchImportRepository;
+  agent: AgentService;
   batteries: BatteryRepository;
   imports: ImportService;
   tests: TestRepository;

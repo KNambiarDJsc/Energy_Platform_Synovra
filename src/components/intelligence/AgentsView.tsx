@@ -10,6 +10,7 @@ import { Notice, Section } from '@/components/ui/Layout';
 import { cn, formatDateTime } from '@/lib/format';
 import { errorMessage, useAction, useSvcQuery } from '@/lib/hooks';
 import type { AgentKind, AgentReport, AnalystAnswer, AssistantCitation } from '@/services/types';
+import { LocalAgent } from './LocalAgent';
 
 function hrefFor(c: AssistantCitation): string | null {
   switch (c.kind) {
@@ -220,6 +221,7 @@ export function AgentsView() {
           Each one reads approved records you are allowed to see, cites them, and says what it could not find. A person decides what to do with the result. Updating the records changes what they know; no model is retrained for that.
         </p>
       </div>
+      <LocalAgent />
       <Analyst />
       <ul className="grid items-start gap-4 lg:grid-cols-2">
         {AGENTS.map((a) => <AgentCard key={a.kind} {...a} />)}

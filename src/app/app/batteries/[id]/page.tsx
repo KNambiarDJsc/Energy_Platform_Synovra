@@ -6,6 +6,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import type { Lens } from '@/components/passport/BatteryFigure';
 import { DeepDive } from '@/components/passport/DeepDive';
+import { ValuesPanel } from '@/components/passport/ValuesPanel';
 import {
   AuditPanel, CostsPanel, DeploymentPanel, EvidencePanel, IdentityCard, RestorationPanel, TelemetryPanel,
   TestsPanel, Timeline, WarrantyPanel, buildNarrative,
@@ -304,7 +305,7 @@ function PassportInner() {
                   { value: 'restoration', label: 'Restoration', content: <RestorationPanel p={p} /> },
                   { value: 'deployments', label: 'Deployment history', content: <DeploymentPanel p={p} /> },
                   { value: 'telemetry', label: 'Telemetry', content: <TelemetryPanel p={p} /> },
-                  { value: 'costs', label: 'Costs', content: <CostsPanel p={p} /> },
+                  { value: 'costs', label: 'Costs and value', content: <><CostsPanel p={p} /><ValuesPanel p={p} /></> },
                   { value: 'warranty', label: 'Warranty', content: <WarrantyPanel p={p} /> },
                   { value: 'evidence', label: 'Evidence', badge: <TabCount n={p.evidence.length} />, content: <EvidencePanel p={p} /> },
                   { value: 'audit', label: 'Audit history', content: <AuditPanel p={p} /> },

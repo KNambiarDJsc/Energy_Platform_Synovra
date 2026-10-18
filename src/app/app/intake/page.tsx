@@ -2,6 +2,7 @@
 import { CheckCircle2, FileUp, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
+import { BenchImport } from '@/components/app/BenchImport';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
@@ -346,6 +347,7 @@ export default function IntakePage() {
         tabs={[
           { value: 'register', label: 'Register one battery', content: <RegisterForm /> },
           { value: 'import', label: 'Import spreadsheet (CSV)', content: <ImportFlow /> },
+          { value: 'bench', label: 'Import bench results (CSV)', content: <BenchImport /> },
         ]}
       />
     </>

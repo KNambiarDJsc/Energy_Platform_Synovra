@@ -110,7 +110,7 @@ describe('HTTP adapter against the API', () => {
     expect(sources.find((x) => x.key === 'telemetry')).toMatchObject({ status: 'not_connected', records: null });
     const learning = await svc.insights.learning();
     expect(learning.stages.find((x) => x.key === 'eligible')!.count).toBeGreaterThan(0);
-    expect((await svc.insights.recovery()).find((m) => m.key === 'contribution')?.status).toBe('not_calculated');
+    expect((await svc.insights.recovery()).find((m) => m.key === 'contribution')?.status).toBe('hidden');
     const [b] = await svc.batteries.list({ q: 'B-0017' });
     const report = await svc.insights.runAgent('battery_investigator', { batteryId: b.id });
     expect(report.findings[0].citations[0]).toMatchObject({ kind: 'battery', id: b.id });

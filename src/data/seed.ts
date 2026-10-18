@@ -9,7 +9,7 @@ import type {
   Alert, AlertType, Battery, BatteryAlias, BatteryAssignment, BatteryFamily, CostEntry, DemoDb,
   EvidenceClassification, EvidenceFile, Gateway, LifecycleEvent, LifecycleEventType, LifecycleState,
   Prediction, RecyclingRecord, RestorationAttempt, RestorationBatch, Sensor, SensorAssignment,
-  ServiceTask, Site, Slot, StringUnit, Bank, TestProtocolRevision, TestSession, User, WarrantyRecord,
+  ServiceTask, Site, Slot, StringUnit, Bank, TestProtocolRevision, TestSession, User, ValueRecord, WarrantyRecord,
   ApprovalState, TelemetryObservation,
 } from '@/domain/types';
 
@@ -133,10 +133,10 @@ export function buildSeed(): DemoDb {
   const evidence: EvidenceFile[] = [];
 
   const batches: RestorationBatch[] = [
-    { id: 'RB-2026-07', name: 'RB-2026-07 · AGM 12V 200Ah', familyId: 'f1', openedOn: '2026-06-15', status: 'closed', plannedCount: 14 },
-    { id: 'RB-2026-08', name: 'RB-2026-08 · Gel 12V 150Ah', familyId: 'f3', openedOn: '2026-07-06', status: 'closed', plannedCount: 8 },
-    { id: 'RB-2026-09', name: 'RB-2026-09 · AGM 12V 200Ah', familyId: 'f1', openedOn: '2026-08-24', status: 'open', plannedCount: 14 },
-    { id: 'RB-2026-10', name: 'RB-2026-10 · OPzS 2V 600Ah', familyId: 'f2', openedOn: '2026-09-14', status: 'open', plannedCount: 10 },
+    { id: 'RB-2026-07', name: 'RB-2026-07 · AGM 12V 200Ah', familyId: 'f1', openedOn: '2026-06-15', status: 'closed', plannedCount: 14, processVersion: 'RP-AGM12 v1 (demo)' },
+    { id: 'RB-2026-08', name: 'RB-2026-08 · Gel 12V 150Ah', familyId: 'f3', openedOn: '2026-07-06', status: 'closed', plannedCount: 8, processVersion: 'RP-GEL12 v1 (demo)' },
+    { id: 'RB-2026-09', name: 'RB-2026-09 · AGM 12V 200Ah', familyId: 'f1', openedOn: '2026-08-24', status: 'open', plannedCount: 14, processVersion: 'RP-AGM12 v2 (demo)' },
+    { id: 'RB-2026-10', name: 'RB-2026-10 · OPzS 2V 600Ah', familyId: 'f2', openedOn: '2026-09-14', status: 'open', plannedCount: 10, processVersion: 'RP-OPZS2 v1 (demo)' },
   ];
 
   const LOC: Record<LifecycleState, string> = {
@@ -751,10 +751,44 @@ export function buildSeed(): DemoDb {
       t.status === 'done' ? 'Service action completed' : 'Service action in progress', `${t.id}: ${t.title}`, { sourceSystem: 'Service tasks (demo)', ref: { kind: 'task', id: t.id } });
   });
 
+  // Money in: a sale when a revived battery first leaves for a customer site, and a recycler settlement
+  // when one is recycled. Amounts come from a hash of the battery id, not the shared random generator,
+  // so adding them changes no other record. Invented demonstration figures, labelled as such.
+  const h01 = (key: string) => {
+    let h = 2166136261;
+    for (const ch of key) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+    return ((h >>> 0) % 10_000) / 10_000;
+  };
+  const SALE_BASE: Record<string, [number, number]> = { f1: [420, 60], f2: [560, 70], f3: [330, 45] };
+  const values: ValueRecord[] = [];
+  batteries.forEach((b) => {
+    const first = assignments.filter((a) => a.batteryId === b.id).sort((x, y) => x.startAt.localeCompare(y.startAt))[0];
+    if (first) {
+      const [base, spread] = SALE_BASE[b.familyId] ?? [400, 50];
+      const r = h01(b.id);
+      const unsettled = r < 0.12;
+      values.push({
+        id: `val_${values.length + 1}`, batteryId: b.id, kind: 'sale',
+        amountAed: unsettled ? null : Math.round(base - spread + r * 2 * spread),
+        recordedOn: first.startAt.slice(0, 10), counterparty: 'Site customer (demo)', reference: `INV-DEMO-${1000 + values.length}`,
+        source: 'Sales ledger (demo)', note: unsettled ? 'Invoice not yet settled: amount unknown.' : 'Invented demonstration price.', recordedByName: 'Daniel Hughes',
+      });
+    }
+    const rec = recycling.find((x) => x.batteryId === b.id && x.state === 'recycled');
+    if (rec) {
+      values.push({
+        id: `val_${values.length + 1}`, batteryId: b.id, kind: 'recycling_settlement',
+        amountAed: rec.massKg === null ? null : Math.round(rec.massKg * 2.4),
+        recordedOn: rec.consignedOn ?? dateOnly(1), counterparty: rec.recyclerName, reference: rec.consignmentRef,
+        source: 'Recycler settlement (demo)', note: rec.massKg === null ? 'Mass not recorded, so the settlement is unknown.' : 'Placeholder rate of 2.4 AED per kg (demo).', recordedByName: 'Daniel Hughes',
+      });
+    }
+  });
+
   const db: DemoDb = {
     tenants, users, families, batteries, aliases, sites, banks, strings, slots, assignments,
     gateways, sensors, sensorAssignments, events: events.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt)),
-    protocols, tests, batches, attempts, costs, warranties, recycling, evidence,
+    protocols, tests, batches, attempts, costs, values, warranties, recycling, evidence,
     alerts, tasks, predictions, reports: [], imports: [], importTemplates,
     notifications: [
       { id: 'n1', label: 'Critical alert raised', channel: 'email', enabled: true },

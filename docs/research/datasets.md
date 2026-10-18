@@ -21,6 +21,7 @@ Written for whoever runs experiments outside the platform. Checked 18 October 20
 - Contents: six CSV archives (one per cell) and a description PDF, 6.9 MB in total. One-minute logging from August 2024 to May 2025, 1,648 hours in all.
 - Charge profiles are conventional, PV and wind; discharge profiles are C10, C20, real consumption and random pulses.
 - Fit for Synovra: closest to the OPzS family in the demo. Useful for feature engineering on charge/discharge curves, but it is six cells in one controlled setup, not a returned-battery population.
+- Profiled by `ml/benchmarks/opzs_profile.py` (results in `ml/README.md`): 110 files, 31 header spellings, 23,055 padding rows, a `%SOC` column that exceeds 100%, and C10 runs that stop at ten hours above the cut-off (a lower bound on capacity). The cells are in series, so amp-hours are identical per cell.
 - Note: an earlier brief described this as non-commercial. The Zenodo record says CC BY 4.0. The accompanying paper may carry a different licence, so check before reusing its text or figures.
 
 ### RWTH M5BAT

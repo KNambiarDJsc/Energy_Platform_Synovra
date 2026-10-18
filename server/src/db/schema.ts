@@ -29,7 +29,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type {
   ApprovalState, CostEntry, EvidenceFile, ImportRow, LifecycleEventType, LifecycleState, PredictionKind, ProcessNote,
-  ReportSection, ReportTemplateId, RestorationReasonCode, Role, TestConditions, TestResult, TestReviewReasonCode, WarrantyRecord,
+  ReportSection, ReportTemplateId, RestorationReasonCode, Role, TestConditions, TestResult, TestReviewReasonCode, ValueRecord, WarrantyRecord,
 } from '../../../src/domain/types';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, precision: 3, mode: 'date' });
@@ -124,6 +124,8 @@ export const restorationBatches = pgTable('restoration_batches', {
   openedOn: day('opened_on').notNull(),
   status: text('status', { enum: ['open', 'closed'] }).notNull(),
   plannedCount: integer('planned_count').notNull(),
+  /** Approved process version, by reference. The procedure itself stays in the controlled lab system. */
+  processVersion: text('process_version'),
   seq: seq(),
 });
 
@@ -304,6 +306,25 @@ export const costEntries = pgTable('cost_entries', {
   index('costs_batch_idx').on(t.batchId),
   check('costs_scope_ck', sql`${t.batteryId} IS NOT NULL OR ${t.batchId} IS NOT NULL`),
   check('costs_amount_ck', sql`${t.amountAed} IS NULL OR ${t.amountAed} >= 0`),
+]);
+
+/** Money in per battery: sales, fees and recycler settlements. Rows are never updated or deleted (trigger). */
+export const valueRecords = pgTable('value_records', {
+  id: text('id').primaryKey(),
+  batteryId: text('battery_id').notNull().references(() => batteries.id),
+  kind: text('kind').$type<ValueRecord['kind']>().notNull(),
+  /** NULL means agreed but not yet known. It is never treated as zero. */
+  amountAed: numeric('amount_aed', { precision: 14, scale: 2 }),
+  recordedOn: day('recorded_on').notNull(),
+  counterparty: text('counterparty').notNull(),
+  reference: text('reference'),
+  source: text('source').notNull(),
+  note: text('note').notNull(),
+  recordedByName: text('recorded_by_name').notNull(),
+  seq: seq(),
+}, (t) => [
+  index('value_records_battery_idx').on(t.batteryId),
+  check('value_records_amount_ck', sql`${t.amountAed} IS NULL OR ${t.amountAed} >= 0`),
 ]);
 
 export const warranties = pgTable('warranties', {

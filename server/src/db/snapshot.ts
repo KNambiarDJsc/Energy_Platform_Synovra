@@ -52,6 +52,11 @@ const SPECS: TableSpec[] = [
     fromRow: (r) => ({ ...r, amountAed: r.amountAed === null ? null : Number(r.amountAed) }),
     toRow: (o) => ({ ...o, amountAed: o.amountAed === null || o.amountAed === undefined ? null : String(o.amountAed) }),
   },
+  {
+    key: 'values', table: s.valueRecords, appendOnly: true,
+    fromRow: (r) => ({ ...r, amountAed: r.amountAed === null ? null : Number(r.amountAed) }),
+    toRow: (o) => ({ ...o, amountAed: o.amountAed === null || o.amountAed === undefined ? null : String(o.amountAed) }),
+  },
   { key: 'warranties', table: s.warranties },
   { key: 'recycling', table: s.recyclingRecords },
   { key: 'evidence', table: s.evidenceFiles },
@@ -108,7 +113,7 @@ export function emptyDb(): DemoDb {
   return {
     tenants: [], users: [], families: [], batteries: [], aliases: [], sites: [], banks: [], strings: [], slots: [],
     assignments: [], gateways: [], sensors: [], sensorAssignments: [], events: [], protocols: [], tests: [], batches: [],
-    attempts: [], costs: [], warranties: [], recycling: [], evidence: [], alerts: [], tasks: [], predictions: [],
+    attempts: [], costs: [], values: [], warranties: [], recycling: [], evidence: [], alerts: [], tasks: [], predictions: [],
     reports: [], imports: [], importTemplates: [], notifications: [], audit: [],
   };
 }

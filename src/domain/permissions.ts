@@ -20,6 +20,7 @@ export type Permission =
   | 'alert.assign'
   | 'task.write'
   | 'cost.read'
+  | 'value.write'
   | 'warranty.read'
   | 'prediction.read'
   | 'report.generate'
@@ -58,7 +59,7 @@ const MATRIX: Record<Role, Permission[]> = {
   ],
   finance_owner: [
     'battery.read', 'battery.export', 'test.read', 'restoration.read', 'inventory.read',
-    'cost.read', 'warranty.read', 'prediction.read',
+    'cost.read', 'value.write', 'warranty.read', 'prediction.read',
     'report.generate', 'report.internal', 'assistant.use',
   ],
   customer_auditor: [

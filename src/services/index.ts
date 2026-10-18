@@ -20,6 +20,9 @@ import { createReportRepository } from './mock/reports';
 import { createRestorationRepository } from './mock/restoration';
 import { createTelemetryRepository } from './mock/telemetry';
 import { createTestRepository } from './mock/tests';
+import { createValueRepository } from './mock/values';
+import { createBenchImport } from './mock/benchImport';
+import { createAgentService } from './agent';
 import { DATA_SOURCE } from '@/lib/runtime';
 import { createHttpServices } from './http';
 import { getSessionUserId } from './session';
@@ -32,8 +35,12 @@ export function actorFromUser(store: Store, userId: string | null): Actor {
 
 export function createServices(store: Store, getActor: () => Actor): Services {
   const ctx: Ctx = { store, actor: getActor };
-  return {
+  const services: Services = {
     insights: createInsightsRepository(ctx),
+    values: createValueRepository(ctx),
+    bench: createBenchImport(ctx),
+    // The agent calls the other services as tools, so it gets the finished object.
+    agent: createAgentService(ctx, () => services),
     batteries: createBatteryRepository(ctx),
     imports: createImportService(ctx),
     tests: createTestRepository(ctx),
@@ -48,6 +55,7 @@ export function createServices(store: Store, getActor: () => Actor): Services {
     overview: createOverviewRepository(ctx),
     actor: getActor,
   };
+  return services;
 }
 
 let appServices: Services | null = null;

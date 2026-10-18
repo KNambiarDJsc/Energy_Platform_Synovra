@@ -58,13 +58,18 @@ describe('analyst', () => {
     expect(h.store.db.audit.filter((e) => e.action === 'analyst.ask')).toHaveLength(cases.length);
   });
 
-  it('says plainly when the records cannot answer', async () => {
+  it('compares cost with value for roles that may see money, and says plainly when the records cannot answer', async () => {
     const h = harness(USERS.fin);
     const loss = await h.svc.insights.ask('Show batteries where treatment cost exceeded the value recovered.');
-    expect(loss.insufficient).toBe(true);
-    expect(loss.lead).toMatch(/no battery has a recorded sale price/);
+    expect(loss.insufficient).toBe(false);
+    expect(loss.lead).toMatch(/comparable batteries/);
+    expect(loss.toolsCalled.map((t) => t.tool)).toEqual(['get_cost_lines', 'calculate_route_economics']);
+    expect(loss.report?.missing.join(' ')).toMatch(/not allocated per battery/);
 
     h.as(USERS.eng);
+    const hidden = await h.svc.insights.ask('Show batteries where treatment cost exceeded the value recovered.');
+    expect(hidden).toMatchObject({ insufficient: true, report: null });
+
     const decide = await h.svc.insights.ask('Should we revive or recycle B-0034?');
     expect(decide.insufficient).toBe(true);
     expect(decide.toolsCalled.find((t) => t.tool === 'get_model_prediction')?.result).toMatch(/no validated model/);
@@ -81,7 +86,8 @@ describe('analyst', () => {
     const fin = await h.svc.insights.routeInputs(b.id);
     expect(fin.fields.pSaleable.value).toBeGreaterThan(0);
     expect(fin.fields.pSaleable.source).toMatch(/decided .* attempts qualified/);
-    expect(fin.fields.salePriceAed.value).toBeNull();
+    expect(fin.fields.salePriceAed.value).toBeGreaterThan(0);
+    expect(fin.fields.salePriceAed.source).toMatch(/recorded .* sales/);
     expect(fin.costsHidden).toBe(false);
     h.as(USERS.eng);
     const eng = await h.svc.insights.routeInputs(b.id);

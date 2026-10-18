@@ -7,6 +7,8 @@
  * in HTTP mode; these answers only cover places that embed them (for example passport tabs).
  */
 import { SAMPLE_CSV } from '@/domain/csv';
+import { BENCH_COLUMNS, BENCH_SAMPLE_CSV } from '../mock/benchImport';
+import { AGENT_TOOLS } from '../agent/tools';
 import { ConflictError, NotFoundError } from '@/domain/permissions';
 import type { Actor } from '@/domain/types';
 import type {
@@ -179,12 +181,25 @@ function insights(): InsightsRepository {
     runAgent: (kind, input = {}) => api.get(`/insights/agents/${enc(kind)}${qs({ batteryId: input.batteryId ?? undefined, periodDays: input.periodDays ?? undefined })}`),
     routeInputs: (batteryId) => api.get(`/batteries/${enc(batteryId)}/route-inputs`),
     ask: (question, context = {}) => api.post('/insights/ask', { question, batteryId: context.batteryId ?? null }),
+    recordRoute: (input) => api.post(`/batteries/${enc(input.batteryId)}/route-decisions`, input),
   };
 }
 
 export function createHttpServices(): Services {
   return {
-    insights: insights(), batteries: batteries(), imports: imports(), tests: tests(), restoration: restoration(), deployments: deployments(),
+    insights: insights(), values: { record: (input) => api.post(`/batteries/${enc(input.batteryId)}/values`, input) },
+    bench: {
+      columns: () => [...BENCH_COLUMNS], sample: () => BENCH_SAMPLE_CSV,
+      preview: (input) => api.post('/imports/bench/preview', input), commit: (input) => api.post('/imports/bench/commit', input),
+    },
+    agent: {
+      tools: () => AGENT_TOOLS.map((t) => ({ name: t.name, description: t.description })),
+      status: () => api.get('/agent/status'),
+      checkAccess: () => undefined,
+      run: (goal, opts = {}) => api.post('/agent/run', { goal, model: opts.model ?? null }),
+      recordRun: () => undefined,
+    },
+    batteries: batteries(), imports: imports(), tests: tests(), restoration: restoration(), deployments: deployments(),
     telemetry: telemetry(), alerts: alerts(), predictions: predictions(), reports: reports(), assistant: assistant(),
     admin: admin(), overview: overview(),
     actor: (): Actor => {

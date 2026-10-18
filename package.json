@@ -20,6 +20,7 @@
     "db:migrate": "tsx server/src/cli.ts migrate",
     "db:seed": "tsx server/src/cli.ts seed-demo",
     "db:bootstrap": "tsx server/src/cli.ts bootstrap",
+    "ml:register": "tsx server/src/cli.ts ml-register",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run test:e2e"
   },
   "dependencies": {

@@ -1,7 +1,7 @@
 'use client';
 import {
   AlertTriangle, ArrowRight, BadgeCheck, Check, CircleDot, ClipboardCheck, FileText, FlaskConical, GitBranch, History, Lock, MapPin,
-  Recycle, Repeat, ScanLine, ShieldCheck, Undo2, Wrench, X, XCircle,
+  Coins, Recycle, Repeat, Scale, ScanLine, ShieldCheck, Undo2, Wrench, X, XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -221,6 +221,7 @@ export function IdentityCard({ p }: { p: BatteryPassport }) {
 const EVENT_ICON: Record<LifecycleEventType, typeof CircleDot> = {
   intake: ClipboardCheck, test: FlaskConical, restoration: Wrench, approval: BadgeCheck, rejection: XCircle, rework: Repeat,
   movement: MapPin, deployment: MapPin, alert: AlertTriangle, service: Wrench, return: Undo2, recycling: Recycle, identity: ScanLine,
+  value: Coins, route_decision: Scale,
 };
 
 export function Timeline({ events }: { events: TimelineEvent[] }) {

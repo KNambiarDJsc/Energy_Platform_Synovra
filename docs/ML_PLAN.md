@@ -146,5 +146,6 @@ What decides it is data shape, sampling rate, training frequency and latency, no
 
 1. Done, with placeholders: reason codes on the test-review and restoration-decision forms. **With engineering: replace the placeholder codes in `src/domain/outcomes.ts` with the agreed list** (V1).
 2. Done: the point-in-time view `ml_restoration_attempt_features`, the review flags `ml_model_review_flags`, and the ML service role `server/sql/ml_service_role.sql`.
-3. Decide whether to record a sale price per battery. Without one, "revive or recycle" stays a scenario rather than a learned value.
-4. Once enough attempts are decided: build the restoration-qualification baseline and logistic model offline from `ml_restoration_attempt_features`, write the evaluation report (grouped splits, per-family results), and register version `0.1.0` in shadow mode with its `model_training_records`.
+3. Done: money in per battery (`value_records`: sales, fees, recycler settlements) and a process version per batch. The training view now carries `process_version` as a feature and `label_value_aed` as a label.
+4. Done: the training pipeline (`ml/train_restoration.py`). It reads the view, applies a readiness gate (at least 20 attempts of each outcome across at least 3 batches), evaluates on held-out batches against the rule "attempt when intake capacity ≥ 50%", requires a 0.02 margin, and writes a model card that `npm run ml:register` puts in shadow with its training records. **On the demo data the gate does not pass (2 failures), so no model is trained, which is correct.**
+5. With Synovra: real records. The first concrete request is an anonymised export linking battery IDs to intake tests, treatment, retests, costs and money in.

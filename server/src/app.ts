@@ -8,7 +8,7 @@ import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
-import { ConflictError, ValidationError, can, type Permission } from '../../src/domain/permissions';
+import { ConflictError, ForbiddenError, ValidationError, can, type Permission } from '../../src/domain/permissions';
 import type {
   LifecycleState, PredictionKind, ReportTemplateId, RestorationReasonCode, StoredEvidence, TestReviewReasonCode,
 } from '../../src/domain/types';
@@ -23,6 +23,9 @@ import { createScanner, type Scanner } from './evidence/scan';
 import { createBlobStore, readVerified, type BlobStore } from './evidence/storage';
 import { clientAddress, createErrorNotifier, Metrics, RateLimiter, requestIdFrom, routeLabel, tokenMatches } from './observability';
 import { withServices, type Timing } from './uow';
+import { ollamaChat } from '../../src/services/agent';
+import { runAgentLoop } from '../../src/services/agent/loop';
+import { AGENT_TOOLS, runTool as runAgentTool } from '../../src/services/agent/tools';
 
 type Env = { Variables: { principal: Principal; timing: Timing; requestId: string } };
 
@@ -328,6 +331,42 @@ export function createApp(deps: AppDeps) {
     return s.insights.runAgent(kind, { batteryId: q(c, 'batteryId') ?? null, periodDays: Number.isFinite(days) && days > 0 ? days : null });
   }));
   api.get('/batteries/:id/route-inputs', read((s, c) => s.insights.routeInputs(c.req.param('id'))));
+  api.post('/batteries/:id/route-decisions', write(async (s, c) => s.insights.recordRoute({ ...(await body<object>(c)), batteryId: c.req.param('id') } as never)));
+  // Training rows for the ML service, straight from the point-in-time view. Fleet-wide, so administrators only.
+  api.use('/ml/*', feature('intelligence', 'Intelligence'));
+  api.get('/ml/training-rows', async (c) => {
+    await withServices(deps, c.get('principal'), 'read', async (s) => {
+      if (!can(s.actor().role, 'admin.read')) throw new ForbiddenError('admin.read');
+      return null;
+    });
+    const result = (await deps.db.execute(sql`SELECT * FROM ml_restoration_attempt_features ORDER BY attempt_id`)) as unknown as { rows: Record<string, unknown>[] };
+    return c.json({ view: 'ml_restoration_attempt_features', exportedAt: new Date().toISOString(), rows: result.rows });
+  });
+
+  // Agent: a local model through Ollama plans read-only tool calls. The loop runs outside any transaction;
+  // each tool call is its own short read, so a slow model never holds the database.
+  api.use('/agent/*', feature('intelligence', 'Intelligence'));
+  api.get('/agent/status', read((s) => s.agent.status()));
+  api.post('/agent/run', async (c) => {
+    const b = await body<{ goal?: string; model?: string | null }>(c);
+    const principal = c.get('principal');
+    const goal = (b.goal ?? '').trim().slice(0, 600);
+    if (!goal) throw new ValidationError('Give the agent a goal');
+    const st = await withServices(deps, principal, 'read', async (s) => { s.agent.checkAccess(); return s.agent.status(); });
+    if (!st.available || !st.model) throw new ConflictError(st.reason ?? 'Ollama is not available');
+    const model = b.model && st.models.includes(b.model) ? b.model : st.model;
+    const run = await runAgentLoop({
+      goal, model, chat: ollamaChat(st.url, model), tools: AGENT_TOOLS, maxSteps: 5,
+      runTool: (name, args) => withServices(deps, principal, 'read', (s) => runAgentTool(s, name, args)),
+    });
+    await withServices(deps, principal, 'write', async (s) => { s.agent.recordRun(run); return null; });
+    return c.json(run);
+  });
+
+  // Bench results by CSV: preview changes nothing; commit creates submitted tests and audits the file hash.
+  api.post('/imports/bench/preview', read(async (s, c) => s.bench.preview(await body<{ fileName: string; text: string }>(c))));
+  api.post('/imports/bench/commit', write(async (s, c) => s.bench.commit(await body<{ fileName: string; text: string }>(c))));
+  api.post('/batteries/:id/values', write(async (s, c) => s.values.record({ ...(await body<object>(c)), batteryId: c.req.param('id') } as never)));
   // A question is recorded in the audit log, so this is a write even though it changes no battery record.
   api.post('/insights/ask', write(async (s, c) => {
     const b = await body<{ question: string; batteryId?: string | null }>(c);

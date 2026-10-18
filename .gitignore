@@ -19,3 +19,8 @@ next-env.d.ts
 
 # Taste Skill working files (direction sheet, inspector screenshots)
 .taste-skill/
+
+# ML pipeline: downloaded public data and generated outputs stay out of the repository
+ml/.data/
+ml/out/
+__pycache__/
