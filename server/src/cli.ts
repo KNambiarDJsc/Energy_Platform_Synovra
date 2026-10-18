@@ -15,13 +15,7 @@ import { connect } from './db/client';
 import { bootstrap } from './db/bootstrap';
 import { insertAll, isEmpty, truncateAll } from './db/snapshot';
 import { modelTrainingRecords, modelVersions } from './db/schema';
-
-/** Written by ml/train_restoration.py. Only a card whose readiness gate passed can be registered. */
-interface ModelCard {
-  name: string; version: string; baseline: string; training_cohort: string; evaluation_report: string;
-  gate: { passed: boolean; reasons: string[] };
-  training_records: { record_kind: 'restoration_attempt'; record_id: string; battery_id: string }[];
-}
+import { validateCard, type ModelCard } from './db/modelCard';
 
 async function main() {
   const [command, arg] = process.argv.slice(2);
@@ -30,8 +24,7 @@ async function main() {
   if (command === 'ml-register') {
     if (!arg) throw new Error('Usage: ml-register <model_card.json>');
     card = JSON.parse(readFileSync(arg, 'utf8')) as ModelCard;
-    if (!card.gate?.passed) throw new Error(`Refused: the readiness gate did not pass (${(card.gate?.reasons ?? []).join('; ')}).`);
-    if (!card.training_records?.length) throw new Error('Refused: a model version must name the records it was trained on.');
+    validateCard(card);
   }
   const config = loadConfig();
   const handle = await connect(config);

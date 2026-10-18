@@ -652,7 +652,8 @@ export interface BenchImportRepository {
   columns(): string[];
   sample(): string;
   preview(input: { fileName: string; text: string }): Promise<BenchPreview>;
-  commit(input: { fileName: string; text: string }): Promise<BenchCommitResult>;
+  /** `stored` is set by the API after it has scanned and stored the file's bytes. In pilot mode the commit is refused without it. */
+  commit(input: { fileName: string; text: string }, stored?: StoredEvidence): Promise<BenchCommitResult>;
 }
 
 /** Money in per battery. Records are only ever added; a correction is a new record with a note. */

@@ -21,10 +21,14 @@ python -I ml/benchmarks/opzs_profile.py              # -> ml/out/opzs/report.md,
 
 | Step | Refuses when | Why |
 | --- | --- | --- |
-| Readiness gate | Fewer than 20 attempts of either outcome, or fewer than 3 batches | Too few labels to evaluate; whole batches must be held out |
-| Evaluation | Model is not at least 0.02 balanced accuracy better than the rule "attempt when intake capacity ≥ 50% of rated" | A smaller margin is noise: keep the rule |
-| Registration | The card's gate did not pass, or it names no training records | Lineage (`model_training_records`) is what makes corrections and unlearning traceable |
-| Promotion | Always | Registration is shadow only; `validated` needs the deployment gate in `docs/ML_PLAN.md` and an engineer's sign-off |
+| Readiness gate | Fewer than 20 attempts of either outcome, or fewer than 3 batches | Too few labels to evaluate |
+| Held-out evaluation (`ml/evaluation.py`) | Batteries and batches cannot be held out together (every battery spans many batches), or any fold shares a battery or batch | The same battery must never be in training and test; the check raises, it does not warn |
+| Checks | Less than +0.02 balanced accuracy over the rule "attempt when intake capacity ≥ 50% of rated"; ECE above 0.10 or Brier no better than the base rate; false-pass rate above 0.15 or weighted error cost above the rule's; any supported family more than 0.05 worse than the rule; later-period result more than 0.02 worse than the rule | A smaller margin is noise; false passes cost more than false fails; keep the rule |
+| Applicability | A family with fewer than 10 rows is marked out of scope; the site holdout is reported as not possible (no site column in the view) | A model must not speak for batteries it has not seen |
+| Registration | The card's checks did not all pass, it names no training records, or any of the data, code, report and artifact hashes is missing or malformed | Lineage is what makes corrections and unlearning traceable |
+| Promotion | Always | Registration is shadow only; `validated` needs the deployment gate in `docs/ML_PLAN.md` and a person. The card's reviewer, approver and rollback fields are empty until a person fills them |
+
+All thresholds are placeholders to agree with engineering. Run the tests with `python -I ml/tests/test_evaluation.py` (identity-fingerprint labels must score near chance, a fully connected battery/batch graph must be refused, folds must never overlap).
 
 ## Current result on the demo data
 

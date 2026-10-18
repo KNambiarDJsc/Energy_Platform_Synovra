@@ -190,7 +190,7 @@ export function createHttpServices(): Services {
     insights: insights(), values: { record: (input) => api.post(`/batteries/${enc(input.batteryId)}/values`, input) },
     bench: {
       columns: () => [...BENCH_COLUMNS], sample: () => BENCH_SAMPLE_CSV,
-      preview: (input) => api.post('/imports/bench/preview', input), commit: (input) => api.post('/imports/bench/commit', input),
+      preview: (input) => api.post('/bench-imports/preview', input), commit: (input) => api.post('/bench-imports/commit', input),
     },
     agent: {
       tools: () => AGENT_TOOLS.map((t) => ({ name: t.name, description: t.description })),

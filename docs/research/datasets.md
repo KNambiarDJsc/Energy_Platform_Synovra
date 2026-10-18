@@ -14,6 +14,7 @@ Written for whoever runs experiments outside the platform. Checked 18 October 20
 ### Oxford / BBOXX
 - Record: [ora.ox.ac.uk/objects/uuid:e41d3d4c-f74e-4d76-81fd-0caa77ec6cec](https://ora.ox.ac.uk/objects/uuid:e41d3d4c-f74e-4d76-81fd-0caa77ec6cec). Creators A. Aitio and D. Howey, University of Oxford, 2021.
 - Files: `meta_data.csv`, `GITT_OCV.mpt`, `set_0.zip` to `set_10.zip` (about 78–287 MB each), `zip_to_npy.py`, `LICENSE`, `readme.md.txt`. The contents of the zip archives were not inspected.
+- The record states CC BY-NC with an all-rights-reserved notice (BBOXX and Oxford). Its end-of-life labels come from repair records, not standardised reference-capacity tests.
 - Fit for Synovra: a pipeline and field-ageing benchmark only. It is a different duty cycle (daily solar cycling) and battery size, with no restoration step.
 
 ### OPzS 1200 Ah bank
@@ -22,9 +23,13 @@ Written for whoever runs experiments outside the platform. Checked 18 October 20
 - Charge profiles are conventional, PV and wind; discharge profiles are C10, C20, real consumption and random pulses.
 - Fit for Synovra: closest to the OPzS family in the demo. Useful for feature engineering on charge/discharge curves, but it is six cells in one controlled setup, not a returned-battery population.
 - Profiled by `ml/benchmarks/opzs_profile.py` (results in `ml/README.md`): 110 files, 31 header spellings, 23,055 padding rows, a `%SOC` column that exceeds 100%, and C10 runs that stop at ten hours above the cut-off (a lower bound on capacity). The cells are in series, so amp-hours are identical per cell.
+- Open question: the paper and the Zenodo record give different total durations. Resolve it before quoting any figure from this dataset. Runs that stop near a scheduled ten hours are lower bounds, and string amp-hours are not per-cell capacity.
 - Note: an earlier brief described this as non-commercial. The Zenodo record says CC BY 4.0. The accompanying paper may carry a different licence, so check before reusing its text or figures.
 
-### RWTH M5BAT
+### RWTH M5BAT (update, 18 October 2026)
+- A planning document reports this as CC BY 4.0 with lead-acid OCSM and OPzV units, and says reported SOC is calculated or BMS-derived rather than an independent health measurement. **Not verified here:** a search found an RWTH record for a related M5BAT dataset (DOI 10.18154/RWTH-2025-06555, one-second inverter power and unit SOC) and an open-access operation report (DOI 10.18154/RWTH-2024-04895), but not the licence or the lead-acid unit details. Check the record before downloading.
+- Even with an open licence it would be a benchmark for episode extraction and parser testing: it has no per-battery capacity, treatment or sale outcome.
+
 - The brief's link ([publications.rwth-aachen.de/record/1038622](https://publications.rwth-aachen.de/record/1038622)) did not render readable content. No data release, DOI or download page was found.
 - What exists: a dissertation analysing M5BAT operation since 2016 (DOI 10.18154/RWTH-2025-06200), and a 2022 Battery-Power abstract on multi-year field measurements of its two lead-acid types.
 - Status: treat as unavailable until RWTH confirms access and terms.

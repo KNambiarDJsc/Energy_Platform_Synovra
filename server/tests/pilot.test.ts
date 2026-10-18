@@ -78,3 +78,48 @@ describe('pilot mode behaviour', () => {
     expect((await eng.get('/batteries')).body).toHaveLength(1);
   });
 });
+
+describe('pilot mode: bench import and money in', () => {
+  it('stores the bench file itself as evidence, labels records without "(demo)", and refuses a name-only commit', async () => {
+    const lab = await server.as(USERS.lab);
+    const { battery } = (await lab.post('/batteries', {
+      familyId: 'f1', manufacturerSerial: 'PILOT-BENCH-1', manufacturedOn: null, physicalLocation: 'Receiving bay', legacyId: null, acquisitionCostAed: null,
+    })).body;
+    const header = 'battery,test_kind,test_date,protocol,ocv_v,internal_resistance_mohm,temperature_c,capacity_ah,load_current_a,cutoff_v,ambient_c,duration_h,instrument,calibration_ref,notes';
+    const csv = `${header}\n${battery.label},initial,2026-10-12,proto_c10,12.6,4.6,25,126.5,20,10.8,25,6.3,Bench DB-2,CAL-REAL-1,pilot row\n`;
+    const preview = await lab.post('/bench-imports/preview', { fileName: 'bench.csv', text: csv });
+    expect(preview.body.counts).toEqual({ create: 1, skipped: 0, quarantined: 0 });
+
+    const done = await lab.post('/bench-imports/commit', { fileName: 'bench.csv', text: csv });
+    expect(done.status).toBe(200);
+    expect(done.body).toMatchObject({ created: 1 });
+    const p = (await lab.get(`/batteries/${battery.id}/passport`)).body;
+    const t = p.tests.find((x: { id: string }) => x.id === done.body.testIds[0]);
+    expect(t).toMatchObject({ status: 'submitted', result: { capacityAh: 126.5 } });
+    // The file covers several batteries, so it hangs off each test it created, not off one battery.
+    const view = (await lab.get(`/tests/${t.id}`)).body;
+    const ev = view.evidence[0];
+    expect(ev).toMatchObject({ kind: 'import_source', storageKey: expect.stringMatching(/^sha256\/[0-9a-f]{64}$/) });
+    expect(ev.checksum).not.toMatch(/metadata-only/);
+    expect(p.events.every((e: { sourceSystem: string }) => !/demo/i.test(e.sourceSystem))).toBe(true);
+
+    // Importing the same file again creates nothing.
+    const again = await lab.post('/bench-imports/commit', { fileName: 'bench-copy.csv', text: csv });
+    expect(again.body).toMatchObject({ created: 0, alreadyCommittedAt: expect.any(String) });
+
+    // A role without import rights is refused before anything is stored.
+    const fin = await server.as(USERS.fin);
+    expect((await fin.post('/bench-imports/commit', { fileName: 'bench.csv', text: csv })).status).toBe(403);
+  });
+
+  it('records money in for finance only, and never as a demo record', async () => {
+    const fin = await server.as(USERS.fin);
+    const [battery] = (await fin.get('/batteries')).body;
+    const rec = await fin.post(`/batteries/${battery.id}/values`, { kind: 'restoration_fee', amountAed: 150, recordedOn: '2026-10-12', counterparty: 'Customer Ltd', reference: 'INV-1' });
+    expect(rec.status).toBe(200);
+    expect(rec.body.source).toBe('Commercial ledger');
+    const eng = await server.as(USERS.eng);
+    expect((await eng.get(`/batteries/${battery.id}/passport`)).body.values).toBeNull();
+    expect((await eng.post(`/batteries/${battery.id}/values`, { kind: 'restoration_fee', amountAed: 1, recordedOn: '2026-10-12', counterparty: 'X' })).status).toBe(403);
+  });
+});

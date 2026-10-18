@@ -110,10 +110,10 @@ npm run db:seed          # demo mode only: load the synthetic seed (add -- --for
 
 | Item | Why it matters |
 | --- | --- |
-| OIDC sign-in in the web app | The API verifies OIDC tokens today; the web app still needs the redirect flow (Authorization Code + PKCE) for the chosen provider. |
-| Evidence file storage | Evidence is metadata only. Needs object storage (S3-compatible), upload size and type limits, malware scan, SHA-256 checksums and retention. |
-| User administration | Users come from bootstrap; the admin screen can deactivate but not create users or change roles. |
-| Run against real PostgreSQL in CI | Tests run on embedded PostgreSQL here; the `TEST_DATABASE_URL` path exists but has not been run on this machine (Docker was not running). |
-| Rate limiting, request IDs, metrics, alerting on errors | Standard production hygiene; log lines are already structured JSON with per-phase timings. |
-| Backups and restore drill, migration rollback plan | Required before real records are the only copy. |
+| OIDC against a real identity provider | The API verifies OIDC tokens and the web app has the Authorization Code + PKCE redirect (`src/services/http/oidc.ts`, `src/app/auth/callback`). Both are tested against a mock provider only. |
+| Evidence retention and a real malware scanner | Uploads are size- and type-checked, checksummed (SHA-256) and stored by content address; the scanner is a hook (`EVIDENCE_SCAN=none` by default). Retention rules are not set. |
+| Run against real PostgreSQL in CI | The server tests pass on PostgreSQL 16.4 in Docker (`TEST_DATABASE_URL`, run by hand). Not yet in CI. |
+| Production observability | Request IDs, rate limits, Prometheus metrics and error alerts exist; they need wiring to Synovra's monitoring. |
+| Backups and restore drill, migration rollback plan | Not done. Required before real records are the only copy. |
+| Security review | Not done. |
 | Next.js 15 upgrade and a security review | See the root README's known limitations. |

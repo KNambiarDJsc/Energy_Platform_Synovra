@@ -364,8 +364,23 @@ export function createApp(deps: AppDeps) {
   });
 
   // Bench results by CSV: preview changes nothing; commit creates submitted tests and audits the file hash.
-  api.post('/imports/bench/preview', read(async (s, c) => s.bench.preview(await body<{ fileName: string; text: string }>(c))));
-  api.post('/imports/bench/commit', write(async (s, c) => s.bench.commit(await body<{ fileName: string; text: string }>(c))));
+  api.post('/bench-imports/preview', read(async (s, c) => s.bench.preview(await body<{ fileName: string; text: string }>(c))));
+  // The file itself is evidence for every row it creates, so it goes through the same size, type, scan and
+  // checksum path as any upload before the service sees it. A pilot refuses a commit without it.
+  api.post('/bench-imports/commit', async (c) => {
+    const principal = c.get('principal');
+    const b = await body<{ fileName: string; text: string }>(c);
+    if (typeof b.text !== 'string' || typeof b.fileName !== 'string') throw new ValidationError('Send the file name and its text.');
+    const bytes = new TextEncoder().encode(b.text);
+    const info = inspectUpload(b.fileName, bytes);
+    await withServices(deps, principal, 'read', async (s, actor) => {
+      if (!can(actor.role, 'battery.import') || !can(actor.role, 'test.create')) await s.bench.commit({ fileName: info.fileName, text: b.text });
+    }, c.get('timing'));
+    const scanStatus = await scanner.scan(bytes);
+    const { key, checksum } = await blobs.put(bytes, info.contentType);
+    const stored: StoredEvidence = { checksum, storageKey: key, contentType: info.contentType, sizeKb: info.sizeKb, scanStatus };
+    return c.json(await withServices(deps, principal, 'write', (s) => s.bench.commit({ fileName: info.fileName, text: b.text }, stored), c.get('timing')) as object);
+  });
   api.post('/batteries/:id/values', write(async (s, c) => s.values.record({ ...(await body<object>(c)), batteryId: c.req.param('id') } as never)));
   // A question is recorded in the audit log, so this is a write even though it changes no battery record.
   api.post('/insights/ask', write(async (s, c) => {

@@ -78,6 +78,7 @@ Battery (identity, `publicRef`, aliases, retired refs) → family (rated values,
 | --- | --- |
 | `docs/architecture.md` | Components, workflow, data boundaries, deployment, ML and agent operations, threat model, known unknowns |
 | `docs/ML_PLAN.md` | Which models, on which labels, by version; learning versus unlearning; compute |
+| `docs/pilot-readiness.md` | The pilot plan's acceptance criteria checked against the code: built, partial, gap |
 | `docs/research/papers.md` | What the battery and agent research supports here, and what it does not; unverified citations listed separately |
 | `docs/research/datasets.md` | Public datasets, their licences, and the rule that they never enter Synovra's records |
 | `ml/README.md` | The training pipeline, its readiness gate, registration, and the public OPzS benchmark |
@@ -107,7 +108,7 @@ Battery (identity, `publicRef`, aliases, retired refs) → family (rated values,
 | `tsc --noEmit` | clean |
 | `next lint` | no warnings or errors |
 | `next build` | succeeds, 19 pages |
-| Unit and server tests | 73 unit (6 files) and 83 server (8 files), on embedded PostgreSQL and on real PostgreSQL 16.4 in Docker, including the route arithmetic, the analyst's routing and "cannot answer" cases, the ML views, the ML role's permissions, and a check that the app and the database count the same training rows |
+| Unit and server tests | 73 unit (6 files), 88 server (9 files) and 11 Python evaluation tests, on embedded PostgreSQL and on real PostgreSQL 16.4 in Docker, including the route arithmetic, the analyst's routing and "cannot answer" cases, the ML views, the ML role's permissions, and a check that the app and the database count the same training rows |
 | Playwright | 53 passed: 28 desktop flows at 1440 px, 5 mobile at 390 px, 20 accessibility audits |
 | Accessibility | axe-core, WCAG 2.1 A/AA rules, zero violations on landing, sign-in, every app route and Intelligence view, every passport tab and deep-dive lens, alert drawer and assistant. Audits wait for transitions to settle before measuring contrast |
 | Page switch time | about 100–250 ms per sidebar click on the production build (measured in Chromium) |

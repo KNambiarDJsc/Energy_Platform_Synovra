@@ -103,7 +103,7 @@ export function createBenchImport(ctx: Ctx): BenchImportRepository {
       return { fileName, fileHash: hash, priorCommitAt: prior, rows: shown, counts: tally(shown) };
     },
 
-    async commit({ fileName, text }) {
+    async commit({ fileName, text }, stored) {
       await latency(ctx);
       const actor = authorizeImport();
       const d = db(ctx);
@@ -113,7 +113,7 @@ export function createBenchImport(ctx: Ctx): BenchImportRepository {
       const created: string[] = [];
       if (toCreate.length) {
         // The source file itself is the evidence behind every row it produced.
-        const ev = newEvidence(ctx, { batteryId: null, kind: 'import_source', fileName, sizeKb: Math.max(1, Math.round(text.length / 1024)), classification: 'internal' });
+        const ev = newEvidence(ctx, { batteryId: null, kind: 'import_source', fileName, sizeKb: Math.max(1, Math.round(text.length / 1024)), classification: 'internal' }, stored);
         d.evidence.push(ev);
         const now = ctx.store.now();
         for (const r of toCreate) {
