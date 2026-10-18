@@ -1,6 +1,7 @@
-import { reasonSchema, testInputSchema } from '@/domain/schemas';
+import { TEST_REVIEW_REASON_LABELS } from '@/domain/outcomes';
+import { reasonSchema, testInputSchema, testReviewReasonCodeSchema } from '@/domain/schemas';
 import { ConflictError, NotFoundError, ValidationError, can } from '@/domain/permissions';
-import type { TestSession } from '@/domain/types';
+import type { TestReviewReasonCode, TestSession } from '@/domain/types';
 import {
   audit, canSeeBattery, canSeeEvidence, canSeeSite, db, familyOf, latency, newEvidence, pctOfRated, pushEvent, authorize, ruleCheck, setState, type Ctx,
 } from '../core';
@@ -25,6 +26,13 @@ export function toTestView(ctx: Ctx, t: TestSession): TestView {
     rule: famForRule && t.level === 'battery' ? ruleCheck(t, famForRule) : { state: 'unknown', pct: null, label: 'String-level result: not a per-battery capacity' },
     evidence,
   };
+}
+
+/** Rejection and rework need a reason code as well as the written reason. */
+function parseCode(code: unknown): TestReviewReasonCode {
+  const c = testReviewReasonCodeSchema.safeParse(code);
+  if (!c.success) throw new ValidationError(c.error.issues[0].message);
+  return c.data;
 }
 
 function testOrThrow(ctx: Ctx, id: string): TestSession {
@@ -119,7 +127,7 @@ export function createTestRepository(ctx: Ctx): TestRepository {
         conditions: { ambientTempC: v.ambientTempC, loadCurrentA: v.loadCurrentA, cutoffVoltageV: v.cutoffVoltageV, durationH: v.durationH },
         result: { openCircuitVoltageV: v.voltageV, internalResistanceMOhm: v.resistanceMOhm, temperatureC: v.temperatureC, capacityAh: v.capacityAh, notes: v.notes ?? '' },
         evidenceIds, attemptId: v.attemptId ?? null, startedAt: ctx.store.now(), submittedAt: null, submittedById: null,
-        reviewedAt: null, reviewerId: null, reviewerName: null, reviewReason: null,
+        reviewedAt: null, reviewerId: null, reviewerName: null, reviewReason: null, reviewReasonCode: null,
       };
       d.tests.push(t);
       audit(ctx, 'test.create', 'test', t.id, `Draft ${v.kind} test for ${b.label}`);
@@ -136,6 +144,7 @@ export function createTestRepository(ctx: Ctx): TestRepository {
       t.submittedAt = ctx.store.now();
       t.submittedById = actor.userId;
       t.reviewReason = null;
+      t.reviewReasonCode = null;
       const b = db(ctx).batteries.find((x) => x.id === t.batteryId);
       if (b && b.lifecycleState === 'received') {
         const prev = b.lifecycleState;
@@ -169,7 +178,7 @@ export function createTestRepository(ctx: Ctx): TestRepository {
         throw new ConflictError('Separation of duties: the reviewer must be a different person from the operator and the submitter.');
       }
       t.status = 'approved';
-      t.reviewedAt = ctx.store.now(); t.reviewerId = actor.userId; t.reviewerName = actor.name; t.reviewReason = r.data;
+      t.reviewedAt = ctx.store.now(); t.reviewerId = actor.userId; t.reviewerName = actor.name; t.reviewReason = r.data; t.reviewReasonCode = null;
       // an approved report becomes customer-visible evidence
       db(ctx).evidence.forEach((e) => { if (t.evidenceIds.includes(e.id) && e.kind === 'test_report') e.classification = 'customer_visible'; });
       logTestEvent(t, 'Test approved', r.data, 'approved');
@@ -178,32 +187,34 @@ export function createTestRepository(ctx: Ctx): TestRepository {
       return t;
     },
 
-    async reject(id, reason) {
+    async reject(id, reason, reasonCode) {
       await latency(ctx);
       const actor = authorize(ctx, 'test.review');
       const r = reasonSchema.safeParse(reason);
       if (!r.success) throw new ValidationError(r.error.issues[0].message);
+      const code = parseCode(reasonCode);
       const t = testOrThrow(ctx, id);
       if (!['submitted', 'under_review'].includes(t.status)) throw new ConflictError('Only a submitted test can be rejected.');
       t.status = 'rejected';
-      t.reviewedAt = ctx.store.now(); t.reviewerId = actor.userId; t.reviewerName = actor.name; t.reviewReason = r.data;
-      logTestEvent(t, 'Test rejected', r.data, 'rejected');
-      audit(ctx, 'test.reject', 'test', t.id, `Rejected: ${r.data}`);
+      t.reviewedAt = ctx.store.now(); t.reviewerId = actor.userId; t.reviewerName = actor.name; t.reviewReason = r.data; t.reviewReasonCode = code;
+      logTestEvent(t, 'Test rejected', `${TEST_REVIEW_REASON_LABELS[code]}. ${r.data}`, 'rejected');
+      audit(ctx, 'test.reject', 'test', t.id, `Rejected [${code}]: ${r.data}`);
       ctx.store.save();
       return t;
     },
 
-    async requestRework(id, reason) {
+    async requestRework(id, reason, reasonCode) {
       await latency(ctx);
       const actor = authorize(ctx, 'test.review');
       const r = reasonSchema.safeParse(reason);
       if (!r.success) throw new ValidationError(r.error.issues[0].message);
+      const code = parseCode(reasonCode);
       const t = testOrThrow(ctx, id);
       if (!['submitted', 'under_review'].includes(t.status)) throw new ConflictError('Only a submitted test can be sent back.');
       t.status = 'requires_rework';
-      t.reviewedAt = ctx.store.now(); t.reviewerId = actor.userId; t.reviewerName = actor.name; t.reviewReason = r.data;
-      logTestEvent(t, 'Test returned for rework', r.data, 'rejected');
-      audit(ctx, 'test.rework', 'test', t.id, `Rework: ${r.data}`);
+      t.reviewedAt = ctx.store.now(); t.reviewerId = actor.userId; t.reviewerName = actor.name; t.reviewReason = r.data; t.reviewReasonCode = code;
+      logTestEvent(t, 'Test returned for rework', `${TEST_REVIEW_REASON_LABELS[code]}. ${r.data}`, 'rejected');
+      audit(ctx, 'test.rework', 'test', t.id, `Rework [${code}]: ${r.data}`);
       ctx.store.save();
       return t;
     },

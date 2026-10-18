@@ -101,4 +101,26 @@ describe('HTTP adapter against the API', () => {
     expect((await svc.admin.audit()).length).toBeGreaterThan(0);
     expect((await svc.telemetry.summary('x')).available).toBe(false);
   });
+
+  it('covers insights: data sources, the learning loop, recovery metrics and read-only agents', async () => {
+    await signIn(USERS.eng);
+    const { sources, quality } = await svc.insights.dataSources();
+    expect(quality.batteries).toBeGreaterThan(0);
+    // The API stores no V2 telemetry, so the site monitors are reported as not connected rather than simulated.
+    expect(sources.find((x) => x.key === 'telemetry')).toMatchObject({ status: 'not_connected', records: null });
+    const learning = await svc.insights.learning();
+    expect(learning.stages.find((x) => x.key === 'eligible')!.count).toBeGreaterThan(0);
+    expect((await svc.insights.recovery()).find((m) => m.key === 'contribution')?.status).toBe('not_calculated');
+    const [b] = await svc.batteries.list({ q: 'B-0017' });
+    const report = await svc.insights.runAgent('battery_investigator', { batteryId: b.id });
+    expect(report.findings[0].citations[0]).toMatchObject({ kind: 'battery', id: b.id });
+    expect((await svc.insights.collection()).chain[0].count).toBeGreaterThan(0);
+    const inputs = await svc.insights.routeInputs(b.id);
+    expect(inputs.fields.salePriceAed.value).toBeNull();
+    const asked = await svc.insights.ask('Should we revive or recycle B-0017?');
+    expect(asked).toMatchObject({ capability: 'recovery_decision', insufficient: true });
+    expect(asked.toolsCalled.map((t) => t.tool)).toContain('calculate_route_economics');
+    await signIn(USERS.lab);
+    await expect(svc.insights.runAgent('data_steward')).rejects.toBeInstanceOf(ForbiddenError);
+  });
 });

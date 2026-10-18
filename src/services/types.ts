@@ -8,9 +8,10 @@ import type {
   DataQuality, EvidenceFile, ImportJob, ImportTemplate, LifecycleEvent, LifecycleState, NotificationSetting,
   Prediction, PredictionKind, RecyclingRecord, Report, ReportTemplateId, RestorationAttempt, RestorationBatch,
   Role, ServiceTask, Severity, Site, StringUnit, Slot, Bank, Tenant, TestProtocolRevision, TestSession, User,
-  WarrantyRecord, Gateway, Sensor, SensorAssignment, Actor, StoredEvidence,
+  WarrantyRecord, Gateway, Sensor, SensorAssignment, Actor, StoredEvidence, RestorationReasonCode, TestReviewReasonCode,
 } from '@/domain/types';
 import type { InventoryGroup } from '@/domain/lifecycle';
+import type { RouteInputs } from '@/domain/routeEconomics';
 import type { CorrectionInput, CreateBatteryInput, DeploymentInput, ReportInput, TaskInput, TestInput, UserInput, UserUpdate } from '@/domain/schemas';
 import type { EvidenceStatusCode } from './core';
 
@@ -167,8 +168,8 @@ export interface TestRepository {
   submit(id: string): Promise<TestSession>;
   startReview(id: string): Promise<TestSession>;
   approve(id: string, reason: string): Promise<TestSession>;
-  reject(id: string, reason: string): Promise<TestSession>;
-  requestRework(id: string, reason: string): Promise<TestSession>;
+  reject(id: string, reason: string, reasonCode: TestReviewReasonCode): Promise<TestSession>;
+  requestRework(id: string, reason: string, reasonCode: TestReviewReasonCode): Promise<TestSession>;
   /**
    * `stored` is set by the API after it has received, checked and stored the bytes. The browser's
    * HTTP adapter passes the `file` itself instead; the in-browser demo records metadata only.
@@ -193,6 +194,8 @@ export interface BatchResults {
     intake: number; attempted: number; qualified: number; rework: number; rejected: number; inProgress: number;
   };
   yield: { qualifiedOverIntake: number | null; qualifiedOverDecided: number | null; decided: number };
+  /** Rework and rejection decisions in the batch, counted by reason code, most frequent first. */
+  notQualifiedReasons: { code: RestorationReasonCode | null; label: string; count: number }[];
   costs: null | {
     knownTotalAed: number; unknownEntries: number; actualAed: number; allocatedAed: number; estimatedAed: number;
     warrantyProvisionAed: number; perQualifiedGrossAed: number | null;
@@ -228,7 +231,8 @@ export interface RestorationRepository {
   addNote(attemptId: string, text: string): Promise<RestorationAttempt>;
   addEvidence(attemptId: string, fileName: string, sizeKb: number, stored?: StoredEvidence, file?: Blob): Promise<RestorationAttempt>;
   submitForReview(attemptId: string, afterTestId: string): Promise<RestorationAttempt>;
-  decide(attemptId: string, decision: 'approve' | 'reject' | 'rework', reason: string): Promise<RestorationAttempt>;
+  /** `reasonCode` is required for rework and rejection, and must be null for approval. */
+  decide(attemptId: string, decision: 'approve' | 'reject' | 'rework', reason: string, reasonCode?: RestorationReasonCode | null): Promise<RestorationAttempt>;
 }
 
 /* ------------------------------ Inventory & deployments ------------------------------ */
@@ -450,7 +454,140 @@ export interface OverviewRepository {
   get(): Promise<OverviewData>;
 }
 
+/* ------------------------------ Insights: the learning foundation ------------------------------ */
+
+/** How a source reaches the platform today. "Simulated" and "not connected" are said plainly, never implied away. */
+export type SourceStatus = 'in_use' | 'simulated' | 'not_connected' | 'reference_only';
+export interface DataSourceView {
+  key: string;
+  name: string;
+  /** What it contributes, in plain words. */
+  provides: string;
+  /** How it arrives: form, CSV import, gateway, export, API. */
+  channel: string;
+  status: SourceStatus;
+  statusNote: string;
+  /** Records from it in this database; null when nothing is connected. */
+  records: number | null;
+  lastAt: string | null;
+  issues: { label: string; count: number }[];
+}
+export interface DataQualitySummary {
+  batteries: number;
+  complete: number;
+  partial: number;
+  incomplete: number;
+  conflict: number;
+  quarantinedImportRows: number;
+  corrections: number;
+  unknownCosts: number;
+}
+export interface LearningLoopView {
+  /** Restoration attempts on their way to becoming training rows, mirroring ml_restoration_attempt_features. */
+  stages: { key: string; label: string; count: number; note: string }[];
+  exclusions: { reason: string; count: number }[];
+  labelMix: { outcome: 'approved' | 'rejected' | 'rework'; code: RestorationReasonCode | null; label: string; count: number }[];
+  /** Fingerprint of the eligible row ids: the same selection always gives the same value. */
+  fingerprint: string;
+  models: { registered: number; withTrainingRecords: number; validated: number };
+  reviews: { agreed: number; disagreed: number; unreviewed: number };
+  corrections: { events: number; batteries: number };
+  quarantinedImportRows: number;
+}
+export interface RecoveryMetric {
+  key: string;
+  label: string;
+  value: string | null;
+  status: 'calculated' | 'not_calculated' | 'hidden';
+  /** The denominator and inputs, or why it is not calculated. */
+  basis: string;
+}
+/**
+ * Four bounded capabilities: data quality (data_steward), battery evidence (battery_investigator),
+ * recovery decision, and process learning (recovery_analyst). Each is read-only.
+ */
+export type AgentKind = 'data_steward' | 'battery_investigator' | 'recovery_decision' | 'recovery_analyst';
+
+/** One prefilled input of the route calculator, with where it came from. Null means a person must enter it. */
+export interface RouteInputField { value: number | null; source: string }
+export interface RouteInputsView {
+  batteryId: string;
+  batteryLabel: string;
+  familyModel: string;
+  lifecycleState: LifecycleState;
+  fields: Record<keyof RouteInputs, RouteInputField>;
+  /** Known costs already spent on this battery. Shown, but excluded from the decision: they are spent either way. */
+  sunkCostsAed: number | null;
+  costsHidden: boolean;
+}
+
+export interface AnalystToolCall {
+  tool: 'validate_records' | 'get_battery_history' | 'compare_process_cohorts' | 'calculate_route_economics' | 'get_model_prediction' | 'retrieve_approved_procedure' | 'get_cost_lines';
+  input: string;
+  result: string;
+}
+export interface AnalystAnswer {
+  question: string;
+  capability: AgentKind | null;
+  routedBecause: string;
+  toolsCalled: AnalystToolCall[];
+  report: AgentReport | null;
+  /** True when the records cannot support an answer; the report says what is missing. */
+  insufficient: boolean;
+  lead: string;
+}
+export interface AgentFinding {
+  text: string;
+  attention: boolean;
+  citations: AssistantCitation[];
+}
+export interface AgentReport {
+  kind: AgentKind;
+  title: string;
+  generatedAt: string;
+  findings: AgentFinding[];
+  /** Evidence the agent looked for and did not find. */
+  missing: string[];
+  /** What it read, and what it cannot do. */
+  scope: string;
+}
+/** One step of the collection checklist: what must be captured, and how much of it is. */
+export interface CollectionStep {
+  key: string;
+  step: string;
+  /** Where it is captured in the app. */
+  capturedIn: string;
+  href: string;
+  /** Records or batteries the step applies to. */
+  applicable: number;
+  complete: number;
+  /** Required fields and how many applicable records have each. */
+  fields: { field: string; present: number }[];
+}
+export interface CollectionPipeline {
+  /** Batteries that reach each link of the chain that learning needs, in order. */
+  chain: { key: string; label: string; count: number }[];
+  steps: CollectionStep[];
+  /** Records stopped at the door, kept for a person to check. */
+  held: { label: string; count: number }[];
+}
+
+export interface InsightsRepository {
+  /** The data collection pipeline: how complete each capture step is, measured from the records. */
+  collection(): Promise<CollectionPipeline>;
+  dataSources(): Promise<{ sources: DataSourceView[]; quality: DataQualitySummary }>;
+  learning(): Promise<LearningLoopView>;
+  recovery(): Promise<RecoveryMetric[]>;
+  /** Read-only. Agents cite records, say what is missing, and never write or act. */
+  runAgent(kind: AgentKind, input?: { batteryId?: string | null; periodDays?: number | null }): Promise<AgentReport>;
+  /** Prefilled, editable inputs for the revive / test / recycle calculator (src/domain/routeEconomics.ts). */
+  routeInputs(batteryId: string): Promise<RouteInputsView>;
+  /** One entry point: routes a question to a bounded capability and shows the tools it called. */
+  ask(question: string, context?: { batteryId?: string | null }): Promise<AnalystAnswer>;
+}
+
 export interface Services {
+  insights: InsightsRepository;
   batteries: BatteryRepository;
   imports: ImportService;
   tests: TestRepository;

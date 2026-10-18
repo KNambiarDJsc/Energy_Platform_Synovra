@@ -1,11 +1,13 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Newsreader } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { Providers } from '@/components/app/Providers';
 import './globals.css';
 
 // The optical-size axis gives large titles the tighter display cut and small text the open text cut.
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap', axes: ['opsz'] });
+// Titles and the figure a person reads first are set in a serif with its own optical sizes; data stays in Inter.
+const display = Newsreader({ subsets: ['latin'], variable: '--font-display', display: 'swap', axes: ['opsz'] });
 
 export const metadata: Metadata = {
   title: { default: 'Synovra Battery Intelligence', template: '%s · Synovra Battery Intelligence' },
@@ -13,12 +15,12 @@ export const metadata: Metadata = {
     'A verifiable operational history for every lead-acid battery: intake, testing, restoration, qualification, deployment, monitoring and recycling. Demonstration build with synthetic data.',
 };
 
-export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#F5F5F7' };
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#F5F1EA' };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     // The inline script marks script-capable pages before paint, so entrance motion never hides content without it.
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${display.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js')" }} />
       </head>

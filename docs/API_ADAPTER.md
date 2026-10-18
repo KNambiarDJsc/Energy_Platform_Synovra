@@ -22,6 +22,7 @@ These are enforced today in `src/services/core.ts` and the mock repositories. In
 - **Idempotent import** — a file whose content hash has been committed before creates nothing.
 - **Unknown is not zero** — nullable money and measurements stay `null` end to end.
 - **Corrections keep history** — store previous and new value with actor, time and reason.
+- **Outcomes say why** — rejecting or sending back a test, and rejecting or reworking a restoration attempt, needs a reason code as well as the written reason. The code is the training label (`docs/ML_PLAN.md`).
 - **Customer redaction** — remove costs, process notes, lot references and audit history server-side; never send and hide.
 - **QR reference is a lookup key** — lookups return a battery id only if the caller is already allowed to see it.
 
@@ -55,7 +56,7 @@ All paths under `/api/v1`. Bearer token from the identity provider; tenant from 
 | `protocols()` | `GET /test-protocols` |
 | `create(input)` | `POST /tests` |
 | `submit` / `startReview` | `POST /tests/{id}:submit` / `POST /tests/{id}:start-review` |
-| `approve` / `reject` / `requestRework` | `POST /tests/{id}:approve` (body: `reason`) etc. |
+| `approve` / `reject` / `requestRework` | `POST /tests/{id}:approve` (body: `reason`) etc. `reject` and `requestRework` also need `reasonCode` (`src/domain/outcomes.ts`) |
 | `attachEvidence(id, file)` | `POST /tests/{id}/evidence` (upload to object storage, store metadata + hash) |
 
 ### Restoration — `RestorationRepository`
@@ -65,7 +66,7 @@ All paths under `/api/v1`. Bearer token from the identity provider; tenant from 
 | `attempts(filter)` | `GET /restoration/attempts?batchId=&batteryId=&status=` |
 | `markCandidate(batteryId, reason)` | `POST /batteries/{id}:mark-restoration-candidate` |
 | `createAttempt` / `addNote` / `addEvidence` | `POST /restoration/attempts`, `POST /restoration/attempts/{id}/notes`, `.../evidence` |
-| `submitForReview` / `decide` | `POST /restoration/attempts/{id}:submit`, `POST /restoration/attempts/{id}:decide` |
+| `submitForReview` / `decide` | `POST /restoration/attempts/{id}:submit`, `POST /restoration/attempts/{id}:decide` (body: `decision`, `reason`, and `reasonCode` for rework or rejection) |
 
 ### Deployments — `DeploymentRepository`
 | `inventory()` / `deployable()` | `GET /inventory`, `GET /inventory/deployable` |
@@ -95,6 +96,17 @@ Every reading must carry a **value kind** (`measured`, `rule`, `model_estimate`,
 | `list()` | `GET /predictions` (each with model name/version, input and prediction time, uncertainty, applicability, source record ids, review state) |
 | --- | --- |
 | `review(id, decision, reason)` | `POST /predictions/{id}:review` |
+
+### Insights — `InsightsRepository`
+
+| Method | Endpoint |
+| --- | --- |
+| `dataSources()` | `GET /insights/data-sources` (each source's status: in use, simulated, not connected or reference only; record counts and data-quality issues) |
+| `learning()` | `GET /insights/learning` (restoration attempts on their way to training rows, exclusions with reasons, label mix, row fingerprint) |
+| `recovery()` | `GET /insights/recovery` (needs `report.internal`; costs only with `cost.read`; a figure without verified inputs is `not_calculated`) |
+| `runAgent(kind, { batteryId, periodDays })` | `GET /insights/agents/{data_steward,battery_investigator,recovery_decision,recovery_analyst}?batteryId=&periodDays=` (read-only; findings cite records) |
+| `routeInputs(batteryId)` | `GET /batteries/{id}/route-inputs` (prefilled calculator inputs, each with its source; costs only with `cost.read`) |
+| `ask(question, { batteryId })` | `POST /insights/ask` (routes to one capability; returns the tools called, the report, and whether the records were insufficient; the question is audited) |
 
 ### Reports — `ReportRepository`
 | `templates` / `scopes` | `GET /report-templates`, `GET /report-scopes` |

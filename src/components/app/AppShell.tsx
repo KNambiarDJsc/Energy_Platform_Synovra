@@ -92,7 +92,7 @@ function NavList({ items, pathname, alertCount, onNavigate }: { items: NavItem[]
                       active ? 'bg-fill-2 font-semibold text-ink' : 'font-medium text-ink-2 hover:bg-fill hover:text-ink',
                     )}
                   >
-                    <n.icon className={cn('h-[18px] w-[18px] shrink-0 transition-colors', active ? 'text-teal' : 'text-muted group-hover:text-ink-2')} strokeWidth={1.85} aria-hidden />
+                    <n.icon className={cn('h-[18px] w-[18px] shrink-0 transition-colors', active ? 'text-copper' : 'text-muted group-hover:text-ink-2')} strokeWidth={1.85} aria-hidden />
                     <span className="flex-1">{n.label}</span>
                     {n.href === '/app/alerts' && alertCount > 0 && (
                       <span className="num rounded-full bg-amber-50 px-2 text-xs font-semibold leading-5 text-amber-700" aria-label={`${alertCount} active alerts`}>
@@ -179,7 +179,7 @@ function Account() {
   if (!user) return null;
   return (
     <div className="flex items-center gap-3 rounded-lg bg-white p-3">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-navy text-[13px] font-semibold text-white" aria-hidden>
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-night text-[13px] font-semibold text-white" aria-hidden>
         {initials(user.name)}
       </span>
       <div className="min-w-0">
@@ -200,7 +200,20 @@ export function AppShell({ children }: { children: ReactNode }) {
   const items = useVisibleNav();
   const [menuOpen, setMenuOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+
+  // Any screen can hand the assistant a question: it opens with that question asked, and a person reads the answer.
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const prompt = (e as CustomEvent<string>).detail;
+      if (typeof prompt !== 'string' || !prompt.trim()) return;
+      setPendingPrompt(prompt);
+      setAssistantOpen(true);
+    };
+    window.addEventListener('synovra:ask', onAsk);
+    return () => window.removeEventListener('synovra:ask', onAsk);
+  }, []);
 
   useEffect(() => {
     if (session.ready && !session.user) router.replace(`/signin?next=${encodeURIComponent(pathname)}`);
@@ -333,7 +346,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               key={n.href}
               href={n.href}
               aria-current={active ? 'page' : undefined}
-              className={cn('relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[12px] font-medium transition-colors', active ? 'text-teal-700' : 'text-muted')}
+              className={cn('relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[12px] font-medium transition-colors', active ? 'text-copper-700' : 'text-muted')}
             >
               <n.icon className="h-[22px] w-[22px]" strokeWidth={active ? 2.1 : 1.8} aria-hidden />
               {n.label.split(' ')[0]}
@@ -358,7 +371,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       </Drawer>
 
       {canAssistant && (
-        <AssistantPanel open={assistantOpen} onOpenChange={setAssistantOpen} batteryId={batteryId} suggestions={suggestions.data ?? []} />
+        <AssistantPanel
+          open={assistantOpen}
+          onOpenChange={setAssistantOpen}
+          batteryId={batteryId}
+          suggestions={suggestions.data ?? []}
+          pendingPrompt={pendingPrompt}
+          onPendingSent={() => setPendingPrompt(null)}
+        />
       )}
     </div>
   );

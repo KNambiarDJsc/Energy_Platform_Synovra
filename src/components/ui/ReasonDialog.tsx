@@ -1,7 +1,7 @@
 'use client';
 import { useState, type ReactNode } from 'react';
 import { Button } from './Button';
-import { Field, Textarea } from './Field';
+import { Field, Select, Textarea } from './Field';
 import { Modal } from './Overlay';
 
 interface Props {
@@ -17,17 +17,22 @@ interface Props {
   requireReason?: boolean;
   reasonLabel?: string;
   reasonHint?: string;
+  /** Structured reason codes. When given, choosing one is required and it is passed to `onConfirm`. */
+  codes?: { value: string; label: string }[];
+  codeLabel?: string;
+  codeHint?: string;
   loading?: boolean;
   error?: string | null;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string, code: string | null) => void;
 }
 
 /** Consequential actions (approve, reject, reissue, deploy) always pass through here. */
 export function ReasonDialog({
   open, onOpenChange, title, description, summary, confirmLabel, variant = 'primary',
-  requireReason = true, reasonLabel = 'Reason', reasonHint, loading, error, onConfirm,
+  requireReason = true, reasonLabel = 'Reason', reasonHint, codes, codeLabel = 'Reason code', codeHint, loading, error, onConfirm,
 }: Props) {
   const [reason, setReason] = useState('');
+  const [code, setCode] = useState('');
   const [touched, setTouched] = useState(false);
 
   // Start each opening with an empty reason (state adjusted during render, not in an effect).
@@ -36,11 +41,13 @@ export function ReasonDialog({
     setWasOpen(open);
     if (open) {
       setReason('');
+      setCode('');
       setTouched(false);
     }
   }
 
   const tooShort = requireReason && reason.trim().length < 5;
+  const missingCode = !!codes?.length && !code;
 
   return (
     <Modal
@@ -59,8 +66,8 @@ export function ReasonDialog({
             loading={loading}
             onClick={() => {
               setTouched(true);
-              if (tooShort) return;
-              onConfirm(reason.trim());
+              if (tooShort || missingCode) return;
+              onConfirm(reason.trim(), codes?.length ? code : null);
             }}
           >
             {confirmLabel}
@@ -70,6 +77,21 @@ export function ReasonDialog({
     >
       <div className="space-y-4">
         {summary && <div className="text-sm text-ink">{summary}</div>}
+        {!!codes?.length && (
+          <Field
+            label={codeLabel}
+            required
+            hint={codeHint ?? 'Used to count outcomes. Explain the details in the reason below.'}
+            error={touched && missingCode ? 'Choose a reason code.' : null}
+          >
+            <Select value={code} onChange={(e) => setCode(e.target.value)}>
+              <option value="">Choose…</option>
+              {codes.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </Select>
+          </Field>
+        )}
         {requireReason && (
           <Field
             label={reasonLabel}

@@ -133,7 +133,7 @@ function RegisterForm() {
                 ))}
               </ul>
             )}
-            <Link href={`/app/batteries/${result.id}`} className="mt-3 inline-block text-sm font-semibold text-teal-800 underline underline-offset-2">
+            <Link href={`/app/batteries/${result.id}`} className="mt-3 inline-block text-sm font-semibold text-copper-700 underline underline-offset-2">
               Open the passport
             </Link>
           </div>
@@ -230,7 +230,7 @@ function ImportFlow() {
               ref={fileRef}
               type="file"
               accept=".csv,text/csv"
-              className="input file:mr-3 file:rounded file:border-0 file:bg-teal-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-teal-800"
+              className="input file:mr-3 file:rounded file:border-0 file:bg-copper-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-copper-700"
               onChange={(e) => void onFile(e.target.files?.[0])}
             />
           </Field>

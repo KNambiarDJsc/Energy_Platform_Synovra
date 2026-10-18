@@ -1,7 +1,8 @@
-import { reasonSchema } from '@/domain/schemas';
+import { RESTORATION_REASON_LABELS, notQualifiedReasons } from '@/domain/outcomes';
+import { reasonSchema, restorationReasonCodeSchema } from '@/domain/schemas';
 import { canTransition } from '@/domain/lifecycle';
 import { ConflictError, NotFoundError, ValidationError, can } from '@/domain/permissions';
-import type { RestorationAttempt } from '@/domain/types';
+import type { RestorationAttempt, RestorationReasonCode } from '@/domain/types';
 import {
   audit, canSeeBattery, db, familyOf, getBatteryOrThrow, latency, newEvidence, pushEvent, authorize, ruleCheck, setState, type Ctx,
 } from '../core';
@@ -47,7 +48,7 @@ export function createRestorationRepository(ctx: Ctx): RestorationRepository {
     const rejected = latest.filter((a) => a.status === 'rejected' && !everApproved.has(a.batteryId)).length;
     const rework = latest.filter((a) => a.status === 'rework').length;
     const inProgress = latest.filter((a) => ['in_restoration', 'awaiting_review'].includes(a.status)).length;
-    return { members, attempted: latestByBattery.size, qualified, rejected, rework, inProgress };
+    return { members, attempted: latestByBattery.size, qualified, rejected, rework, inProgress, reasons: notQualifiedReasons(attempts) };
   }
 
   function costsFor(batchId: string) {
@@ -109,6 +110,7 @@ export function createRestorationRepository(ctx: Ctx): RestorationRepository {
           qualifiedOverDecided: decided ? Math.round((s.qualified / decided) * 1000) / 10 : null,
           decided,
         },
+        notQualifiedReasons: s.reasons,
         costs: showCosts ? {
           knownTotalAed: c.known, unknownEntries: c.unknown, actualAed: c.actual, allocatedAed: c.allocated, estimatedAed: c.estimated,
           warrantyProvisionAed: c.provision,
@@ -180,7 +182,7 @@ export function createRestorationRepository(ctx: Ctx): RestorationRepository {
       const attempt: RestorationAttempt = {
         id: ctx.store.nextId('att'), batchId, batteryId: b.id, attemptNo: no, status: 'in_restoration',
         beforeTestId: before.id, afterTestId: null, notes: [], lotRefs: lotRefs.filter((l) => l.ref.trim()), evidenceIds: [],
-        startedAt: ctx.store.now(), submittedAt: null, decidedAt: null, deciderName: null, decisionReason: null,
+        startedAt: ctx.store.now(), submittedAt: null, decidedAt: null, deciderName: null, decisionReason: null, decisionReasonCode: null,
       };
       d.attempts.push(attempt);
       b.restorationBatchId = batchId;
@@ -240,11 +242,21 @@ export function createRestorationRepository(ctx: Ctx): RestorationRepository {
       return a;
     },
 
-    async decide(attemptId, decision, reason) {
+    async decide(attemptId, decision, reason, reasonCode = null) {
       await latency(ctx);
       const actor = authorize(ctx, 'restoration.review');
       const r = reasonSchema.safeParse(reason);
       if (!r.success) throw new ValidationError(r.error.issues[0].message);
+      // Rework and rejection are training labels, so they must say why; an approval needs no code.
+      let code: RestorationReasonCode | null = null;
+      if (decision === 'approve') {
+        if (reasonCode !== null) throw new ValidationError('An approval takes no reason code.');
+      } else {
+        const c = restorationReasonCodeSchema.safeParse(reasonCode);
+        if (!c.success) throw new ValidationError(c.error.issues[0].message);
+        code = c.data;
+      }
+      const explained = code ? `${RESTORATION_REASON_LABELS[code]}. ${r.data}` : r.data;
       const a = attemptOrThrow(attemptId);
       const d = db(ctx);
       if (a.status !== 'awaiting_review') throw new ConflictError('Only an attempt awaiting review can be decided.');
@@ -265,16 +277,17 @@ export function createRestorationRepository(ctx: Ctx): RestorationRepository {
       } else if (decision === 'reject') {
         a.status = 'rejected';
         setState(ctx, b, 'rejected');
-        pushEvent(ctx, b.id, 'rejection', 'Rejected by engineer', r.data, { previousState: prev, newState: 'rejected', approvalState: 'rejected', ref: { kind: 'attempt', id: a.id } });
+        pushEvent(ctx, b.id, 'rejection', 'Rejected by engineer', explained, { previousState: prev, newState: 'rejected', approvalState: 'rejected', ref: { kind: 'attempt', id: a.id } });
       } else {
         a.status = 'rework';
         setState(ctx, b, 'rework');
-        pushEvent(ctx, b.id, 'rework', 'Rework requested', r.data, { previousState: prev, newState: 'rework', approvalState: 'rejected', ref: { kind: 'attempt', id: a.id } });
+        pushEvent(ctx, b.id, 'rework', 'Rework requested', explained, { previousState: prev, newState: 'rework', approvalState: 'rejected', ref: { kind: 'attempt', id: a.id } });
       }
       a.decidedAt = ctx.store.now();
       a.deciderName = actor.name;
       a.decisionReason = r.data;
-      audit(ctx, `restoration.${decision}`, 'attempt', a.id, `${decision}: ${r.data}`);
+      a.decisionReasonCode = code;
+      audit(ctx, `restoration.${decision}`, 'attempt', a.id, `${decision}${code ? ` [${code}]` : ''}: ${r.data}`);
       ctx.store.save();
       return a;
     },

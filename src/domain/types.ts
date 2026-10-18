@@ -254,6 +254,18 @@ export interface TestProtocolRevision {
 export type TestKind = 'intake_inspection' | 'initial' | 'final' | 'periodic';
 export type TestStatus = 'draft' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'requires_rework';
 
+/**
+ * Why a test was rejected or sent back. Labels and the placeholder status of these lists are in
+ * src/domain/outcomes.ts.
+ */
+export type TestReviewReasonCode =
+  | 'conditions_out_of_protocol'
+  | 'instrument_or_calibration'
+  | 'evidence_missing'
+  | 'data_entry_error'
+  | 'implausible_result'
+  | 'other';
+
 export interface TestResult {
   openCircuitVoltageV: number | null;
   internalResistanceMOhm: number | null;
@@ -295,6 +307,8 @@ export interface TestSession {
   reviewerId: string | null;
   reviewerName: string | null;
   reviewReason: string | null;
+  /** Set when the test is rejected or sent back; null otherwise. */
+  reviewReasonCode: TestReviewReasonCode | null;
 }
 
 /* ------------------------------ Restoration ------------------------------ */
@@ -308,6 +322,14 @@ export interface RestorationBatch {
   plannedCount: number;
 }
 export type AttemptStatus = 'in_restoration' | 'awaiting_review' | 'approved' | 'rejected' | 'rework';
+/** Why an attempt did not qualify. The training label for restoration outcomes (docs/ML_PLAN.md). */
+export type RestorationReasonCode =
+  | 'below_capacity_threshold'
+  | 'high_internal_resistance'
+  | 'physical_damage'
+  | 'failed_inspection'
+  | 'after_test_not_valid'
+  | 'other';
 export interface ProcessNote {
   id: string;
   at: ISODateTime;
@@ -331,6 +353,8 @@ export interface RestorationAttempt {
   decidedAt: ISODateTime | null;
   deciderName: string | null;
   decisionReason: string | null;
+  /** Required for rework and rejection; null for approval and undecided attempts. */
+  decisionReasonCode: RestorationReasonCode | null;
 }
 
 /* ------------------------------ Commercial ------------------------------ */

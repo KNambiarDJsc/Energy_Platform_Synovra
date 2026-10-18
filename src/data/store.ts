@@ -2,7 +2,7 @@ import type { BatteryAssignment, DemoDb, TelemetryObservation } from '@/domain/t
 import { ConflictError } from '@/domain/permissions';
 import { DEMO_NOW, buildSeed, buildTelemetry } from './seed';
 
-const STORAGE_KEY = 'synovra-demo-db-v3';
+const STORAGE_KEY = 'synovra-demo-db-v4';
 
 export interface StoreOptions {
   /** Persist mutations to localStorage (browser only). */

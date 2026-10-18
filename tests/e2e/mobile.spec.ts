@@ -4,6 +4,7 @@ import { USERS, expectNoHorizontalScroll, openApp, signInAs } from './helpers';
 const ROUTES = [
   '/app/overview', '/app/batteries', '/app/intake', '/app/tests', '/app/restoration', '/app/inventory',
   '/app/deployments', '/app/monitoring', '/app/alerts', '/app/reports', '/app/intelligence', '/app/admin',
+  '/app/intelligence?view=sources', '/app/intelligence?view=learning', '/app/intelligence?view=agents', '/app/intelligence?view=connections',
 ];
 
 test.describe('390px layout', () => {
@@ -37,6 +38,9 @@ test.describe('390px layout', () => {
     await signInAs(page, USERS.engineer);
     await openApp(page, '/app/scan?label=B-0002');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('B-0002');
+    await expectNoHorizontalScroll(page);
+    await page.getByRole('tablist', { name: 'Battery lens' }).getByRole('tab', { name: 'Temperature' }).click();
+    await expect(page.getByText('Temperature is unknown, not normal.')).toBeVisible();
     await expectNoHorizontalScroll(page);
     await page.getByRole('tab', { name: 'Audit history' }).click();
     await expect(page.getByRole('tab', { name: 'Audit history' })).toHaveAttribute('aria-selected', 'true');

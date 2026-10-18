@@ -12,20 +12,24 @@
  * - battery-level and string-level tests are mutually exclusive (check constraint)
  * - an approved test was reviewed by someone other than its operator and submitter (check constraint)
  * - unknown money is NULL, never zero, and never negative (check constraint)
+ * - a rejected or reworked test or restoration attempt carries a reason code (check constraints;
+ *   NOT VALID, so rows decided before codes existed are kept as they are)
  * - lifecycle events and audit events are append-only (triggers in drizzle/0001_integrity.sql)
  *
  * Every table has an identity `seq` column: insertion order, used to load records in a stable order.
  *
  * Telemetry, gateways, sensors, alerts and tasks are V2 scope and are not in this schema yet.
- * `predictions` and `model_versions` are the V3 contract: an ML service writes there, the API only reads.
+ * `predictions`, `model_versions` and `model_training_records` are the V3 contract: an ML service
+ * writes there, the API only reads. The ML service reads through the `ml_*` views in
+ * drizzle/0005_ml_views.sql, never the operational tables directly (docs/ML_PLAN.md).
  */
 import { sql } from 'drizzle-orm';
 import {
-  bigint, boolean, check, date, doublePrecision, index, integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex,
+  bigint, boolean, check, date, doublePrecision, index, integer, jsonb, numeric, pgTable, primaryKey, text, timestamp, uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import type {
   ApprovalState, CostEntry, EvidenceFile, ImportRow, LifecycleEventType, LifecycleState, PredictionKind, ProcessNote,
-  ReportSection, ReportTemplateId, Role, TestConditions, TestResult, WarrantyRecord,
+  ReportSection, ReportTemplateId, RestorationReasonCode, Role, TestConditions, TestResult, TestReviewReasonCode, WarrantyRecord,
 } from '../../../src/domain/types';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, precision: 3, mode: 'date' });
@@ -221,6 +225,8 @@ export const tests = pgTable('tests', {
   reviewerId: text('reviewer_id'),
   reviewerName: text('reviewer_name'),
   reviewReason: text('review_reason'),
+  /** Codes are validated by the service layer; the lists are placeholders owned by engineering (src/domain/outcomes.ts). */
+  reviewReasonCode: text('review_reason_code').$type<TestReviewReasonCode>(),
   seq: seq(),
 }, (t) => [
   index('tests_battery_idx').on(t.batteryId),
@@ -229,6 +235,7 @@ export const tests = pgTable('tests', {
     OR (${t.level} = 'string' AND ${t.stringId} IS NOT NULL AND ${t.batteryId} IS NULL)`),
   check('tests_separation_of_duties_ck', sql`${t.status} <> 'approved'
     OR (${t.reviewerId} IS NOT NULL AND ${t.reviewerId} <> ${t.operatorId} AND ${t.reviewerId} IS DISTINCT FROM ${t.submittedById})`),
+  check('tests_reason_code_ck', sql`${t.status} NOT IN ('rejected', 'requires_rework') OR ${t.reviewReasonCode} IS NOT NULL`),
 ]);
 
 /* ------------------------------ Restoration ------------------------------ */
@@ -250,10 +257,13 @@ export const restorationAttempts = pgTable('restoration_attempts', {
   decidedAt: ts('decided_at'),
   deciderName: text('decider_name'),
   decisionReason: text('decision_reason'),
+  /** The training label for restoration outcomes. Required for rework and rejection. */
+  decisionReasonCode: text('decision_reason_code').$type<RestorationReasonCode>(),
   seq: seq(),
 }, (t) => [
   uniqueIndex('attempts_battery_no_uq').on(t.batteryId, t.attemptNo),
   uniqueIndex('attempts_one_open_uq').on(t.batteryId).where(sql`${t.status} IN ('in_restoration', 'awaiting_review')`),
+  check('attempts_reason_code_ck', sql`${t.status} NOT IN ('rejected', 'rework') OR ${t.decisionReasonCode} IS NOT NULL`),
 ]);
 
 /* ------------------------------ Assignments ------------------------------ */
@@ -439,6 +449,25 @@ export const modelVersions = pgTable('model_versions', {
 }, (t) => [
   uniqueIndex('model_versions_name_version_uq').on(t.name, t.version),
   check('model_versions_validated_needs_evidence_ck', sql`${t.status} <> 'validated' OR ${t.evaluationReportRef} IS NOT NULL`),
+]);
+
+/**
+ * Which records a model version was trained on. This is what makes learning auditable: when a record
+ * is corrected, or has to be withdrawn, these rows say which model versions used it, so they can be
+ * reviewed, retrained without it and retired (`ml_model_review_flags` in drizzle/0005_ml_views.sql).
+ * Removing a record's influence means retraining without it; nothing edits a trained model in place.
+ */
+export const modelTrainingRecords = pgTable('model_training_records', {
+  modelVersionId: text('model_version_id').notNull().references(() => modelVersions.id),
+  /** The row of the training view that was used, e.g. `restoration_attempt`. */
+  recordKind: text('record_kind', { enum: ['restoration_attempt', 'test'] }).notNull(),
+  recordId: text('record_id').notNull(),
+  /** The battery the record belongs to, so corrections and withdrawals can be traced in one step. */
+  batteryId: text('battery_id').notNull().references(() => batteries.id),
+  seq: seq(),
+}, (t) => [
+  primaryKey({ columns: [t.modelVersionId, t.recordKind, t.recordId] }),
+  index('model_training_records_battery_idx').on(t.batteryId),
 ]);
 
 export const predictions = pgTable('predictions', {

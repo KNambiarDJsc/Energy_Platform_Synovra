@@ -128,9 +128,9 @@ function SignInInner() {
                   setSessionUserId(DEMO_USER_FOR_ROLE[role]);
                   router.push(next);
                 }}
-                className="group flex w-full items-center gap-4 bg-white px-4 py-4 text-left transition-colors duration-150 ease-out hover:bg-[#FAFAFC] active:bg-[#F0F0F3] md:px-5"
+                className="group flex w-full items-center gap-4 bg-white px-4 py-4 text-left transition-colors duration-150 ease-out hover:bg-[#FBF9F5] active:bg-[#F3EEE6] md:px-5"
               >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-navy text-[15px] font-semibold text-white" aria-hidden>
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-night text-[15px] font-semibold text-white" aria-hidden>
                   {initials(user?.name ?? ROLE_LABELS[role])}
                 </span>
                 <span className="min-w-0 flex-1">

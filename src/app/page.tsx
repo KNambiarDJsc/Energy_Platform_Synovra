@@ -91,10 +91,10 @@ const ABSENT: [string, string][] = [
 function Mark({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 28 28" aria-hidden>
-      <rect x="1" y="5" width="26" height="20" rx="5" fill="#112B40" />
-      <rect x="8" y="2" width="4" height="4" rx="1" fill="#007E83" />
-      <rect x="16" y="2" width="4" height="4" rx="1" fill="#007E83" />
-      <path d="M7 16.5h4l2.2-5 3 8 2.2-3H21" stroke="#5FD3D7" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="1" y="5" width="26" height="20" rx="5" fill="#231E19" />
+      <rect x="6" y="2" width="5" height="4" rx="1" fill="#6B6359" />
+      <rect x="17" y="2" width="5" height="4" rx="1" fill="#C2652F" />
+      <path d="M7 16.5h4l2.2-5 3 8 2.2-3H21" stroke="#F2A877" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -14,17 +14,20 @@ Models and AI sit beside the battery record, never in the approval path.
 ## Integration point (already built)
 
 ```
-PostgreSQL (V1 tables) ──read-only──▶ ML service (Python, separate process)
-                                         │ trains, evaluates, scores
-                                         ▼
-                              model_versions + predictions tables
-                                         │
+PostgreSQL (V1 tables)
+        │ ml_* views: read-only, point in time        server/drizzle/0005_ml_views.sql
+        ▼
+ML service (Python, separate process, role synovra_ml)
+        │ trains, evaluates, scores
+        ▼
+model_versions + model_training_records + predictions  (INSERT only)
+        │
 API (read-only: GET /predictions, POST /predictions/{id}/review)
-                                         │
+        │
 Web app: Intelligence page and the passport "Model estimates" section (already render these fields)
 ```
 
-The API cannot create or change predictions; it can only record a human's agree/disagree review (`server/src/db/snapshot.ts`). The ML service is a separate deployable with a database role that can read the operational tables and write only `model_versions` and `predictions`. It can be retrained, replaced or switched off without touching the platform.
+The API cannot create or change predictions; it can only record a human's agree/disagree review (`server/src/db/snapshot.ts`). The ML service is a separate deployable. Its database role (`server/sql/ml_service_role.sql`) reads only the `ml_*` views, not users, costs, evidence, audit or any operational table. It can only insert into `model_versions`, `model_training_records` and `predictions`, and cannot update or delete anything, so it cannot promote its own model to `validated` or rewrite a prediction after a person has reviewed it. `server/tests/ml.test.ts` checks these limits. The service can be retrained, replaced or switched off without touching the platform.
 
 Prediction contract (`server/src/db/schema.ts`):
 
@@ -39,6 +42,29 @@ Prediction contract (`server/src/db/schema.ts`):
 | `source_record_ids`, `factors`, `inputs_used` | Which records were used, what drove the output, and what was not available |
 | `review_state` | Unreviewed, agreed, disagreed: the feedback used to judge the model in shadow mode |
 
+Training lineage (`model_training_records`): one row per record a model version was trained on (`record_kind`, `record_id`, and the `battery_id` it belongs to). The ML service writes these when it registers a version. They make corrections and withdrawals traceable to models (next section).
+
+## Learning, adapting and unlearning
+
+"Learning" covers four different things here. Only the first three are in scope.
+
+| Capability | What it means here | Where it lives |
+| --- | --- | --- |
+| Learn about each battery | New tests, attempts, decisions, deployments and returns are added to the battery's record. Nothing is overwritten: a correction is a new event that keeps the previous value. | `battery_events` (append-only, enforced by trigger), `tests`, `restoration_attempts` |
+| Learn across batteries | Compare outcomes by family, intake condition, lot and protocol, then train models on the same rows. Rejection and rework carry a reason code, so "not qualified" says why. | `ml_restoration_attempt_features`; "Why attempts did not qualify" on the Restoration page and in the batch report |
+| Notice when patterns change | A model is flagged for review when an attempt arrives from a family, before-test protocol revision or instrument it never saw in training, or when a battery it learned from has its serial or manufacture date corrected. The flag goes to a person; nothing retrains or retires itself. Drift in outcome rates (for example reject rate per family) is the ML service's monitoring job, reported in its per-family evaluation. | `ml_model_review_flags` |
+| Remove a record's influence | Retrain without the record, register the new version in shadow, and retire the old one once the replacement passes the gate. `model_training_records` lists every version that used the record. Trained models are never edited in place, and the platform does not claim certified "machine unlearning": that is a separate research problem with open verification questions, and ordinary corrections do not need it. | `model_training_records`, `model_versions.status = 'retired'` |
+
+The same steps apply when a record has to be withdrawn, for example the wrong battery, a data-sharing request, or evidence found to be invalid. Removing a record from the operational history itself is a retention-policy decision that has not been made yet; the history is append-only by design.
+
+The point-in-time view `ml_restoration_attempt_features` has one row per restoration attempt:
+
+- **Features**: only what was recorded before the attempt started (`features_as_of`): battery family and rating, age, the lot references entered when the attempt opened, the number of earlier attempts, and the before-test readings, protocol and instrument. A before-test approved only after the attempt started is dropped, not used.
+- **Labels** (`label_*`): the decision (`approved`, `rejected`, `rework`), its reason code, and the approved after-test as a percentage of rated capacity. Open attempts have empty labels, so the same view serves training (decided rows) and scoring (open rows).
+- Corrected battery fields show their current value. Any model trained before the correction appears in `ml_model_review_flags`.
+
+The Intelligence page shows this loop live (Learning loop view): the same eligibility rules in `trainingStatus` (`src/services/mock/insights.ts`), with every excluded row given a reason and a fingerprint of the eligible row ids. `server/tests/ml.test.ts` checks that the page and the database view count the same rows, so the two definitions cannot drift apart.
+
 ## V1: Individual passport (now)
 
 **No predictive ML.** V1's job is to create the clean, labelled history every later model depends on. Shipping a model before that history exists would mean training on synthetic or inconsistent data.
@@ -51,7 +77,7 @@ What V1 already does instead (deterministic, explainable):
 
 ML-relevant work to do in V1, because it decides whether V3 is possible:
 
-1. **Record outcomes as structured labels.** Rejection and rework reasons are free text today. Add reason codes agreed with engineering, for example below threshold, physical damage or failed inspection, so that "not qualified" can become a training label.
+1. **Record outcomes as structured labels.** Done, with a placeholder list. Rejecting or reworking a restoration attempt, and rejecting or sending back a test, needs a reason code as well as the written reason. The service layer enforces it, and so do database checks (`attempts_reason_code_ck`, `tests_reason_code_ck`). The codes are in `src/domain/outcomes.ts`: capacity below threshold, internal resistance too high, physical damage, failed inspection, after-test not usable, and other. **Engineering still has to agree the final list.** Rows decided before codes existed keep their free-text reason and count as "no reason code".
 2. **Keep decision-time inputs.** Every test already records conditions, instrument and timestamps. Keep it that way, and never overwrite results: corrections are new events, which the database enforces.
 3. **Track the battery unit consistently** (12V block vs 2V cell vs string). String-level results are already kept separate, so they never become a per-battery label.
 
@@ -79,6 +105,7 @@ Pick the first task based on which labels exist in enough volume. Agree the mini
 | Capacity / backup estimate | Measured capacity from a reference test under stated conditions | Voltage, internal resistance, temperature, load and charge context | Rated capacity times last approved test % | Regression with prediction intervals (quantile models or conformal) | Passport, labelled as estimate with range | When to schedule a reference test |
 | Warranty / failure risk | Time to failure or removal; batteries still running are censored, not "fine" | Qualification results, deployment dates, site, string position, service history, telemetry summaries (V2) | Kaplan-Meier by family / age band | Cox proportional hazards or survival forests | NOC and warranty views | Inspection priority within a stated future window |
 | Condition / data-quality flags | Confirmed inspection findings | Calibrated readings, operating state | V2 rules | Classifier on rule features | Alerts, labelled model | Which flags deserve a site visit |
+| Revive or recycle | Realised net value per battery: sale price minus attributable processing cost, against recycling recovery | As for restoration qualification, plus cost entries known at intake | Batch economics at today's yield and costs (Restoration page scenario) | Qualification probability times a value scenario; a separate value model only once sale prices are recorded | Restoration candidates | Which batteries are worth attempting. **Needs a per-battery sale price, which is not recorded today** |
 
 Evaluation, which is required before anything leaves shadow mode:
 
@@ -103,8 +130,21 @@ Public battery datasets and research toolkits are useful for experiments. They d
 
 Each one should answer a named workload or commercial question from the scope (cost per qualified battery, processing spent on failed attempts, inventory days, warranty cost, reporting effort), not be added because it uses AI.
 
+## Compute: CPU first
+
+Nothing planned for V1–V3 needs a GPU: not the database, CSV ingestion, rules, data-quality checks or economics, and not logistic regression, gradient-boosted trees or survival models on structured battery records. At pilot volumes (thousands of batteries, tens of thousands of tests and attempts) these models train in seconds to minutes on an ordinary CPU. XGBoost and LightGBM can train on a GPU; that is an option, not a requirement.
+
+Rent GPU time only for a demonstrated workload, for example:
+
+- deep models on high-rate time-series telemetry, if Synovra's own equipment produces continuous readings (V2);
+- image inspection (photos of plates, terminals or cases);
+- hosting a large language model yourself instead of calling a provider's API (assistant, document extraction).
+
+What decides it is data shape, sampling rate, training frequency and latency, not battery count. Agents follow the same rule as models: the assistant stays read-only, cites records and only drafts. No agent controls chargers, changes restoration recipes or routes batteries.
+
 ## Next concrete steps
 
-1. With engineering: agree rejection and rework reason codes, and add them to the test-review and restoration-decision forms (V1).
-2. Add read-only point-in-time feature views, starting with one row per restoration attempt holding only data recorded before the attempt started, plus a database role for the ML service (V3 preparation, small).
-3. Once enough attempts are decided: build the restoration-qualification baseline and logistic model offline, write the evaluation report, and register version `0.1.0` in shadow mode.
+1. Done, with placeholders: reason codes on the test-review and restoration-decision forms. **With engineering: replace the placeholder codes in `src/domain/outcomes.ts` with the agreed list** (V1).
+2. Done: the point-in-time view `ml_restoration_attempt_features`, the review flags `ml_model_review_flags`, and the ML service role `server/sql/ml_service_role.sql`.
+3. Decide whether to record a sale price per battery. Without one, "revive or recycle" stays a scenario rather than a learned value.
+4. Once enough attempts are decided: build the restoration-qualification baseline and logistic model offline from `ml_restoration_attempt_features`, write the evaluation report (grouped splits, per-family results), and register version `0.1.0` in shadow mode with its `model_training_records`.

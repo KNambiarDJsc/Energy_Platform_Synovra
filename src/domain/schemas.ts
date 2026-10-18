@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { RESTORATION_REASON_LABELS, TEST_REVIEW_REASON_LABELS } from './outcomes';
 
 const optionalNumber = z.number().finite().nullable();
 
@@ -40,6 +41,11 @@ export const testInputSchema = z.object({
 export type TestInput = z.infer<typeof testInputSchema>;
 
 export const reasonSchema = z.string().trim().min(5, 'A reason of at least 5 characters is required').max(500);
+
+const codeEnum = <K extends string>(labels: Record<K, string>) =>
+  z.enum(Object.keys(labels) as [K, ...K[]], { errorMap: () => ({ message: 'Choose a reason code' }) });
+export const testReviewReasonCodeSchema = codeEnum(TEST_REVIEW_REASON_LABELS);
+export const restorationReasonCodeSchema = codeEnum(RESTORATION_REASON_LABELS);
 
 export const taskInputSchema = z.object({
   title: z.string().trim().min(5, 'Title is required').max(140),

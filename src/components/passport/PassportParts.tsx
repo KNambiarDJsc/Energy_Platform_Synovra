@@ -15,6 +15,7 @@ import { Select } from '@/components/ui/Field';
 import { KeyValue, Notice, Section, TableCard } from '@/components/ui/Layout';
 import { EmptyState, QueryView } from '@/components/ui/States';
 import { LIFECYCLE_LABELS } from '@/domain/lifecycle';
+import { RESTORATION_REASON_LABELS } from '@/domain/outcomes';
 import type {
   AuditEvent, CostEntry, EvidenceFile, LifecycleEventType, RestorationAttempt, TestSession,
 } from '@/domain/types';
@@ -199,7 +200,7 @@ export function IdentityCard({ p }: { p: BatteryPassport }) {
             {p.relatedBatteries.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center gap-2">
                 <GitBranch className="h-4 w-4 text-muted" aria-hidden />
-                <Link href={`/app/batteries/${r.id}`} className="mono text-teal-800 underline underline-offset-2">
+                <Link href={`/app/batteries/${r.id}`} className="mono text-copper-700 underline underline-offset-2">
                   {r.label}
                 </Link>
                 <span className="text-muted">{r.relation}</span>
@@ -352,7 +353,9 @@ export function RestorationPanel({ p }: { p: BatteryPassport }) {
           </div>
           {a.decisionReason && (
             <p className="mt-2 text-sm">
-              <span className="font-medium">Decision{a.deciderName ? ` by ${a.deciderName}` : ''}:</span> {a.decisionReason}
+              <span className="font-medium">Decision{a.deciderName ? ` by ${a.deciderName}` : ''}:</span>{' '}
+              {a.decisionReasonCode && <span className="font-medium">{RESTORATION_REASON_LABELS[a.decisionReasonCode]}. </span>}
+              {a.decisionReason}
             </p>
           )}
           {a.lotRefs.length > 0 && (
@@ -486,7 +489,7 @@ export function TelemetryPanel({ p }: { p: BatteryPassport }) {
                   unit="V"
                   summary={`Voltage over the last ${days} days.`}
                   points={s.points.map((x) => ({ t: x.t, v: x.voltageV }))}
-                  series={[{ key: 'v', name: 'Voltage', color: '#007E83' }]}
+                  series={[{ key: 'v', name: 'Voltage', color: '#2C6B66' }]}
                   height={200}
                 />
               </div>
@@ -497,7 +500,7 @@ export function TelemetryPanel({ p }: { p: BatteryPassport }) {
                   unit="°C"
                   summary={`Temperature over the last ${days} days, with the 30 °C reference.`}
                   points={s.points.map((x) => ({ t: x.t, v: x.temperatureC }))}
-                  series={[{ key: 'v', name: 'Temperature', color: '#007E83' }]}
+                  series={[{ key: 'v', name: 'Temperature', color: '#2C6B66' }]}
                   referenceLine={{ y: 30, label: '30 °C reference' }}
                   height={200}
                 />
@@ -512,7 +515,7 @@ export function TelemetryPanel({ p }: { p: BatteryPassport }) {
                     unit="mΩ"
                     summary={`Resistance over the last ${days} days.`}
                     points={s.points.map((x) => ({ t: x.t, v: x.resistanceMOhm }))}
-                    series={[{ key: 'v', name: 'Resistance', color: '#007E83' }]}
+                    series={[{ key: 'v', name: 'Resistance', color: '#2C6B66' }]}
                     height={200}
                   />
                 </div>
@@ -530,8 +533,8 @@ export function TelemetryPanel({ p }: { p: BatteryPassport }) {
             summary="Own voltage and the median of string peers."
             points={peers.data.points.map((x) => ({ t: x.t, own: x.own, peer: x.peerMedian }))}
             series={[
-              { key: 'own', name: 'This battery', color: '#007E83' },
-              { key: 'peer', name: 'String median', color: '#B4B4B9', dashed: true },
+              { key: 'own', name: 'This battery', color: '#2C6B66' },
+              { key: 'peer', name: 'String median', color: '#A89E91', dashed: true },
             ]}
             height={220}
           />

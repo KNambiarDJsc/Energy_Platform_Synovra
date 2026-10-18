@@ -29,6 +29,20 @@
       "when": 1791998441074,
       "tag": "0003_evidence_storage",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792259408370,
+      "tag": "0004_reason_codes_training_records",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792259479170,
+      "tag": "0005_ml_views",
+      "breakpoints": true
     }
   ]
 }

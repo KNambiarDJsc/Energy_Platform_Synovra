@@ -11,11 +11,14 @@ import { EvidenceFileInput, fileSizeKb } from '@/components/app/Evidence';
 import { Modal } from '@/components/ui/Overlay';
 import { ReasonDialog } from '@/components/ui/ReasonDialog';
 import { EmptyState, LoadingBlock, QueryView } from '@/components/ui/States';
+import { RESTORATION_REASON_LABELS, codeOptions } from '@/domain/outcomes';
+import type { RestorationReasonCode } from '@/domain/types';
 import { cn, formatAed, formatDate, formatNumber, titleCase } from '@/lib/format';
 import { errorMessage, useAction, useSession, useSvcQuery } from '@/lib/hooks';
 import type { AttemptView, BatchResults, EconomicsResult } from '@/services/types';
 
 const ATTEMPT_TONE = { in_restoration: 'teal', awaiting_review: 'amber', approved: 'green', rejected: 'red', rework: 'amber' } as const;
+const RESTORATION_CODES = codeOptions(RESTORATION_REASON_LABELS);
 
 /* ------------------------------ batch results ------------------------------ */
 
@@ -138,6 +141,20 @@ function BatchPanel({ batchId }: { batchId: string }) {
                 <span className="block text-xs text-muted">Only batteries with a final decision.</span>
               </p>
             </div>
+            {r.notQualifiedReasons.length > 0 && (
+              <div className="mt-4">
+                <h3 className="text-sm font-semibold text-ink">Why attempts did not qualify</h3>
+                <p className="text-xs text-muted">Every rework and rejection decision in this batch, by the reason code the engineer chose.</p>
+                <ul className="mt-2 divide-y divide-line rounded-lg bg-canvas text-sm">
+                  {r.notQualifiedReasons.map((x) => (
+                    <li key={x.code ?? 'none'} className="flex items-center justify-between gap-3 px-3 py-2">
+                      <span className={x.code ? 'text-ink' : 'text-muted'}>{x.label}</span>
+                      <span className="tabular-nums font-semibold text-ink">{x.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <p className="mt-3 text-xs text-muted">Synthetic batches. These percentages describe invented demonstration data, not expected performance.</p>
           </Section>
           <Economics batchId={batchId} results={r} />
@@ -160,7 +177,7 @@ function AttemptCard({ a, onDialog }: { a: AttemptView; onDialog: (d: Dialog) =>
   return (
     <li className="rounded-xl bg-canvas p-4 md:p-5">
       <div className="flex flex-wrap items-center gap-2">
-        <Link href={`/app/batteries/${a.batteryId}`} className="mono text-base font-semibold text-teal-700 underline-offset-4 hover:underline">
+        <Link href={`/app/batteries/${a.batteryId}`} className="mono text-base font-semibold text-copper-700 underline-offset-4 hover:underline">
           {a.batteryLabel}
         </Link>
         <span className="text-sm text-muted">{a.familyModel} · attempt {a.attemptNo}</span>
@@ -198,7 +215,9 @@ function AttemptCard({ a, onDialog }: { a: AttemptView; onDialog: (d: Dialog) =>
       )}
       {a.decisionReason && (
         <p className="mt-3 rounded-lg bg-white px-3 py-2.5 text-sm">
-          <span className="font-medium">Decision{a.deciderName ? ` by ${a.deciderName}` : ''}:</span> {a.decisionReason}
+          <span className="font-medium">Decision{a.deciderName ? ` by ${a.deciderName}` : ''}:</span>{' '}
+          {a.decisionReasonCode && <span className="font-medium">{RESTORATION_REASON_LABELS[a.decisionReasonCode]}. </span>}
+          {a.decisionReason}
         </p>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
@@ -240,8 +259,8 @@ function AttemptDialogs({ dialog, onClose }: { dialog: Dialog | null; onClose: (
   const note = useAction<void, unknown>((s) => s.restoration.addNote(dialog!.a.id, text), { success: 'Note added.', onSuccess: reset, toastError: false });
   const evidence = useAction<void, unknown>((s) => s.restoration.addEvidence(dialog!.a.id, file!.name, fileSizeKb(file!), undefined, file!), { success: 'Evidence attached.', onSuccess: reset, toastError: false });
   const submit = useAction<void, unknown>((s) => s.restoration.submitForReview(dialog!.a.id, afterTest), { success: 'Submitted for engineering review.', onSuccess: reset, toastError: false });
-  const decide = useAction<string, unknown>(
-    (s, reason) => s.restoration.decide(dialog!.a.id, (dialog as Extract<Dialog, { kind: 'decide' }>).decision, reason),
+  const decide = useAction<{ reason: string; code: RestorationReasonCode | null }, unknown>(
+    (s, v) => s.restoration.decide(dialog!.a.id, (dialog as Extract<Dialog, { kind: 'decide' }>).decision, v.reason, v.code),
     { success: 'Decision recorded.', onSuccess: reset, toastError: false },
   );
 
@@ -256,9 +275,10 @@ function AttemptDialogs({ dialog, onClose }: { dialog: Dialog | null; onClose: (
         description={`${dialog.a.batteryLabel}, attempt ${dialog.a.attemptNo}. This is an engineering decision recorded with your name.`}
         confirmLabel={d === 'approve' ? 'Approve' : d === 'reject' ? 'Reject' : 'Request rework'}
         variant={d === 'reject' ? 'danger' : 'primary'}
+        codes={d === 'approve' ? undefined : RESTORATION_CODES}
         loading={decide.isPending}
         error={decide.error ? errorMessage(decide.error) : null}
-        onConfirm={(reason) => decide.mutate(reason)}
+        onConfirm={(reason, code) => decide.mutate({ reason, code: code as RestorationReasonCode | null })}
       />
     );
   }

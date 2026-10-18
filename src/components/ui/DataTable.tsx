@@ -117,7 +117,7 @@ export function DataTable<T>({ columns, rows, rowKey, caption, rowHref, pageSize
                 {columns.map((c, i) => (
                   <td key={c.key} className={cn('px-3 py-3.5', c.align === 'right' && 'num text-right', c.hideBelow && HIDE_CLASS[c.hideBelow], c.className)}>
                     {rowHref && i === 0 ? (
-                      <Link href={rowHref(row)} className="font-semibold text-teal-700 underline-offset-4 hover:underline">
+                      <Link href={rowHref(row)} className="font-semibold text-copper-700 underline-offset-4 hover:underline">
                         {c.cell(row)}
                       </Link>
                     ) : (
@@ -139,7 +139,7 @@ export function DataTable<T>({ columns, rows, rowKey, caption, rowHref, pageSize
             <li key={rowKey(row)} className="rounded-lg bg-canvas p-4">
               <div className="text-[17px] font-semibold leading-6 text-ink">
                 {rowHref ? (
-                  <Link href={rowHref(row)} className="flex items-center justify-between gap-2 text-teal-700">
+                  <Link href={rowHref(row)} className="flex items-center justify-between gap-2 text-copper-700">
                     <span className="min-w-0">{title}</span>
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted" aria-hidden />
                   </Link>

@@ -36,7 +36,7 @@ export default function MonitoringPage() {
       key: 'battery', header: 'Battery', sort: (s) => s.batteryLabel,
       cell: (s) =>
         s.batteryId ? (
-          <Link href={`/app/batteries/${s.batteryId}?tab=telemetry`} className="mono font-semibold text-teal-700 underline-offset-4 hover:underline">{s.batteryLabel}</Link>
+          <Link href={`/app/batteries/${s.batteryId}?tab=telemetry`} className="mono font-semibold text-copper-700 underline-offset-4 hover:underline">{s.batteryLabel}</Link>
         ) : (
           <Badge tone="amber">Unmapped</Badge>
         ),

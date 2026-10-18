@@ -8,9 +8,9 @@ import { formatDateTime, formatNumber } from '@/lib/format';
 
 /** Chart chrome: recessive hairline grid, muted tick text, a baseline one step darker than the grid. */
 const TABLE_ROW = 'border-t border-line'; // taste-skill-ignore: rows of a real data table
-const GRID = '#E5E5EA';
-const BASELINE = '#D2D2D7';
-const TICK = { fontSize: 12, fill: '#6E6E73' };
+const GRID = '#E6DFD4';
+const BASELINE = '#D3CABD';
+const TICK = { fontSize: 12, fill: '#6B6359' };
 
 interface LinePoint {
   t: string;
@@ -79,7 +79,7 @@ function ChartTooltip({ active, payload, label, unit, dateLabel }: { active?: bo
 function DataTableDisclosure({ children }: { children: ReactNode }) {
   return (
     <details className="group mt-3 text-sm">
-      <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md font-medium text-teal-700 hover:underline hover:underline-offset-4 [&::-webkit-details-marker]:hidden">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md font-medium text-copper-700 hover:underline hover:underline-offset-4 [&::-webkit-details-marker]:hidden">
         <ChevronRight className="h-4 w-4 transition-transform duration-200 group-open:rotate-90" aria-hidden />
         View chart data as a table
       </summary>

@@ -9,8 +9,10 @@ import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
 import { ConflictError, ValidationError, can, type Permission } from '../../src/domain/permissions';
-import type { LifecycleState, PredictionKind, ReportTemplateId, StoredEvidence } from '../../src/domain/types';
-import type { Services } from '../../src/services/types';
+import type {
+  LifecycleState, PredictionKind, ReportTemplateId, RestorationReasonCode, StoredEvidence, TestReviewReasonCode,
+} from '../../src/domain/types';
+import type { AgentKind, Services } from '../../src/services/types';
 import { createAuthenticator, issueDevToken, type Principal } from './auth';
 import type { Config } from './config';
 import type { Database } from './db/client';
@@ -269,8 +271,14 @@ export function createApp(deps: AppDeps) {
   api.post('/tests/:id/submit', write((s, c) => s.tests.submit(c.req.param('id'))));
   api.post('/tests/:id/start-review', write((s, c) => s.tests.startReview(c.req.param('id'))));
   api.post('/tests/:id/approve', write(async (s, c) => s.tests.approve(c.req.param('id'), (await body<{ reason: string }>(c)).reason)));
-  api.post('/tests/:id/reject', write(async (s, c) => s.tests.reject(c.req.param('id'), (await body<{ reason: string }>(c)).reason)));
-  api.post('/tests/:id/rework', write(async (s, c) => s.tests.requestRework(c.req.param('id'), (await body<{ reason: string }>(c)).reason)));
+  api.post('/tests/:id/reject', write(async (s, c) => {
+    const b = await body<{ reason: string; reasonCode: TestReviewReasonCode }>(c);
+    return s.tests.reject(c.req.param('id'), b.reason, b.reasonCode);
+  }));
+  api.post('/tests/:id/rework', write(async (s, c) => {
+    const b = await body<{ reason: string; reasonCode: TestReviewReasonCode }>(c);
+    return s.tests.requestRework(c.req.param('id'), b.reason, b.reasonCode);
+  }));
   api.post('/tests/:id/evidence', upload('test.create', (s, id, name, kb, stored) => s.tests.attachEvidence(id, name, kb, stored)));
 
   // Restoration
@@ -285,8 +293,8 @@ export function createApp(deps: AppDeps) {
   api.post('/restoration/attempts/:id/evidence', upload('restoration.write', (s, id, name, kb, stored) => s.restoration.addEvidence(id, name, kb, stored)));
   api.post('/restoration/attempts/:id/submit', write(async (s, c) => s.restoration.submitForReview(c.req.param('id'), (await body<{ afterTestId: string }>(c)).afterTestId)));
   api.post('/restoration/attempts/:id/decide', write(async (s, c) => {
-    const b = await body<{ decision: 'approve' | 'reject' | 'rework'; reason: string }>(c);
-    return s.restoration.decide(c.req.param('id'), b.decision, b.reason);
+    const b = await body<{ decision: 'approve' | 'reject' | 'rework'; reason: string; reasonCode?: RestorationReasonCode | null }>(c);
+    return s.restoration.decide(c.req.param('id'), b.decision, b.reason, b.reasonCode ?? null);
   }));
 
   // Inventory and deployments
@@ -306,6 +314,26 @@ export function createApp(deps: AppDeps) {
   api.use('/predictions', feature('intelligence', 'Intelligence'));
   api.get('/predictions', read((s, c) => s.predictions.list({ kind: q(c, 'kind') as PredictionKind | undefined, batteryId: q(c, 'batteryId') })));
   api.post('/predictions/:id/review', write(async (s, c) => s.predictions.review(c.req.param('id'), (await body<{ outcome: 'agreed' | 'disagreed' }>(c)).outcome)));
+
+  // Insights: data sources, the learning loop and read-only agents sit with Intelligence; recovery metrics with Reports
+  for (const path of ['/insights/collection', '/insights/data-sources', '/insights/learning', '/insights/agents/*', '/insights/ask']) api.use(path, feature('intelligence', 'Intelligence'));
+  api.get('/insights/collection', read((s) => s.insights.collection()));
+  api.get('/insights/data-sources', read((s) => s.insights.dataSources()));
+  api.get('/insights/learning', read((s) => s.insights.learning()));
+  api.get('/insights/recovery', read((s) => s.insights.recovery()));
+  api.get('/insights/agents/:kind', read((s, c) => {
+    const kind = c.req.param('kind') as AgentKind;
+    if (!['data_steward', 'battery_investigator', 'recovery_decision', 'recovery_analyst'].includes(kind)) throw new ValidationError('Unknown agent');
+    const days = Number(q(c, 'periodDays'));
+    return s.insights.runAgent(kind, { batteryId: q(c, 'batteryId') ?? null, periodDays: Number.isFinite(days) && days > 0 ? days : null });
+  }));
+  api.get('/batteries/:id/route-inputs', read((s, c) => s.insights.routeInputs(c.req.param('id'))));
+  // A question is recorded in the audit log, so this is a write even though it changes no battery record.
+  api.post('/insights/ask', write(async (s, c) => {
+    const b = await body<{ question: string; batteryId?: string | null }>(c);
+    if (typeof b.question !== 'string' || !b.question.trim()) throw new ValidationError('Ask a question');
+    return s.insights.ask(b.question, { batteryId: b.batteryId ?? null });
+  }));
 
   // Reports
   api.get('/report-templates', read((s) => s.reports.templates()));

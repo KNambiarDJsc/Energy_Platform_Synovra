@@ -31,8 +31,16 @@ interface Turn {
 }
 
 export function AssistantPanel({
-  open, onOpenChange, batteryId, suggestions,
-}: { open: boolean; onOpenChange: (o: boolean) => void; batteryId: string | null; suggestions: string[] }) {
+  open, onOpenChange, batteryId, suggestions, pendingPrompt = null, onPendingSent,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  batteryId: string | null;
+  suggestions: string[];
+  /** A question handed over by another screen, asked as soon as the panel is open. */
+  pendingPrompt?: string | null;
+  onPendingSent?: () => void;
+}) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [text, setText] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
@@ -53,6 +61,13 @@ export function AssistantPanel({
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' });
   }, [turns.length, ask.isPending]);
+
+  useEffect(() => {
+    if (!open || !pendingPrompt) return;
+    send(pendingPrompt);
+    onPendingSent?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per handed-over question
+  }, [open, pendingPrompt]);
 
   function send(prompt: string) {
     const p = prompt.trim();
@@ -97,7 +112,7 @@ export function AssistantPanel({
         <ol className="space-y-5" aria-live="polite">
           {turns.map((t, i) => (
             <li key={`${i}-${t.prompt}`} className="space-y-2">
-              <p className="anim-row ml-auto w-fit max-w-[85%] rounded-[20px] rounded-br-md bg-teal px-4 py-2.5 text-sm text-white">{t.prompt}</p>
+              <p className="anim-row ml-auto w-fit max-w-[85%] rounded-[20px] rounded-br-md bg-copper px-4 py-2.5 text-sm text-white">{t.prompt}</p>
               {!t.response ? (
                 <p className="flex items-center gap-2 text-sm text-muted" role="status">
                   <Spinner className="h-4 w-4" /> Searching records you can access…
@@ -120,7 +135,7 @@ export function AssistantPanel({
                             <li key={`${c.kind}-${c.id}`} className="text-sm">
                               <span className="text-muted">{c.kind}: </span>
                               {href ? (
-                                <Link href={href} className="text-teal-800 underline underline-offset-2" onClick={() => onOpenChange(false)}>
+                                <Link href={href} className="text-copper-700 underline underline-offset-2" onClick={() => onOpenChange(false)}>
                                   {c.label}
                                 </Link>
                               ) : (

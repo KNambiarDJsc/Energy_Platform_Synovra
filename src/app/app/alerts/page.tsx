@@ -123,7 +123,7 @@ function AlertDrawer({ id, onClose }: { id: string | null; onClose: () => void }
               columns={2}
               items={[
                 { label: 'Site', value: a.siteName },
-                { label: 'Battery', value: a.batteryId ? <Link href={`/app/batteries/${a.batteryId}`} className="mono text-teal-800 underline underline-offset-2">{a.batteryLabel}</Link> : 'Not battery-specific' },
+                { label: 'Battery', value: a.batteryId ? <Link href={`/app/batteries/${a.batteryId}`} className="mono text-copper-700 underline underline-offset-2">{a.batteryLabel}</Link> : 'Not battery-specific' },
                 { label: 'Raised by', value: `${a.source.name} ${a.source.version}` },
                 { label: 'Last evaluated', value: formatDateTime(a.lastEvaluatedAt), hint: a.freshness.label },
                 { label: 'Assignee', value: a.assigneeName ?? 'Unassigned' },
@@ -206,7 +206,7 @@ function AlertsList({ onOpen }: { onOpen: (id: string) => void }) {
       key: 'title', header: 'Alert',
       cell: (a) => (
         <span>
-          <button type="button" onClick={() => onOpen(a.id)} className="text-left font-semibold text-teal-800 underline-offset-2 hover:underline">{a.title}</button>
+          <button type="button" onClick={() => onOpen(a.id)} className="text-left font-semibold text-copper-700 underline-offset-2 hover:underline">{a.title}</button>
           <span className="block text-xs text-muted">{TYPE_LABEL[a.type] ?? a.type} · {a.id}</span>
         </span>
       ),

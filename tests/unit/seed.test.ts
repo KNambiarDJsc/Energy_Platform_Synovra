@@ -18,6 +18,14 @@ describe('seed data', () => {
     expect(db.predictions.every((p) => p.status === 'shadow')).toBe(true);
   });
 
+  it('gives every rework and rejection decision a reason code, and none to approvals', () => {
+    const notQualified = db.attempts.filter((a) => a.status === 'rework' || a.status === 'rejected');
+    expect(notQualified.length).toBeGreaterThan(0);
+    notQualified.forEach((a) => expect(a.decisionReasonCode, a.id).not.toBeNull());
+    db.attempts.filter((a) => a.status === 'approved').forEach((a) => expect(a.decisionReasonCode, a.id).toBeNull());
+    db.tests.filter((t) => t.status === 'rejected' || t.status === 'requires_rework').forEach((t) => expect(t.reviewReasonCode, t.id).not.toBeNull());
+  });
+
   it('is deterministic', () => {
     expect(JSON.stringify(buildSeed().batteries.map((b) => b.id))).toBe(JSON.stringify(db.batteries.map((b) => b.id)));
   });

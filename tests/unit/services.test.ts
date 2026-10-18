@@ -149,8 +149,24 @@ describe('test approval workflow', () => {
     const t = await h.svc.tests.create(goodTest(b.id));
     await h.svc.tests.submit(t.id);
     h.as(USERS.eng);
-    expect((await rejects(h.svc.tests.reject(t.id, 'no'))).name).toBe('ValidationError');
-    expect((await h.svc.tests.requestRework(t.id, 'Cut-off voltage looks wrong')).status).toBe('requires_rework');
+    expect((await rejects(h.svc.tests.reject(t.id, 'no', 'data_entry_error'))).name).toBe('ValidationError');
+  });
+
+  it('records a reason code with every rejection or rework, and clears it on resubmission', async () => {
+    const h = harness(USERS.eng2);
+    const b = h.store.db.batteries[0];
+    const t = await h.svc.tests.create(goodTest(b.id));
+    await h.svc.tests.submit(t.id);
+    h.as(USERS.eng);
+    const missing = await rejects(h.svc.tests.requestRework(t.id, 'Cut-off voltage looks wrong', undefined as never));
+    expect(missing.name).toBe('ValidationError');
+    expect(missing.message).toMatch(/reason code/);
+    expect((await rejects(h.svc.tests.reject(t.id, 'Cut-off voltage looks wrong', 'not_a_code' as never))).name).toBe('ValidationError');
+    const sent = await h.svc.tests.requestRework(t.id, 'Cut-off voltage looks wrong', 'conditions_out_of_protocol');
+    expect(sent).toMatchObject({ status: 'requires_rework', reviewReasonCode: 'conditions_out_of_protocol' });
+    expect(h.store.db.audit[0].summary).toBe('Rework [conditions_out_of_protocol]: Cut-off voltage looks wrong');
+    h.as(USERS.eng2);
+    expect((await h.svc.tests.submit(t.id)).reviewReasonCode).toBeNull();
   });
 
   it('enforces separation of duties between submitter and reviewer', async () => {
@@ -171,6 +187,44 @@ describe('test approval workflow', () => {
     expect(await rejects(h.svc.tests.approve(t.id, 'Approving my own measurement'))).toBeInstanceOf(ConflictError);
     h.as(USERS.eng2);
     expect((await h.svc.tests.approve(t.id, 'Independent review')).status).toBe('approved');
+  });
+});
+
+describe('restoration outcome labels', () => {
+  async function awaitingReview(h: ReturnType<typeof harness>, capacityAh: number) {
+    h.as(USERS.lab);
+    const b = h.store.db.batteries.find((x) => x.lifecycleState === 'restoration_candidate' && x.familyId === 'f1')!;
+    const attempt = await h.svc.restoration.createAttempt({ batteryId: b.id, batchId: 'RB-2026-09' });
+    const after = await h.svc.tests.create(goodTest(b.id, { kind: 'final', capacityAh }));
+    await h.svc.tests.submit(after.id);
+    await h.svc.restoration.submitForReview(attempt.id, after.id);
+    h.as(USERS.eng);
+    await h.svc.tests.approve(after.id, 'Record matches bench log');
+    return { b, attempt };
+  }
+
+  it('requires a reason code for rework and rejection, and refuses one on approval', async () => {
+    const h = harness();
+    const { attempt } = await awaitingReview(h, 190);
+    expect((await rejects(h.svc.restoration.decide(attempt.id, 'reject', 'Case cracked on inspection'))).message).toMatch(/reason code/);
+    expect((await rejects(h.svc.restoration.decide(attempt.id, 'rework', 'Repeat the step', 'nope' as never))).name).toBe('ValidationError');
+    expect((await rejects(h.svc.restoration.decide(attempt.id, 'approve', 'Meets the threshold', 'other'))).message).toMatch(/no reason code/);
+    const approved = await h.svc.restoration.decide(attempt.id, 'approve', 'Meets the demonstration threshold');
+    expect(approved).toMatchObject({ status: 'approved', decisionReasonCode: null });
+  });
+
+  it('stores the code, writes it into the history and counts it in the batch results', async () => {
+    const h = harness();
+    const before = (await h.svc.restoration.batchResults('RB-2026-09')).notQualifiedReasons;
+    const count = (code: string, list: typeof before) => list.find((x) => x.code === code)?.count ?? 0;
+    const { b, attempt } = await awaitingReview(h, 150);
+    const r = await h.svc.restoration.decide(attempt.id, 'reject', 'Case cracked on inspection', 'physical_damage');
+    expect(r.decisionReasonCode).toBe('physical_damage');
+    const passport = await h.svc.batteries.get(b.id);
+    expect(passport.events.at(-1)).toMatchObject({ type: 'rejection', reason: 'Physical damage found. Case cracked on inspection' });
+    const after = (await h.svc.restoration.batchResults('RB-2026-09')).notQualifiedReasons;
+    expect(count('physical_damage', after)).toBe(count('physical_damage', before) + 1);
+    expect(after.map((x) => x.count)).toEqual([...after.map((x) => x.count)].sort((x, y) => y - x));
   });
 });
 
@@ -214,7 +268,7 @@ describe('restoration state transitions', () => {
     h.as(USERS.eng);
     await h.svc.tests.approve(after.id, 'Record matches bench log');
     expect(await rejects(h.svc.restoration.decide(attempt.id, 'approve', 'Try to approve anyway'))).toBeInstanceOf(ConflictError);
-    const r = await h.svc.restoration.decide(attempt.id, 'rework', 'Below threshold; repeat the step');
+    const r = await h.svc.restoration.decide(attempt.id, 'rework', 'Below threshold; repeat the step', 'below_capacity_threshold');
     expect(r.status).toBe('rework');
     expect(b.lifecycleState).toBe('rework');
     // a second attempt keeps the same battery and increments the attempt number

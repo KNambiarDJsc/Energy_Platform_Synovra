@@ -9,7 +9,7 @@ import { cn } from '@/lib/format';
 import { LIFECYCLE_LABELS } from '@/domain/lifecycle';
 import type { AlertState, ApprovalState, DataQualityLevel, LifecycleState, Severity, TestStatus, WarrantyRecord } from '@/domain/types';
 
-export type Tone = 'neutral' | 'teal' | 'green' | 'amber' | 'red' | 'navy';
+export type Tone = 'neutral' | 'teal' | 'green' | 'amber' | 'red' | 'stone';
 
 const toneClass: Record<Tone, string> = {
   neutral: 'bg-fill text-ink-2',
@@ -17,7 +17,7 @@ const toneClass: Record<Tone, string> = {
   green: 'bg-approved-50 text-approved-700',
   amber: 'bg-amber-50 text-amber-700',
   red: 'bg-critical-50 text-critical-700',
-  navy: 'bg-[#E3EAF0] text-navy',
+  stone: 'bg-[#ECE5DA] text-night',
 };
 
 /** Every status is communicated by text and an icon, never colour alone. A tint, no outline. */
@@ -32,8 +32,8 @@ export function Badge({ tone = 'neutral', icon: Icon, children, className, title
 
 const lifecycle: Record<LifecycleState, [Tone, LucideIcon]> = {
   received: ['neutral', Inbox], testing: ['teal', FlaskConical], restoration_candidate: ['teal', ListChecks], in_restoration: ['teal', Wrench],
-  awaiting_review: ['amber', Eye], rework: ['amber', RotateCcw], qualified: ['green', BadgeCheck], reserved: ['navy', Bookmark],
-  deployed: ['navy', MapPin], returned: ['neutral', Undo2], rejected: ['red', XCircle], recycling_queue: ['neutral', Recycle], recycled: ['neutral', Recycle],
+  awaiting_review: ['amber', Eye], rework: ['amber', RotateCcw], qualified: ['green', BadgeCheck], reserved: ['stone', Bookmark],
+  deployed: ['stone', MapPin], returned: ['neutral', Undo2], rejected: ['red', XCircle], recycling_queue: ['neutral', Recycle], recycled: ['neutral', Recycle],
 };
 export function LifecycleBadge({ state }: { state: LifecycleState }) {
   const [tone, icon] = lifecycle[state];
@@ -119,7 +119,7 @@ export function FreshnessBadge({ freshness }: { freshness: 'fresh' | 'stale' | '
 
 export type ValueKind = 'measured' | 'rule' | 'model' | 'unknown' | 'stale' | 'inferred';
 const valueKind: Record<ValueKind, [Tone, LucideIcon, string]> = {
-  measured: ['navy', Gauge, 'Measured'], rule: ['teal', ListChecks, 'Rule result'], model: ['amber', Calculator, 'Model estimate'],
+  measured: ['stone', Gauge, 'Measured'], rule: ['teal', ListChecks, 'Rule result'], model: ['amber', Calculator, 'Model estimate'],
   unknown: ['neutral', HelpCircle, 'Unknown'], stale: ['amber', Clock, 'Stale'], inferred: ['amber', Calculator, 'Inferred by sensor'],
 };
 export function ValueKindBadge({ kind }: { kind: ValueKind }) {

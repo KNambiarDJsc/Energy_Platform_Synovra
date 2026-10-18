@@ -279,7 +279,7 @@ export async function insertAll(tx: Tx, data: DemoDb): Promise<PersistResult> {
 
 /** Removes every record. Demo mode only (the caller checks). */
 export async function truncateAll(tx: Tx): Promise<void> {
-  const names = ['predictions', 'model_versions', ...SPECS.map((spec) => getTableName(spec.table))];
+  const names = ['predictions', 'model_training_records', 'model_versions', ...SPECS.map((spec) => getTableName(spec.table))];
   await tx.execute(sql.raw(`TRUNCATE ${names.map((n) => `"${n}"`).join(', ')} RESTART IDENTITY CASCADE`));
   await bumpVersion(tx);
 }

@@ -338,7 +338,7 @@ export function buildSeed(): DemoDb {
             conditions: { ambientTempC: result.temperatureC, loadCurrentA: round(fam.ratedCapacityAh / fam.rateHours, 1), cutoffVoltageV: fam.endVoltagePerUnitV, durationH: round((result.capacityAh ?? 0) / (fam.ratedCapacityAh / fam.rateHours), 1) },
             result, evidenceIds: [ev1], attemptId: null,
             startedAt: iso(ago, 9), submittedAt: iso(ago, 15), submittedById: lab.id,
-            reviewedAt: iso(ago, 16), reviewerId: eng.id, reviewerName: eng.name, reviewReason: 'Record verified against bench log.',
+            reviewedAt: iso(ago, 16), reviewerId: eng.id, reviewerName: eng.name, reviewReason: 'Record verified against bench log.', reviewReasonCode: null,
           });
           pushEvent('test', ago, lab, 'Initial capacity test recorded', `Measured ${result.capacityAh} Ah vs ${fam.ratedCapacityAh} Ah rated (${fam.ratingConditions}).`, {
             previousState: prev, newState: 'testing', evidenceIds: [ev1], approvalState: 'approved', ref: { kind: 'test', id: tid },
@@ -359,6 +359,7 @@ export function buildSeed(): DemoDb {
             notes: [{ id: `${attemptId}_n1`, at: iso(ago, 12), actorName: lab.name, text: 'Attempt opened. Process steps are recorded in the controlled lab system and are not reproduced in this demo.' }],
             lotRefs: [{ kind: 'material', ref: `LOT-REF-DEMO-${ri(1000, 9999)}` }, ...(idx % 2 === 0 ? [{ kind: 'solvent' as const, ref: `LOT-REF-DEMO-${ri(1000, 9999)}` }] : [])],
             evidenceIds: [lotEv], startedAt: iso(ago, 12), submittedAt: null, decidedAt: null, deciderName: null, decisionReason: null,
+            decisionReasonCode: null,
           });
           pushEvent('restoration', ago, lab, 'Restoration attempt 1 started', 'Attempt opened in the restoration batch. Same battery identity retained.', {
             previousState: prev, newState: 'in_restoration', evidenceIds: [lotEv], ref: { kind: 'attempt', id: attemptId },
@@ -379,7 +380,7 @@ export function buildSeed(): DemoDb {
             result, evidenceIds: [ev1], attemptId,
             startedAt: iso(ago, 9), submittedAt: iso(ago, 14), submittedById: lab.id,
             reviewedAt: decided ? iso(ago, 16) : null, reviewerId: decided ? eng.id : null, reviewerName: decided ? eng.name : null,
-            reviewReason: decided ? 'Result matches bench log; conditions per protocol.' : null,
+            reviewReason: decided ? 'Result matches bench log; conditions per protocol.' : null, reviewReasonCode: null,
           });
           const att = attempts.find((a) => a.id === attemptId)!;
           att.afterTestId = tid; att.status = 'awaiting_review'; att.submittedAt = iso(ago, 14);
@@ -403,6 +404,7 @@ export function buildSeed(): DemoDb {
           const att = attempts.find((a) => a.id === attemptId)!;
           att.status = 'rework'; att.decidedAt = iso(ago, 16); att.deciderName = eng.name;
           att.decisionReason = 'Capacity below threshold. Repeat restoration step and re-test.';
+          att.decisionReasonCode = 'below_capacity_threshold';
           pushEvent('rework', ago, eng, 'Rework requested', 'Capacity below the demonstration threshold; engineer requested a further attempt.', {
             previousState: prev, newState: 'rework', approvalState: 'rejected', ref: { kind: 'attempt', id: attemptId! },
           });
@@ -414,6 +416,7 @@ export function buildSeed(): DemoDb {
             const att = attempts.find((a) => a.id === attemptId)!;
             att.status = 'rejected'; att.decidedAt = iso(ago, 16); att.deciderName = eng.name;
             att.decisionReason = 'After restoration, capacity remained below the demonstration threshold.';
+            att.decisionReasonCode = 'below_capacity_threshold';
           }
           pushEvent('rejection', ago, eng, 'Rejected by engineer', atTest ? 'Initial result and inspection indicate the unit is not a restoration candidate.' : 'Capacity remained below the demonstration threshold after the restoration attempt. No deployment permitted.', {
             previousState: prev, newState: 'rejected', approvalState: 'rejected',
@@ -733,7 +736,7 @@ export function buildSeed(): DemoDb {
       conditions: { ambientTempC: 27, loadCurrentA: round(f.ratedCapacityAh / f.rateHours, 1), cutoffVoltageV: round(f.endVoltagePerUnitV * units, 1), durationH: round(f.rateHours * ratio, 1) },
       result: { openCircuitVoltageV: round(st.nominalVoltageV * 1.08, 1), internalResistanceMOhm: null, temperatureC: 27, capacityAh: round(f.ratedCapacityAh * ratio, 1), notes: 'String-level result. It does not establish a capacity for any individual battery.' },
       evidenceIds: [evId], attemptId: null, startedAt: iso(ago, 9), submittedAt: iso(ago, 14), submittedById: 'u_field1',
-      reviewedAt: iso(ago, 16), reviewerId: 'u_eng1', reviewerName: 'Hamid Rahimi', reviewReason: 'Conditions per protocol; result recorded at string level.',
+      reviewedAt: iso(ago, 16), reviewerId: 'u_eng1', reviewerName: 'Hamid Rahimi', reviewReason: 'Conditions per protocol; result recorded at string level.', reviewReasonCode: null,
     });
   });
 

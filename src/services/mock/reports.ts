@@ -1,5 +1,6 @@
 import { reportInputSchema } from '@/domain/schemas';
 import { LIFECYCLE_LABELS } from '@/domain/lifecycle';
+import { RESTORATION_REASON_LABELS, notQualifiedReasons } from '@/domain/outcomes';
 import { ConflictError, NotFoundError, ValidationError, can, isCustomerAudience } from '@/domain/permissions';
 import type { Report, ReportSection, ReportTemplateId } from '@/domain/types';
 import {
@@ -60,7 +61,9 @@ export function createReportRepository(ctx: Ctx): ReportRepository {
       if (showProcess) {
         const att = d.attempts.filter((a) => a.batteryId === b.id);
         sections.push({ heading: 'Restoration process', visibility: 'internal', columns: ['Attempt', 'Status', 'Batch', 'Decision', 'Lot references'],
-          rows: att.map((a) => [`#${a.attemptNo}`, a.status.replace('_', ' '), a.batchId, a.decisionReason ?? dash, a.lotRefs.map((l) => l.ref).join(', ') || dash]) });
+          rows: att.map((a) => [`#${a.attemptNo}`, a.status.replace('_', ' '), a.batchId,
+            [a.decisionReasonCode && RESTORATION_REASON_LABELS[a.decisionReasonCode], a.decisionReason].filter(Boolean).join('. ') || dash,
+            a.lotRefs.map((l) => l.ref).join(', ') || dash]) });
       }
       if (showCosts) {
         const c = d.costs.filter((x) => x.batteryId === b.id);
@@ -83,6 +86,12 @@ export function createReportRepository(ctx: Ctx): ReportRepository {
         ['Rejected', String(att.filter((a) => a.status === 'rejected').length)],
         ['Qualified / batteries in batch', members.length ? `${Math.round((qualified / members.length) * 1000) / 10}%` : dash],
       ], note: 'Yield is shown against the intake population. The denominator is stated; it is not a quality score.' });
+      const reasons = notQualifiedReasons(att);
+      if (reasons.length) {
+        sections.push({ heading: 'Rework and rejection reasons', visibility: 'customer', columns: ['Reason code', 'Decisions'],
+          rows: reasons.map((x) => [x.label, String(x.count)]),
+          note: 'Each rework or rejection decision counts once, including earlier attempts of batteries that later qualified.' });
+      }
       sections.push({ heading: 'Batteries', visibility: 'customer', columns: ['Label', 'Serial', 'State', 'Last approved capacity (Ah)'],
         rows: members.map((b) => [b.label, b.manufacturerSerial ?? 'Unknown', LIFECYCLE_LABELS[b.lifecycleState], String(lastApprovedTest(d, b.id)?.result.capacityAh ?? 'Not tested')]) });
       if (showCosts) {

@@ -60,7 +60,7 @@ request → authenticate (dev JWT or OIDC) → one transaction:
 ```
 
 - **One set of business rules.** Authorisation, site scope, separation of duties, lifecycle transitions, unknown-is-not-zero, customer redaction and idempotent import live in `src/services` and run unchanged on the server. The browser cannot bypass them: in HTTP mode the browser only renders what the API returns.
-- **Database rules underneath** (`src/db/schema.ts`, `drizzle/`): one open assignment per slot and per battery, one restoration attempt in progress per battery, battery- vs string-level tests exclusive, an approved test's reviewer differs from its operator and submitter, money is NULL or non-negative, a validated model needs an evaluation report, and lifecycle events and the audit log are append-only (triggers).
+- **Database rules underneath** (`src/db/schema.ts`, `drizzle/`): one open assignment per slot and per battery, one restoration attempt in progress per battery, battery- vs string-level tests exclusive, an approved test's reviewer differs from its operator and submitter, a rejected or reworked test or attempt has a reason code, money is NULL or non-negative, a validated model needs an evaluation report, and lifecycle events and the audit log are append-only (triggers).
 - **Writers are serialised** with a transaction-scoped advisory lock, so two people racing for one slot get one success and one 409. Readers use a consistent snapshot and never wait.
 - **Refused requests are audited.** A denied or invalid action still commits its audit entry; nothing else from a failed request is written.
 - **Record cache.** Each request needs the V1 tables. They are cached in process and reused while the `data_version` counter (bumped by every write, in the same transaction) is unchanged, so several API instances behind a load balancer stay consistent.
@@ -73,6 +73,22 @@ All routes are under `/api/v1`; the full list is in `src/app.ts` and `docs/API_A
 
 Not served yet, on purpose: monitoring/telemetry, alerts and tasks (V2, needs the sensor and cloud contract) and the assistant (V3). Those routes answer `404 FEATURE_DISABLED` and the UI hides those areas in HTTP mode.
 
+## ML data access
+
+The ML service never reads the operational tables. Migrations create two read-only views for it (`drizzle/0005_ml_views.sql`):
+
+- `ml_restoration_attempt_features`: one row per restoration attempt. Features come only from records that existed when the attempt started; labels are the decision, its reason code and the approved after-test.
+- `ml_model_review_flags`: model versions to review because a battery they were trained on was corrected, or because new attempts have a family, protocol revision or instrument the model never saw.
+
+Give the service its database role once per environment, as an administrator:
+
+```bash
+psql "$ADMIN_DATABASE_URL" -f server/sql/ml_service_role.sql
+psql "$ADMIN_DATABASE_URL" -c "CREATE ROLE synovra_ml_service LOGIN PASSWORD '…' IN ROLE synovra_ml"
+```
+
+The role reads only those views and can only insert model versions, their training records (`model_training_records`) and predictions. See `docs/ML_PLAN.md`.
+
 ## Tests
 
 ```bash
@@ -80,7 +96,7 @@ npm run test:server                       # embedded PostgreSQL, about 40 s
 TEST_DATABASE_URL=postgres://synovra:synovra-local-only@localhost:5432/synovra npm run test:server   # real PostgreSQL (docker compose up db)
 ```
 
-`api.test.ts` mirrors the behavioural spec in `tests/unit/services.test.ts` over HTTP and adds persistence, authentication, audit of refused requests, concurrent writers, cache invalidation and the database rules. `pilot.test.ts` covers pilot mode and bootstrap. `adapter.test.ts` runs the browser adapter against the routes.
+`api.test.ts` mirrors the behavioural spec in `tests/unit/services.test.ts` over HTTP and adds persistence, authentication, audit of refused requests, concurrent writers, cache invalidation and the database rules. `pilot.test.ts` covers pilot mode and bootstrap. `ml.test.ts` covers the ML views (no future data in features), the review flags and the ML role's limits. `adapter.test.ts` runs the browser adapter against the routes.
 
 ## Operations
 

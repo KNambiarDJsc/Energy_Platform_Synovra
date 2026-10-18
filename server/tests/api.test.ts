@@ -170,14 +170,20 @@ describe('test review', () => {
     expect((await (await server.as(USERS.eng2)).post(`/tests/${t.id}/approve`, { reason: 'Independent review' })).status).toBe(200);
   });
 
-  it('requires a reason to reject', async () => {
+  it('requires a reason and a reason code to reject or send back', async () => {
     const lab = await server.as(USERS.lab);
     const b = await batteryWhere(eq(s.batteries.lifecycleState, 'received'));
     const t = (await lab.post('/tests', goodTest(b.id))).body;
     await lab.post(`/tests/${t.id}/submit`);
     const eng = await server.as(USERS.eng);
-    expect((await eng.post(`/tests/${t.id}/reject`, { reason: 'no' })).status).toBe(422);
-    expect((await eng.post(`/tests/${t.id}/rework`, { reason: 'Cut-off voltage looks wrong' })).body.status).toBe('requires_rework');
+    expect((await eng.post(`/tests/${t.id}/reject`, { reason: 'no', reasonCode: 'data_entry_error' })).status).toBe(422);
+    const noCode = await eng.post(`/tests/${t.id}/rework`, { reason: 'Cut-off voltage looks wrong' });
+    expect(noCode.status).toBe(422);
+    expect(noCode.body.error.message).toBe('Choose a reason code');
+    const sent = await eng.post(`/tests/${t.id}/rework`, { reason: 'Cut-off voltage looks wrong', reasonCode: 'conditions_out_of_protocol' });
+    expect(sent.body).toMatchObject({ status: 'requires_rework', reviewReasonCode: 'conditions_out_of_protocol' });
+    const [row] = await db().select().from(s.tests).where(eq(s.tests.id, t.id));
+    expect(row.reviewReasonCode).toBe('conditions_out_of_protocol');
   });
 });
 
@@ -213,7 +219,9 @@ describe('restoration', () => {
     const eng = await server.as(USERS.eng);
     await eng.post(`/tests/${after.id}/approve`, { reason: 'Record matches bench log' });
     expect((await eng.post(`/restoration/attempts/${attempt.id}/decide`, { decision: 'approve', reason: 'Try anyway' })).status).toBe(409);
-    expect((await eng.post(`/restoration/attempts/${attempt.id}/decide`, { decision: 'rework', reason: 'Below threshold; repeat' })).body.status).toBe('rework');
+    expect((await eng.post(`/restoration/attempts/${attempt.id}/decide`, { decision: 'rework', reason: 'Below threshold; repeat' })).status).toBe(422);
+    const rework = await eng.post(`/restoration/attempts/${attempt.id}/decide`, { decision: 'rework', reason: 'Below threshold; repeat', reasonCode: 'below_capacity_threshold' });
+    expect(rework.body).toMatchObject({ status: 'rework', decisionReasonCode: 'below_capacity_threshold' });
     expect((await lab.post('/restoration/attempts', { batteryId: b.id, batchId: 'RB-2026-09' })).body.attemptNo).toBe(2);
   });
 
@@ -378,6 +386,13 @@ describe('database integrity rules (second line of defence)', () => {
     await expect(db().update(s.tests).set({ reviewerId: t.operatorId }).where(eq(s.tests.id, t.id))).rejects.toMatchObject({ code: '23514' });
     const [c] = await db().select().from(s.costEntries).limit(1);
     await expect(db().update(s.costEntries).set({ amountAed: '-1' }).where(eq(s.costEntries.id, c.id))).rejects.toMatchObject({ code: '23514' });
+  });
+
+  it('rejects a rework or rejection without a reason code', async () => {
+    const [a] = await db().select().from(s.restorationAttempts).where(eq(s.restorationAttempts.status, 'approved')).limit(1);
+    await expect(db().update(s.restorationAttempts).set({ status: 'rework' }).where(eq(s.restorationAttempts.id, a.id))).rejects.toMatchObject({ code: '23514' });
+    const [t] = await db().select().from(s.tests).where(eq(s.tests.status, 'approved')).limit(1);
+    await expect(db().update(s.tests).set({ status: 'rejected' }).where(eq(s.tests.id, t.id))).rejects.toMatchObject({ code: '23514' });
   });
 });
 

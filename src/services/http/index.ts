@@ -12,7 +12,7 @@ import type { Actor } from '@/domain/types';
 import type {
   AlertRepository, AssistantService, BatteryRepository, DeploymentRepository, ImportService, PredictionRepository,
   ReportRepository, RestorationRepository, Services, TelemetryRepository, TelemetrySummary, TestRepository,
-  AdminRepository, OverviewRepository,
+  AdminRepository, InsightsRepository, OverviewRepository,
 } from '../types';
 import { api, download, qs } from './client';
 import { currentActor } from './session';
@@ -56,8 +56,8 @@ function tests(): TestRepository {
     submit: (id) => api.post(`/tests/${enc(id)}/submit`),
     startReview: (id) => api.post(`/tests/${enc(id)}/start-review`),
     approve: (id, reason) => api.post(`/tests/${enc(id)}/approve`, { reason }),
-    reject: (id, reason) => api.post(`/tests/${enc(id)}/reject`, { reason }),
-    requestRework: (id, reason) => api.post(`/tests/${enc(id)}/rework`, { reason }),
+    reject: (id, reason, reasonCode) => api.post(`/tests/${enc(id)}/reject`, { reason, reasonCode }),
+    requestRework: (id, reason, reasonCode) => api.post(`/tests/${enc(id)}/rework`, { reason, reasonCode }),
     attachEvidence: (id, fileName, sizeKb, _stored, file) => (file ? api.upload(`/tests/${enc(id)}/evidence`, file, fileName) : api.post(`/tests/${enc(id)}/evidence`, { fileName, sizeKb })),
   };
 }
@@ -73,7 +73,7 @@ function restoration(): RestorationRepository {
     addNote: (id, text) => api.post(`/restoration/attempts/${enc(id)}/notes`, { text }),
     addEvidence: (id, fileName, sizeKb, _stored, file) => (file ? api.upload(`/restoration/attempts/${enc(id)}/evidence`, file, fileName) : api.post(`/restoration/attempts/${enc(id)}/evidence`, { fileName, sizeKb })),
     submitForReview: (id, afterTestId) => api.post(`/restoration/attempts/${enc(id)}/submit`, { afterTestId }),
-    decide: (id, decision, reason) => api.post(`/restoration/attempts/${enc(id)}/decide`, { decision, reason }),
+    decide: (id, decision, reason, reasonCode = null) => api.post(`/restoration/attempts/${enc(id)}/decide`, { decision, reason, reasonCode }),
   };
 }
 
@@ -170,9 +170,21 @@ function overview(): OverviewRepository {
   return { get: () => api.get('/overview') };
 }
 
+function insights(): InsightsRepository {
+  return {
+    collection: () => api.get('/insights/collection'),
+    dataSources: () => api.get('/insights/data-sources'),
+    learning: () => api.get('/insights/learning'),
+    recovery: () => api.get('/insights/recovery'),
+    runAgent: (kind, input = {}) => api.get(`/insights/agents/${enc(kind)}${qs({ batteryId: input.batteryId ?? undefined, periodDays: input.periodDays ?? undefined })}`),
+    routeInputs: (batteryId) => api.get(`/batteries/${enc(batteryId)}/route-inputs`),
+    ask: (question, context = {}) => api.post('/insights/ask', { question, batteryId: context.batteryId ?? null }),
+  };
+}
+
 export function createHttpServices(): Services {
   return {
-    batteries: batteries(), imports: imports(), tests: tests(), restoration: restoration(), deployments: deployments(),
+    insights: insights(), batteries: batteries(), imports: imports(), tests: tests(), restoration: restoration(), deployments: deployments(),
     telemetry: telemetry(), alerts: alerts(), predictions: predictions(), reports: reports(), assistant: assistant(),
     admin: admin(), overview: overview(),
     actor: (): Actor => {

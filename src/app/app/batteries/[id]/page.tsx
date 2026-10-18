@@ -1,19 +1,19 @@
 'use client';
-import { Pencil, QrCode, type LucideIcon } from 'lucide-react';
+import { Pencil, QrCode } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState, type ReactNode } from 'react';
+import { Suspense, useState } from 'react';
+import type { Lens } from '@/components/passport/BatteryFigure';
+import { DeepDive } from '@/components/passport/DeepDive';
 import {
-  AuditPanel, CostsPanel, DeploymentPanel, EvidencePanel, IdentityCard, RestorationPanel, StoryStrip, TelemetryPanel,
+  AuditPanel, CostsPanel, DeploymentPanel, EvidencePanel, IdentityCard, RestorationPanel, TelemetryPanel,
   TestsPanel, Timeline, WarrantyPanel, buildNarrative,
 } from '@/components/passport/PassportParts';
-import {
-  AlertStateBadge, Badge, SeverityBadge, WarrantyBadge, lifecycleMeta, qualityMeta, warrantyMeta, type Tone,
-} from '@/components/ui/Badge';
+import { AlertStateBadge, Badge, SeverityBadge, WarrantyBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Field, Input, Select } from '@/components/ui/Field';
-import { Breadcrumbs, KeyValue, Notice, Section } from '@/components/ui/Layout';
+import { KeyValue, Notice, Section } from '@/components/ui/Layout';
 import { Modal } from '@/components/ui/Overlay';
 import { ReasonDialog } from '@/components/ui/ReasonDialog';
 import { LoadingBlock, QueryView } from '@/components/ui/States';
@@ -25,6 +25,7 @@ import type { BatteryPassport } from '@/services/types';
 
 const TAB_VALUES = ['overview', 'timeline', 'tests', 'restoration', 'deployments', 'telemetry', 'costs', 'warranty', 'evidence', 'audit'] as const;
 type TabValue = (typeof TAB_VALUES)[number];
+const LENS_VALUES: Lens[] = ['overview', 'temperature', 'capacity', 'voltage', 'outlook'];
 
 function QrDialog({ p, open, onOpenChange }: { p: BatteryPassport; open: boolean; onOpenChange: (o: boolean) => void }) {
   const session = useSession();
@@ -117,94 +118,6 @@ function CorrectDialog({ p, open, onOpenChange }: { p: BatteryPassport; open: bo
   );
 }
 
-/* ------------------------------ the passport card ------------------------------ */
-
-/** Icon tints that read on navy. The word beside each icon carries the meaning; colour only repeats it. */
-const ON_NAVY: Record<Tone, string> = {
-  green: 'text-teal-bright',
-  teal: 'text-teal-bright',
-  amber: 'text-[#F5C76B]',
-  red: 'text-[#FF8A80]',
-  neutral: 'text-[#C9D6DE]',
-  navy: 'text-[#C9D6DE]',
-};
-
-function PassField({ label, value, icon: Icon, tone = 'neutral', className }: { label: string; value: ReactNode; icon?: LucideIcon; tone?: Tone; className?: string }) {
-  return (
-    <div className={className}>
-      <dt className="text-[13px] text-[#A9C1CF]">{label}</dt>
-      <dd className="mt-1 flex items-start gap-2 text-[17px] font-semibold leading-6 text-white">
-        {Icon && <Icon className={`mt-[3px] h-[18px] w-[18px] shrink-0 ${ON_NAVY[tone]}`} strokeWidth={2} aria-hidden />}
-        <span className="min-w-0">{value}</span>
-      </dd>
-    </div>
-  );
-}
-
-/**
- * The battery's passport as one object: its label set large, the facts a person checks first laid out like the
- * fields of a pass, and its journey along the bottom. Everything on it comes from the record below.
- */
-function PassportCard({ p, actions }: { p: BatteryPassport; actions: ReactNode }) {
-  const life = lifecycleMeta(p.battery.lifecycleState);
-  const quality = qualityMeta(p.quality.level);
-  const warranty = warrantyMeta(p.warranty?.state ?? null);
-  const test = p.lastApprovedTest;
-  const rated = p.family.ratedCapacityAh;
-  const pct = test?.result.capacityAh != null ? (test.result.capacityAh / rated) * 100 : null;
-  const here = p.assignments.find((a) => !a.endAt);
-  const evidenceTone: Tone = p.evidenceStatus.code === 'qualified' ? 'green' : p.evidenceStatus.code === 'not_qualified' ? 'red' : 'neutral';
-  return (
-    <section aria-labelledby="passport-h" className="overflow-hidden rounded-2xl bg-navy text-white">
-      <div className="p-6 md:p-8">
-        <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0">
-            <p className="text-[13px] font-medium text-[#A9C1CF]">Battery passport</p>
-            <h1 id="passport-h" className="mono mt-2 text-[44px] font-semibold leading-[48px] tracking-[-0.03em] text-white md:text-[56px] md:leading-[60px]">
-              {p.battery.label}
-            </h1>
-            <p className="mt-2 text-xl font-medium text-[#DCE6EC]">{p.family.model}</p>
-            <p className="mt-1 max-w-3xl text-sm text-[#A9C1CF]">
-              {p.family.manufacturer} {p.family.chemistry}, {p.family.ratedVoltageV} V, rated {p.family.ratedCapacityAh} Ah ({p.family.ratingConditions}).
-            </p>
-          </div>
-          <div className="no-print flex flex-wrap gap-2">{actions}</div>
-        </div>
-
-        <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-6 md:grid-cols-3">
-          <PassField label="Lifecycle" value={life.label} icon={life.icon} tone={life.tone} />
-          <PassField label="Evidence" value={p.evidenceStatus.label} tone={evidenceTone} />
-          <PassField
-            label="Last approved test"
-            value={
-              test ? (
-                <>
-                  {formatNumber(test.result.capacityAh, 0, 'Ah')}
-                  <span className="block text-[13px] font-normal text-[#C9D6DE]">
-                    {pct === null ? 'Rated capacity unknown' : `${formatNumber(pct, 0)}% of rated`} · {formatDate(test.startedAt)}
-                  </span>
-                </>
-              ) : (
-                'None approved'
-              )
-            }
-          />
-          <PassField
-            label="Where it is"
-            value={here ? `${here.siteName}, ${here.bankName} / ${here.stringName}, position ${here.position}` : p.battery.physicalLocation}
-            className="col-span-2 md:col-span-1"
-          />
-          <PassField label="Record" value={quality.label} icon={quality.icon} tone={quality.tone} />
-          <PassField label="Warranty" value={warranty.label} icon={warranty.icon} tone={warranty.tone} />
-        </dl>
-      </div>
-      <div className="bg-navy-800 px-6 py-6 md:px-8">
-        <StoryStrip passport={p} />
-      </div>
-    </section>
-  );
-}
-
 function OverviewTab({ p }: { p: BatteryPassport }) {
   const story = buildNarrative(p);
   const lastTest = p.lastApprovedTest;
@@ -267,7 +180,7 @@ function OverviewTab({ p }: { p: BatteryPassport }) {
               {openAlerts.map((a) => (
                 <li key={a.id} className="flex flex-wrap items-center gap-2">
                   <SeverityBadge severity={a.severity} /> <AlertStateBadge state={a.state} />
-                  <Link href={`/app/alerts?alert=${a.id}`} className="font-medium text-teal-700 hover:underline hover:underline-offset-4">{a.title}</Link>
+                  <Link href={`/app/alerts?alert=${a.id}`} className="font-medium text-copper-700 hover:underline hover:underline-offset-4">{a.title}</Link>
                 </li>
               ))}
               {openTasks.map((t) => (
@@ -290,7 +203,7 @@ function OverviewTab({ p }: { p: BatteryPassport }) {
               </li>
             ))}
           </ul>
-          <Link href="/app/intelligence" className="mt-4 inline-block text-sm font-medium text-teal-700 hover:underline hover:underline-offset-4">
+          <Link href="/app/intelligence" className="mt-4 inline-block text-sm font-medium text-copper-700 hover:underline hover:underline-offset-4">
             Open Intelligence for full provenance
           </Link>
         </Section>
@@ -313,11 +226,19 @@ function PassportInner() {
 
   const requested = search.get('tab') as TabValue | null;
   const tab: TabValue = requested && TAB_VALUES.includes(requested) ? requested : 'overview';
-  const setTab = (v: string) => {
+  const requestedLens = search.get('lens') as Lens | null;
+  const lens: Lens = requestedLens && LENS_VALUES.includes(requestedLens) ? requestedLens : 'overview';
+  // Tab and lens live in the address, so a view can be shared or bookmarked and Back retraces it.
+  const setParam = (key: 'tab' | 'lens', v: string) => {
     const sp = new URLSearchParams(search.toString());
-    if (v === 'overview') sp.delete('tab');
-    else sp.set('tab', v);
+    if (v === 'overview') sp.delete(key);
+    else sp.set(key, v);
     router.replace(`/app/batteries/${id}${sp.toString() ? `?${sp.toString()}` : ''}`, { scroll: false });
+  };
+  const setTab = (v: string) => setParam('tab', v);
+  const openSection = (v: string) => {
+    setTab(v);
+    requestAnimationFrame(() => document.getElementById('record')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
 
   return (
@@ -326,16 +247,18 @@ function PassportInner() {
         const missingAndConflicts = [...p.quality.conflicts, ...p.quality.missing.map((m) => `Missing: ${m}`)];
         return (
           <>
-            <Breadcrumbs items={[{ label: 'Batteries', href: '/app/batteries' }, { label: p.battery.label }]} />
-            <PassportCard
+            <DeepDive
               p={p}
+              lens={lens}
+              onLens={(l) => setParam('lens', l)}
+              onOpenSection={openSection}
               actions={
                 <>
-                  <Button variant="inverse" size="sm" icon={<QrCode className="h-4 w-4" aria-hidden />} onClick={() => setQr(true)}>
+                  <Button variant="secondary" size="sm" icon={<QrCode className="h-4 w-4" aria-hidden />} onClick={() => setQr(true)}>
                     Label and QR
                   </Button>
                   {session.can('battery.correct') && (
-                    <Button variant="inverse" size="sm" icon={<Pencil className="h-4 w-4" aria-hidden />} onClick={() => setCorrect(true)}>
+                    <Button variant="secondary" size="sm" icon={<Pencil className="h-4 w-4" aria-hidden />} onClick={() => setCorrect(true)}>
                       Correct a field
                     </Button>
                   )}
@@ -344,7 +267,7 @@ function PassportInner() {
             />
 
             {(p.redactions.length > 0 || p.quality.level === 'conflict' || missingAndConflicts.length > 0) && (
-              <div className="mt-5 space-y-3">
+              <div className="mt-10 space-y-3">
                 {p.redactions.length > 0 && (
                   <Notice tone="info" title={p.redacted ? 'Customer view' : 'Some information is hidden for your role'}>
                     Not shown: {p.redactions.join('; ')}.
@@ -368,13 +291,14 @@ function PassportInner() {
               </div>
             )}
 
-            <div className="mt-8">
+            <section id="record" aria-labelledby="record-h" className="mt-12 scroll-mt-24 border-t border-line pt-8">
+              <h2 id="record-h" className="mb-5 font-display text-[30px] leading-9 tracking-[-0.015em] text-ink">Full record</h2>
               <Tabs
                 label="Battery passport sections"
                 value={tab}
                 onValueChange={setTab}
                 tabs={[
-                  { value: 'overview', label: 'Overview', content: <OverviewTab p={p} /> },
+                  { value: 'overview', label: 'Story', content: <OverviewTab p={p} /> },
                   { value: 'timeline', label: 'Lifecycle timeline', badge: <TabCount n={p.events.length} />, content: <Timeline events={p.events} /> },
                   { value: 'tests', label: 'Tests', content: <TestsPanel p={p} /> },
                   { value: 'restoration', label: 'Restoration', content: <RestorationPanel p={p} /> },
@@ -386,7 +310,7 @@ function PassportInner() {
                   { value: 'audit', label: 'Audit history', content: <AuditPanel p={p} /> },
                 ]}
               />
-            </div>
+            </section>
 
             <QrDialog p={p} open={qr} onOpenChange={setQr} />
             <CorrectDialog p={p} open={correct} onOpenChange={setCorrect} />

@@ -14,6 +14,34 @@ import { errorMessage, useAction, useSession, useSvcQuery } from '@/lib/hooks';
 
 const REPORT_ROW = 'border-t border-line align-top'; // taste-skill-ignore: rows of a real data table
 
+/** The recovery business in six figures, each with its denominator, or a plain reason it is not calculated. */
+function RecoveryMetrics() {
+  const q = useSvcQuery(['insights', 'recovery'], (s) => s.insights.recovery());
+  return (
+    <section aria-labelledby="recovery-h" className="mb-8">
+      <h2 id="recovery-h" className="font-display text-[26px] leading-8 text-ink">Recovery at a glance</h2>
+      <p className="mt-1 text-sm text-muted">From verified records only. Where an input is missing, the figure says so instead of guessing. Synthetic data.</p>
+      <QueryView query={q} skeleton={<LoadingBlock rows={2} />}>
+        {(metrics) => (
+          <dl className="mt-5 grid gap-x-8 gap-y-6 border-y border-line py-6 sm:grid-cols-2 xl:grid-cols-3">
+            {metrics.map((m) => (
+              <div key={m.key} className="min-w-0">
+                <dt className="text-sm text-ink-2">{m.label}</dt>
+                <dd>
+                  <span className={m.status === 'calculated' ? 'block font-display text-[34px] leading-10 text-ink' : 'mt-1 block font-display text-[22px] leading-8 text-muted'}>
+                    {m.status === 'calculated' ? m.value : m.status === 'hidden' ? 'Not shown' : 'Not calculated'}
+                  </span>
+                  <span className="mt-1 block text-[13px] leading-5 text-muted">{m.basis}</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </QueryView>
+    </section>
+  );
+}
+
 function ReportView({ r }: { r: Report }) {
   const session = useSession();
   const approve = useAction<string, Report>((s, id) => s.reports.approve(id), { success: 'Report approved by you and recorded.' });
@@ -113,6 +141,7 @@ function ReportsInner() {
   return (
     <>
       <PageHeader title="Reports" description="Evidence-referenced documents generated from the records you can see. Drafts need engineering approval before they are shared." />
+      {session.can('report.internal') && <RecoveryMetrics />}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] print:block">
         <div className="no-print space-y-6">
           <Section title="Generate a report">
@@ -161,7 +190,7 @@ function ReportsInner() {
                         type="button"
                         onClick={() => router.replace(`/app/reports?report=${r.id}`, { scroll: false })}
                         aria-current={r.id === selected ? 'true' : undefined}
-                        className={`block w-full rounded-lg px-3 py-3 text-left transition-colors duration-150 ${r.id === selected ? 'bg-teal-50' : 'hover:bg-canvas'}`}
+                        className={`block w-full rounded-lg px-3 py-3 text-left transition-colors duration-150 ${r.id === selected ? 'bg-copper-50' : 'hover:bg-canvas'}`}
                       >
                         <span className="block text-sm font-semibold text-ink">{r.title}</span>
                         <span className="block text-xs text-muted">{formatDateTime(r.generatedAt)} · {r.approvalState === 'approved' ? 'Approved' : 'Draft'} · {r.audience}</span>

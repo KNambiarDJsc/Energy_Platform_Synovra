@@ -14,6 +14,7 @@ import { createAssistantService } from './mock/assistant';
 import { createBatteryRepository } from './mock/batteries';
 import { createDeploymentRepository } from './mock/deployments';
 import { createImportService } from './mock/imports';
+import { createInsightsRepository } from './mock/insights';
 import { createAdminRepository, createOverviewRepository, createPredictionRepository } from './mock/misc';
 import { createReportRepository } from './mock/reports';
 import { createRestorationRepository } from './mock/restoration';
@@ -32,6 +33,7 @@ export function actorFromUser(store: Store, userId: string | null): Actor {
 export function createServices(store: Store, getActor: () => Actor): Services {
   const ctx: Ctx = { store, actor: getActor };
   return {
+    insights: createInsightsRepository(ctx),
     batteries: createBatteryRepository(ctx),
     imports: createImportService(ctx),
     tests: createTestRepository(ctx),

@@ -121,7 +121,7 @@ function SlotCell({ s, onPick }: { s: SlotView; onPick: (s: SlotView) => void })
       onClick={() => onPick(s)}
       className={cn(
         'min-h-[64px] rounded-lg p-2.5 text-left text-xs transition-[background-color,transform] duration-150 ease-out active:scale-[0.97]',
-        occupied ? 'bg-navy text-white hover:bg-navy-800' : 'bg-fill text-ink-2 hover:bg-fill-2 hover:text-ink',
+        occupied ? 'bg-night text-white hover:bg-night-800' : 'bg-fill text-ink-2 hover:bg-fill-2 hover:text-ink',
       )}
       aria-label={occupied ? `Position ${s.slot.position}: ${s.battery!.label}. Open details.` : `Position ${s.slot.position}: empty. Select for allocation.`}
     >
@@ -246,7 +246,7 @@ export default function DeploymentsPage() {
           <div>
             <LifecycleBadge state={picked.battery.state} />
             <div className="mt-5 flex flex-wrap gap-2">
-              <Link href={`/app/batteries/${picked.battery.id}`} className="inline-flex min-h-[44px] items-center rounded-md bg-teal px-4 text-sm font-medium text-white hover:bg-teal-700">
+              <Link href={`/app/batteries/${picked.battery.id}`} className="inline-flex min-h-[44px] items-center rounded-md bg-copper px-4 text-sm font-medium text-white hover:bg-copper-600">
                 Open passport
               </Link>
               {session.can('deployment.write') && (

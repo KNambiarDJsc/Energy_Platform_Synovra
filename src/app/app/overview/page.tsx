@@ -18,22 +18,22 @@ function weekLabel(w: string): string {
 }
 
 /**
- * The fleet in five ordered stages. Order carries meaning, so the colour is one validated teal ramp,
+ * The fleet in five ordered stages. Order carries meaning, so the colour is one patina-teal ramp,
  * light to dark (dataviz ordinal check: monotone lightness, light end 2.05:1 on white).
  */
 const STAGES: { label: string; states: LifecycleState[]; color: string }[] = [
-  { label: 'Received', states: ['received'], color: '#6CC3C6' },
-  { label: 'In the lab', states: ['testing', 'restoration_candidate', 'in_restoration', 'awaiting_review', 'rework'], color: '#2FA3A8' },
-  { label: 'Ready to deploy', states: ['qualified', 'reserved'], color: '#007E83' },
-  { label: 'In service', states: ['deployed'], color: '#00585C' },
-  { label: 'Leaving the fleet', states: ['returned', 'rejected', 'recycling_queue', 'recycled'], color: '#0E3A3F' },
+  { label: 'Received', states: ['received'], color: '#86BAB1' },
+  { label: 'In the lab', states: ['testing', 'restoration_candidate', 'in_restoration', 'awaiting_review', 'rework'], color: '#4F8F87' },
+  { label: 'Ready to deploy', states: ['qualified', 'reserved'], color: '#2C6B66' },
+  { label: 'In service', states: ['deployed'], color: '#1F4F4B' },
+  { label: 'Leaving the fleet', states: ['returned', 'rejected', 'recycling_queue', 'recycled'], color: '#14322F' },
 ];
 
 /** Received, qualified and deployed are themselves ordered stages: three steps of the same ramp. */
 const WEEK_BARS = [
-  { key: 'received', name: 'Received', color: '#6CC3C6' },
-  { key: 'qualified', name: 'Qualified', color: '#007E83' },
-  { key: 'deployed', name: 'Deployed', color: '#0E3A3F' },
+  { key: 'received', name: 'Received', color: '#86BAB1' },
+  { key: 'qualified', name: 'Qualified', color: '#2C6B66' },
+  { key: 'deployed', name: 'Deployed', color: '#14322F' },
 ];
 
 function FleetBar({ stages, total }: { stages: { label: string; count: number; color: string }[]; total: number }) {
@@ -63,13 +63,13 @@ function Ring({ pct }: { pct: number }) {
   const c = 2 * Math.PI * r;
   return (
     <svg viewBox="0 0 132 132" className="h-[132px] w-[132px] shrink-0 -rotate-90" aria-hidden>
-      <circle cx="66" cy="66" r={r} fill="none" stroke="#CCE8E9" strokeWidth="14" />
+      <circle cx="66" cy="66" r={r} fill="none" stroke="#C9DED9" strokeWidth="14" />
       <circle
         cx="66"
         cy="66"
         r={r}
         fill="none"
-        stroke="#007E83"
+        stroke="#2C6B66"
         strokeWidth="14"
         strokeLinecap="round"
         strokeDasharray={c}
@@ -126,7 +126,7 @@ export default function OverviewPage() {
                       <h2 id="fleet-h" className="text-sm font-medium text-muted">Batteries on record</h2>
                       <p className="mt-2 text-[56px] font-semibold leading-none tracking-[-0.03em] text-ink">{d.totals.batteries}</p>
                     </div>
-                    <Link href="/app/batteries" className="group inline-flex items-center gap-1 rounded-md text-sm font-medium text-teal-700 hover:underline hover:underline-offset-4">
+                    <Link href="/app/batteries" className="group inline-flex items-center gap-1 rounded-md text-sm font-medium text-copper-700 hover:underline hover:underline-offset-4">
                       All batteries
                       <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
                     </Link>
@@ -198,7 +198,7 @@ export default function OverviewPage() {
                     ).map(([level, label, n]) => (
                       <li key={level}>
                         <Link href={`/app/batteries?quality=${level}`} className="group -mx-2 flex items-center justify-between rounded-md px-2 py-2 transition-colors hover:bg-canvas">
-                          <span className="font-medium text-teal-700">{label}</span>
+                          <span className="font-medium text-copper-700">{label}</span>
                           <span className="flex items-center gap-1.5">
                             <span className="num font-semibold text-ink">{n}</span>
                             <ChevronRight className="h-4 w-4 text-muted" aria-hidden />
@@ -243,7 +243,7 @@ export default function OverviewPage() {
 
                   <Section
                     title="Service tasks"
-                    actions={<Link href="/app/alerts?tab=tasks" className="text-sm font-medium text-teal-700 hover:underline hover:underline-offset-4">View tasks</Link>}
+                    actions={<Link href="/app/alerts?tab=tasks" className="text-sm font-medium text-copper-700 hover:underline hover:underline-offset-4">View tasks</Link>}
                   >
                     {d.workload.length === 0 ? (
                       <p className="text-sm text-muted">No service tasks.</p>
@@ -286,7 +286,7 @@ export default function OverviewPage() {
                     {d.recent.map((e) => (
                       <li key={e.id}>
                         <Link href={`/app/batteries/${e.batteryId}`} className="group block rounded-lg px-3 py-3 transition-colors duration-150 hover:bg-canvas">
-                          <span className="block text-sm font-medium text-teal-700 group-hover:underline group-hover:underline-offset-4">{e.title}</span>
+                          <span className="block text-sm font-medium text-copper-700 group-hover:underline group-hover:underline-offset-4">{e.title}</span>
                           <span className="mt-0.5 block text-xs text-muted">
                             {formatDateTime(e.occurredAt)} · {e.actorName}
                           </span>

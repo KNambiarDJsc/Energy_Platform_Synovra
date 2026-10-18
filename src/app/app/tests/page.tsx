@@ -14,7 +14,8 @@ import { ReasonDialog } from '@/components/ui/ReasonDialog';
 import { EmptyState, LoadingBlock, QueryView } from '@/components/ui/States';
 import { EvidenceDownload, EvidenceFileInput, StorageBadge, fileSizeKb } from '@/components/app/Evidence';
 import { DEMO_CRITERION_TEXT } from '@/data/seed';
-import type { TestKind, TestStatus } from '@/domain/types';
+import { TEST_REVIEW_REASON_LABELS, codeOptions } from '@/domain/outcomes';
+import type { TestKind, TestReviewReasonCode, TestStatus } from '@/domain/types';
 import { cn, formatDateTime, formatNumber, titleCase } from '@/lib/format';
 import { errorMessage, useAction, useSession, useSvcQuery } from '@/lib/hooks';
 import type { TestView } from '@/services/types';
@@ -199,6 +200,7 @@ function RecordTestModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
 /* ------------------------------ detail drawer ------------------------------ */
 
 type Decision = 'approve' | 'reject' | 'rework';
+const TEST_REVIEW_CODES = codeOptions(TEST_REVIEW_REASON_LABELS);
 
 function TestDrawer({ id, onClose }: { id: string | null; onClose: () => void }) {
   const session = useSession();
@@ -210,11 +212,11 @@ function TestDrawer({ id, onClose }: { id: string | null; onClose: () => void })
     success: (_r, f) => `${f.name} attached.`, onSuccess: () => setFile(null),
   });
   const start = useAction<string, unknown>((s, tid) => s.tests.startReview(tid), { success: 'Review started. You are now the reviewer of record.' });
-  const decide = useAction<{ reason: string }, unknown>(
+  const decide = useAction<{ reason: string; code: TestReviewReasonCode | null }, unknown>(
     (s, a) => {
       if (decision === 'approve') return s.tests.approve(id!, a.reason);
-      if (decision === 'reject') return s.tests.reject(id!, a.reason);
-      return s.tests.requestRework(id!, a.reason);
+      if (decision === 'reject') return s.tests.reject(id!, a.reason, a.code!);
+      return s.tests.requestRework(id!, a.reason, a.code!);
     },
     {
       toastError: false,
@@ -300,12 +302,13 @@ function TestDrawer({ id, onClose }: { id: string | null; onClose: () => void })
                 <p className="text-muted">
                   {t.reviewerName} · {formatDateTime(t.reviewedAt)}
                 </p>
+                {t.reviewReasonCode && <p className="mt-1 font-medium text-ink">{TEST_REVIEW_REASON_LABELS[t.reviewReasonCode]}</p>}
                 {t.reviewReason && <p className="mt-1 text-ink">{t.reviewReason}</p>}
               </div>
             )}
 
             {t.batteryId && (
-              <Link href={`/app/batteries/${t.batteryId}`} className="inline-block text-sm font-semibold text-teal-800 underline underline-offset-2">
+              <Link href={`/app/batteries/${t.batteryId}`} className="inline-block text-sm font-semibold text-copper-700 underline underline-offset-2">
                 Open battery passport
               </Link>
             )}
@@ -343,9 +346,10 @@ function TestDrawer({ id, onClose }: { id: string | null; onClose: () => void })
         }
         confirmLabel={decision === 'approve' ? 'Approve' : decision === 'reject' ? 'Reject' : 'Request rework'}
         variant={decision === 'reject' ? 'danger' : 'primary'}
+        codes={decision === 'approve' ? undefined : TEST_REVIEW_CODES}
         loading={decide.isPending}
         error={decide.error ? errorMessage(decide.error) : null}
-        onConfirm={(reason) => decide.mutate({ reason })}
+        onConfirm={(reason, code) => decide.mutate({ reason, code: code as TestReviewReasonCode | null })}
       />
     </>
   );

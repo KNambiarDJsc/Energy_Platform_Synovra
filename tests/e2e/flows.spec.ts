@@ -56,6 +56,43 @@ test.describe('review and permissions', () => {
     await expect(page.getByText('Test approved.')).toBeVisible();
   });
 
+  test('an engineer sends a test back only with a reason code, and the record shows it', async ({ page }) => {
+    await signInAs(page, USERS.engineer);
+    await openApp(page, '/app/tests?status=submitted');
+    await page.getByRole('button', { name: 'Open' }).first().click();
+    await page.getByRole('button', { name: 'Start review' }).click();
+    await expect(page.getByText('Review started')).toBeVisible();
+    await page.getByRole('button', { name: 'Request rework' }).first().click();
+
+    const dialog = page.getByRole('dialog').last();
+    await dialog.getByRole('textbox', { name: 'Reason' }).fill('Cut-off voltage does not match the protocol.');
+    await dialog.getByRole('button', { name: 'Request rework' }).click();
+    await expect(dialog.getByText('Choose a reason code.')).toBeVisible();
+    await dialog.getByRole('combobox', { name: 'Reason code' }).selectOption({ label: 'Conditions outside the protocol' });
+    await dialog.getByRole('button', { name: 'Request rework' }).click();
+    await expect(page.getByText('Rework requested.')).toBeVisible();
+    await expect(page.getByText('Conditions outside the protocol', { exact: true })).toBeVisible();
+  });
+
+  test('an engineer sends a restoration attempt to rework with a reason code, and the batch counts it', async ({ page }) => {
+    await signInAs(page, USERS.engineer);
+    await openApp(page, '/app/restoration');
+    await page.getByRole('button', { name: /RB-2026-09/ }).click();
+    await page.getByRole('button', { name: 'Request rework' }).first().click();
+
+    const dialog = page.getByRole('dialog').last();
+    await dialog.getByRole('textbox', { name: 'Reason' }).fill('Terminal post cracked in handling; replace and re-test.');
+    await dialog.getByRole('button', { name: 'Request rework' }).click();
+    await expect(dialog.getByText('Choose a reason code.')).toBeVisible();
+    await dialog.getByRole('combobox', { name: 'Reason code' }).selectOption({ label: 'Physical damage found' });
+    await dialog.getByRole('button', { name: 'Request rework' }).click();
+    await expect(page.getByText('Decision recorded.')).toBeVisible();
+
+    const row = page.locator('li', { has: page.getByText('Physical damage found', { exact: true }) });
+    await expect(row).toContainText('1');
+    await expect(page.getByText(/Physical damage found\. Terminal post cracked/)).toBeVisible();
+  });
+
   test('a lab operator cannot review tests', async ({ page }) => {
     await signInAs(page, USERS.lab);
     await openApp(page, '/app/tests?status=submitted');
@@ -179,9 +216,92 @@ test.describe('states', () => {
     await expect(page.locator('#main').getByRole('alert')).toContainText('Record not found');
   });
 
-  test('every intelligence output carries the demonstration label and provenance', async ({ page }) => {
+  test('the battery deep dive switches lens from the drawing and says where each value came from', async ({ page }) => {
+    await signInAs(page, USERS.engineer);
+    await openApp(page, '/app/scan?label=B-0017');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('B-0017');
+    const panel = page.getByRole('complementary', { name: 'Lens details' });
+
+    await page.getByRole('button', { name: 'Case: temperature' }).click();
+    await expect(page).toHaveURL(/lens=temperature/);
+    await expect(panel.getByRole('heading', { name: 'Temperature' })).toBeVisible();
+    await expect(panel.getByText('Ambient')).toBeVisible();
+    await expect(panel.getByText('Not measured').first()).toBeVisible();
+    await expect(panel.getByText(/^Simulated · /)).toBeVisible();
+
+    await page.getByRole('tablist', { name: 'Battery lens' }).getByRole('tab', { name: 'Temperature' }).press('ArrowRight');
+    await expect(panel.getByRole('heading', { name: 'Capacity' })).toBeVisible();
+    await expect(panel.getByText(/no plate-health score/)).toBeVisible();
+
+    await page.getByRole('button', { name: /State of charge/ }).click();
+    await expect(page).toHaveURL(/lens=voltage/);
+    await expect(panel.getByText(/not measured/).first()).toBeVisible();
+
+    await page.getByRole('button', { name: 'Ask the assistant' }).click();
+    await expect(page.getByRole('dialog').getByText(/is flagged for these recorded reasons/)).toBeVisible();
+  });
+
+  test('intelligence opens on the data collection pipeline, with the missing sale price called out', async ({ page }) => {
     await signInAs(page, USERS.engineer);
     await openApp(page, '/app/intelligence');
+    await expect(page.getByRole('heading', { name: 'The chain each battery needs' })).toBeVisible();
+    await expect(page.getByText('Sale price or recovered value recorded')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Retest after treatment' })).toBeVisible();
+  });
+
+  test('intelligence shows its sources, the learning loop, a simulator and read-only agents', async ({ page }) => {
+    await signInAs(page, USERS.engineer);
+    await openApp(page, '/app/intelligence?view=sources');
+    const machines = page.locator('li').filter({ has: page.getByRole('heading', { name: 'Chargers and test machines' }) });
+    await expect(machines.getByText('Not connected', { exact: true })).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Learning loop' }).click();
+    await expect(page).toHaveURL(/view=learning/);
+    await expect(page.getByText('Eligible training rows')).toBeVisible();
+    await expect(page.getByText(/Training set fingerprint/)).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Connections' }).click();
+    await page.getByRole('button', { name: 'Start simulator' }).click();
+    await expect(page.getByText('Attached').first()).toBeVisible();
+    await page.getByRole('button', { name: 'Send a bad reading' }).click();
+    await expect(page.getByText('Quarantined').first()).toBeVisible({ timeout: 8000 });
+    await page.getByRole('button', { name: 'Pause simulator' }).click();
+
+    await page.getByRole('tab', { name: 'Agents' }).click();
+    await page.getByRole('button', { name: 'Compare outcomes' }).click();
+    await expect(page.getByText(/sale price per battery/)).toBeVisible();
+  });
+
+  test('the analyst routes a question, shows its tools, and says when the records cannot answer', async ({ page }) => {
+    await signInAs(page, USERS.engineer);
+    await openApp(page, '/app/intelligence?view=agents');
+    await page.getByRole('button', { name: 'Which battery types had the best revival yield last month?' }).click();
+    await expect(page.getByText('Routed because it asks how outcomes compare across groups.')).toBeVisible();
+    await expect(page.getByText('compare_process_cohorts', { exact: true })).toBeVisible();
+
+    await page.getByRole('textbox', { name: 'Your question' }).fill('Show batteries where treatment cost exceeded the value recovered.');
+    await page.getByRole('button', { name: 'Ask', exact: true }).click();
+    await expect(page.getByText('The records cannot answer this yet')).toBeVisible();
+    await expect(page.getByText(/no battery has a recorded sale price/)).toBeVisible();
+  });
+
+  test('the route calculator needs a sale price before it suggests revive, test or recycle', async ({ page }) => {
+    await signInAs(page, USERS.finance);
+    await openApp(page, '/app/scan?label=B-0034');
+    await page.getByRole('tablist', { name: 'Battery lens' }).getByRole('tab', { name: 'Outlook' }).click();
+    await page.getByRole('button', { name: 'Open route calculator' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByText('Not enough to suggest a route')).toBeVisible();
+    await dialog.getByRole('textbox', { name: 'Sale price if saleable (AED)' }).fill('420');
+    await dialog.getByRole('textbox', { name: 'Recycling value (AED)' }).fill('60');
+    await dialog.getByRole('textbox', { name: 'Logistics if recycled (AED)' }).fill('15');
+    await expect(dialog.getByText(/Suggested route/)).toBeVisible();
+    await expect(dialog.getByText('Break-even chance')).toBeVisible();
+  });
+
+  test('every intelligence output carries the demonstration label and provenance', async ({ page }) => {
+    await signInAs(page, USERS.engineer);
+    await openApp(page, '/app/intelligence?view=outputs');
     await expect(page.getByText('Demonstration output — not validated for production decisions.')).toBeVisible();
     await expect(page.getByText('Shadow mode').first()).toBeVisible();
     await expect(page.getByText(/Human review:/).first()).toBeVisible();

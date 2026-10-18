@@ -10,8 +10,8 @@ export function PageHeader({
   return (
     <header className="mb-7 flex flex-col gap-4 md:mb-8 md:flex-row md:items-end md:justify-between">
       <div className="min-w-0">
-        <h1 className="text-[28px] font-semibold leading-[34px] tracking-[-0.022em] text-ink md:text-[34px] md:leading-[40px]">{title}</h1>
-        {eyebrow && <div className="mt-1 text-sm font-medium text-teal-700">{eyebrow}</div>}
+        <h1 className="font-display text-[34px] font-normal leading-[40px] tracking-[-0.015em] text-ink md:text-[44px] md:leading-[50px]">{title}</h1>
+        {eyebrow && <div className="mt-1 text-sm font-medium text-copper-700">{eyebrow}</div>}
         {description && <p className="mt-2 max-w-3xl text-base text-muted md:text-[17px] md:leading-[26px]">{description}</p>}
       </div>
       {actions && <div className="no-print flex flex-wrap items-center gap-2">{actions}</div>}
@@ -37,7 +37,7 @@ export function Section({
         <div className="flex flex-col gap-2 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between md:px-6 md:pt-6">
           <div className="min-w-0">
             {title && (
-              <h2 id={id ? `${id}-h` : undefined} className="text-lg font-semibold text-ink">
+              <h2 id={id ? `${id}-h` : undefined} className="font-display text-[22px] font-normal leading-[28px] tracking-[-0.01em] text-ink">
                 {title}
               </h2>
             )}
@@ -125,7 +125,7 @@ export function Breadcrumbs({ items }: { items: { label: string; href?: string }
         {items.map((it, i) => (
           <li key={it.label} className="flex items-center gap-1">
             {it.href ? (
-              <Link href={it.href} className="rounded-md text-teal-700 hover:underline hover:underline-offset-4">
+              <Link href={it.href} className="rounded-md text-copper-700 hover:underline hover:underline-offset-4">
                 {it.label}
               </Link>
             ) : (

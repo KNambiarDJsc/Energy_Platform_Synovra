@@ -1,12 +1,19 @@
 'use client';
 import { FlaskConical } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { AgentsView } from '@/components/intelligence/AgentsView';
+import { CollectionView } from '@/components/intelligence/CollectionView';
+import { ConnectionsView } from '@/components/intelligence/ConnectionsView';
+import { DataSourcesView } from '@/components/intelligence/DataSourcesView';
+import { LearningLoopView } from '@/components/intelligence/LearningLoopView';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ToolbarSelect } from '@/components/ui/Field';
 import { Notice, PageHeader } from '@/components/ui/Layout';
 import { EmptyState, LoadingBlock, QueryView } from '@/components/ui/States';
+import { Tabs } from '@/components/ui/Tabs';
 import type { PredictionKind } from '@/domain/types';
 import { formatDateTime, titleCase } from '@/lib/format';
 import { useAction, useSession, useSvcQuery } from '@/lib/hooks';
@@ -30,7 +37,7 @@ function PredictionCard({ p }: { p: PredictionView }) {
         {!p.applicability.inScope && <Badge tone="red">Outside model scope</Badge>}
         <span className="text-sm text-muted">
           {p.batteryId ? (
-            <Link href={`/app/batteries/${p.batteryId}`} className="mono text-teal-800 underline underline-offset-2">{p.batteryLabel}</Link>
+            <Link href={`/app/batteries/${p.batteryId}`} className="mono text-copper-700 underline underline-offset-2">{p.batteryLabel}</Link>
           ) : (
             p.siteName ?? 'Fleet'
           )}
@@ -51,7 +58,7 @@ function PredictionCard({ p }: { p: PredictionView }) {
       </p>
 
       <details className="mt-3 rounded-lg bg-canvas">
-        <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-teal-800">How this output was produced</summary>
+        <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-copper-700">How this output was produced</summary>
       <dl className="grid gap-x-8 gap-y-3 px-3 pb-3 pt-1 text-sm sm:grid-cols-2">
         <div><dt className="text-[13px] font-medium text-muted">Model</dt><dd>{p.modelName} <span className="mono">{p.modelVersion}</span></dd></div>
         <div><dt className="text-[13px] font-medium text-muted">Applicability</dt><dd>{p.applicability.note}</dd></div>
@@ -88,12 +95,11 @@ function PredictionCard({ p }: { p: PredictionView }) {
   );
 }
 
-export default function IntelligencePage() {
+function ModelOutputs() {
   const [kind, setKind] = useState<PredictionKind | ''>('');
   const q = useSvcQuery(['predictions', kind], (s) => s.predictions.list(kind ? { kind } : {}));
   return (
     <>
-      <PageHeader title="Intelligence" description="Model outputs shown with their provenance so a person can judge them. None of these can approve, qualify or reject a battery." />
       <Notice tone="synthetic" title="Demonstration output — not validated for production decisions." className="mb-6">
         No trained model is connected. These outputs are placeholders produced by fixed rules over synthetic records, to demonstrate how model results would be labelled, compared with a simple rule and reviewed by a person. Accuracy has not been measured.
       </Notice>
@@ -111,5 +117,45 @@ export default function IntelligencePage() {
         )}
       </QueryView>
     </>
+  );
+}
+
+const VIEWS = ['collection', 'sources', 'learning', 'outputs', 'agents', 'connections'] as const;
+type View = (typeof VIEWS)[number];
+
+function IntelligenceInner() {
+  const search = useSearchParams();
+  const router = useRouter();
+  const requested = search.get('view') as View | null;
+  const view: View = requested && VIEWS.includes(requested) ? requested : 'collection';
+  const setView = (v: string) => router.replace(v === 'collection' ? '/app/intelligence' : `/app/intelligence?view=${v}`, { scroll: false });
+  return (
+    <>
+      <PageHeader
+        title="Intelligence"
+        description="Collecting complete, traceable records comes first. Then where the data comes from, how verified outcomes become training rows, and how model outputs are reviewed. Nothing here can approve, qualify or reject a battery."
+      />
+      <Tabs
+        label="Intelligence sections"
+        value={view}
+        onValueChange={setView}
+        tabs={[
+          { value: 'collection', label: 'Data collection', content: <CollectionView /> },
+          { value: 'sources', label: 'Data sources', content: <DataSourcesView /> },
+          { value: 'learning', label: 'Learning loop', content: <LearningLoopView /> },
+          { value: 'outputs', label: 'Model outputs', content: <ModelOutputs /> },
+          { value: 'agents', label: 'Agents', content: <AgentsView /> },
+          { value: 'connections', label: 'Connections', content: <ConnectionsView /> },
+        ]}
+      />
+    </>
+  );
+}
+
+export default function IntelligencePage() {
+  return (
+    <Suspense fallback={<LoadingBlock />}>
+      <IntelligenceInner />
+    </Suspense>
   );
 }
