@@ -126,7 +126,8 @@ function SignInInner() {
                 data-testid={`role-${role}`}
                 onClick={() => {
                   setSessionUserId(DEMO_USER_FOR_ROLE[role]);
-                  router.push(next);
+                  // A customer's first screen is the calm home, unless a link asked for somewhere specific.
+                  router.push(role === 'customer_auditor' && next === '/app/overview' ? '/app/home' : next);
                 }}
                 className="group flex w-full items-center gap-4 bg-white px-4 py-4 text-left transition-colors duration-150 ease-out hover:bg-[#FBF9F5] active:bg-[#F3EEE6] md:px-5"
               >

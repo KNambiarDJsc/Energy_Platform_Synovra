@@ -54,6 +54,8 @@ export interface Config {
   metricsToken: string | null;
   /** Webhook (Slack-compatible JSON `{ text }`) notified about server errors, rate-limited. */
   errorWebhookUrl: string | null;
+  /** JSON file holding an array of extra bench export profiles (see src/domain/benchProfile.ts). */
+  benchProfilesFile: string | null;
 }
 
 function int(v: string | undefined, fallback: number): number {
@@ -138,5 +140,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     },
     metricsToken: env.METRICS_TOKEN || (production ? null : ''),
     errorWebhookUrl: env.ERROR_WEBHOOK_URL || null,
+    benchProfilesFile: env.BENCH_PROFILES_FILE || null,
   };
 }

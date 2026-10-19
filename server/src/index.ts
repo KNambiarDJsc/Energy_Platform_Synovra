@@ -4,6 +4,8 @@ import { buildSeed } from '../../src/data/seed';
 import { createApp } from './app';
 import { loadConfig } from './config';
 import { connect } from './db/client';
+import { readFileSync } from 'node:fs';
+import { registerBenchProfile } from '../../src/domain/benchProfile';
 import { insertAll, isEmpty, loadSnapshotCached } from './db/snapshot';
 import { createErrorNotifier } from './observability';
 
@@ -13,6 +15,14 @@ async function main() {
   const config = loadConfig();
   const handle = await connect(config);
   await handle.migrate();
+
+  // Extra bench export layouts for this lab's testers. A bad file stops the server here rather than mid-import.
+  if (config.benchProfilesFile) {
+    const profiles = JSON.parse(readFileSync(config.benchProfilesFile, 'utf8')) as unknown;
+    if (!Array.isArray(profiles)) throw new Error('BENCH_PROFILES_FILE must hold a JSON array of profiles.');
+    for (const p of profiles) registerBenchProfile(p);
+    console.log(JSON.stringify({ at: new Date().toISOString(), msg: 'Loaded bench export profiles', count: profiles.length }));
+  }
 
   if (config.seedOnStart && config.dataMode === 'demo' && (await isEmpty(handle.db))) {
     const r = await handle.db.transaction((tx) => insertAll(tx, buildSeed()));

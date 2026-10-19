@@ -276,7 +276,7 @@ export function BatteryFigure({ unitType, chemistry, lens, onLens, temperatureC,
             ))}
           </svg>
         </div>
-        <figcaption className="mt-2 text-[12px] leading-4 text-muted">
+        <figcaption className="mt-2 text-[13px] leading-4 text-muted">
           Plate detail · illustration
           <span className="block">{tubular ? 'Tubular positive plates' : agm ? 'Glass-mat separators between plates' : 'Plates and separators'}</span>
         </figcaption>

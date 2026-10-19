@@ -109,7 +109,7 @@ export function LocalAgent() {
                         {Object.keys(s.args).length > 0 && <span className="text-muted"> {JSON.stringify(s.args)}</span>}
                         {!s.allowed && <Badge tone="red" className="ml-2">Refused: not an allowed tool</Badge>}
                       </summary>
-                      <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-4 text-ink-2">{s.resultPreview}</pre>
+                      <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-[13px] leading-4 text-ink-2">{s.resultPreview}</pre>
                     </details>
                   </li>
                 ))}

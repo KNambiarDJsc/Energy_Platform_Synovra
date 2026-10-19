@@ -10,7 +10,13 @@ async function audit(page: Page, label: string) {
   await page.evaluate(() => Promise.all(document.getAnimations()
     .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
     .map((a) => a.finished.catch(() => undefined))));
-  const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  // Tab content fades in with script-driven opacity that getAnimations() cannot see, so a scan right after a tab
+  // switch can measure half-faded text. Scan again a few times: a real violation is still there on the last scan.
+  let violations = (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()).violations;
+  for (let retry = 0; retry < 4 && violations.length > 0; retry++) {
+    await page.waitForTimeout(500);
+    violations = (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()).violations;
+  }
   const summary = violations.map((v) => `${v.id} (${v.impact}): ${v.help}\n    ${v.nodes.slice(0, 4).map((n) => n.target.join(' ')).join('\n    ')}`);
   expect(summary, `${label} accessibility violations`).toEqual([]);
 }

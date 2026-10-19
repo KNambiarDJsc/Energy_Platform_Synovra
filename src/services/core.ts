@@ -1,6 +1,6 @@
 import type { Store } from '@/data/store';
 import { QUALIFICATION_THRESHOLD_PCT } from '@/data/seed';
-import { assessDataQuality } from '@/domain/lifecycle';
+import { assessDataQuality, buildQualityIndex, type QualityIndex } from '@/domain/lifecycle';
 import {
   ForbiddenError, NotFoundError, ValidationError, can, canActorSeeSite, isCustomerAudience, type Permission,
 } from '@/domain/permissions';
@@ -103,19 +103,56 @@ export function getBatteryOrThrow(ctx: Ctx, id: string): Battery {
 
 /* ------------------------------ Derived fields ------------------------------ */
 
+const groups = new WeakMap<object, { length: number; map: Map<string, unknown[]> }>();
+
+/**
+ * Rows of a collection grouped by battery, in their original order. Built once per array and reused until a
+ * row is added (the length changes). Safe because a record's battery never changes and records are never
+ * deleted; without it, every per-battery lookup scans the whole collection, which is quadratic over a register.
+ */
+export function byBattery<T extends { batteryId: string | null }>(rows: T[]): Map<string, T[]> {
+  const hit = groups.get(rows);
+  if (hit && hit.length === rows.length) return hit.map as Map<string, T[]>;
+  const map = new Map<string, T[]>();
+  for (const r of rows) {
+    if (!r.batteryId) continue;
+    const l = map.get(r.batteryId);
+    if (l) l.push(r); else map.set(r.batteryId, [r]);
+  }
+  groups.set(rows, { length: rows.length, map });
+  return map;
+}
+
+const ids = new WeakMap<object, { length: number; map: Map<string, unknown> }>();
+
+/** Rows of a collection by id, rebuilt only when a row is added. Ids are never reassigned. */
+export function byId<T extends { id: string }>(rows: T[]): Map<string, T> {
+  const hit = ids.get(rows);
+  if (hit && hit.length === rows.length) return hit.map as Map<string, T>;
+  const map = new Map<string, T>();
+  for (const r of rows) map.set(r.id, r);
+  ids.set(rows, { length: rows.length, map });
+  return map;
+}
+
 export function lastApprovedTest(d: DemoDb, batteryId: string): TestSession | null {
-  const list = d.tests
-    .filter((t) => t.batteryId === batteryId && t.status === 'approved')
+  const list = (byBattery(d.tests).get(batteryId) ?? [])
+    .filter((t) => t.status === 'approved')
     .sort((a, b) => (b.reviewedAt ?? '').localeCompare(a.reviewedAt ?? ''));
   return list[0] ?? null;
 }
 
-export function qualityOf(ctx: Ctx, b: Battery): DataQuality {
+/** Pass the result to `qualityOf` when checking many batteries in one request. */
+export function qualityIndexFor(ctx: Ctx): QualityIndex {
+  return buildQualityIndex(ctx.store.db.batteries, ctx.store.db.aliases);
+}
+
+export function qualityOf(ctx: Ctx, b: Battery, index?: QualityIndex): DataQuality {
   const d = ctx.store.db;
   return assessDataQuality(
     b, d.families.find((f) => f.id === b.familyId),
-    d.aliases.filter((a) => a.batteryId === b.id), d.batteries, d.aliases,
-    !!lastApprovedTest(d, b.id),
+    byBattery(d.aliases).get(b.id) ?? [], d.batteries, d.aliases,
+    !!lastApprovedTest(d, b.id), index,
   );
 }
 
@@ -124,8 +161,8 @@ export type EvidenceStatusCode =
   | 'not_qualified' | 'warranty_investigation' | 'closed';
 
 export function evidenceStatus(d: DemoDb, b: Battery): { code: EvidenceStatusCode; label: string; detail: string } {
-  const tests = d.tests.filter((t) => t.batteryId === b.id);
-  const claim = d.warranties.find((w) => w.batteryId === b.id && w.state === 'claim_open');
+  const tests = byBattery(d.tests).get(b.id) ?? [];
+  const claim = (byBattery(d.warranties).get(b.id) ?? []).find((w) => w.state === 'claim_open');
   if (claim) return { code: 'warranty_investigation', label: 'Warranty investigation', detail: 'An open warranty claim is linked to this battery.' };
   if (b.lifecycleState === 'recycled') return { code: 'closed', label: 'Closed, recycled', detail: 'Battery consigned for recycling. History retained.' };
   if (b.lifecycleState === 'rejected') return { code: 'not_qualified', label: 'Not qualified', detail: 'Rejected by an engineer. No deployment permitted.' };

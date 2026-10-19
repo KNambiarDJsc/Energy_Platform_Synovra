@@ -47,59 +47,67 @@ function useMiddle(items: { current: (HTMLElement | null)[] }, pick: (i: number)
 }
 
 /**
- * The first screens: the sheet on the left, B-0002's passport held still on the right while its
- * four stages pass on the left. Scrolling or the slider moves the stage; neither moves the other.
+ * The lifecycle chapter: B-0002's passport is held still on the right while its four stages pass on the left.
+ * Scrolling or the slider moves the stage; neither moves the other.
  */
-export function Lifecycle({ sheet }: { sheet: ReactNode }) {
+export function Lifecycle() {
   const [stage, setStage] = useState(0);
   const blocks = useRef<(HTMLElement | null)[]>([]);
   useMiddle(blocks, setStage, 'nearest');
   const s = STAGES[stage];
 
   return (
-    <div className="lp-duo">
-      {sheet}
-      <div className="lp-life-intro" id="lifecycle">
-        <h2 data-reveal>One battery, four stages</h2>
-        <p data-reveal style={{ ['--i' as string]: 1 }}>
-          {B0002.label} is synthetic, like every record here. Scroll, or move the slider under its passport, and the passport fills in.
-        </p>
-      </div>
-      <div className="lp-stage" role="region" aria-label={`Passport of synthetic battery ${B0002.label}`}>
-        <div className="lp-stage-body" data-rise style={{ ['--i' as string]: 2 }}>
-          <PassportObject stage={stage} />
-          <div className="lp-slider">
-            <span className="lp-track" aria-hidden>
-              <span style={{ transform: `scaleX(${stage / (STAGES.length - 1)})` }} />
-            </span>
-            <input
-              type="range" min={0} max={STAGES.length - 1} step={1} value={stage}
-              aria-label="Lifecycle stage" aria-valuetext={s.name}
-              onChange={(e) => setStage(Number(e.target.value))}
-            />
-            <ol className="lp-stops">
-              {STAGES.map((st, n) => (
-                <li key={st.key} aria-current={n === stage ? 'step' : undefined}>
-                  <button type="button" onClick={() => setStage(n)}>{st.name}</button>
-                </li>
-              ))}
-            </ol>
-          </div>
+    <section className="lp-lifesec" id="lifecycle" aria-labelledby="life-h">
+      <div className="lp-lifegrid">
+        <div className="lp-lifetext">
+          <p className="lp-eyebrow" data-reveal>The record</p>
+          <h2 id="life-h" className="lp-h2" data-reveal style={{ ['--i' as string]: 1 }}>
+            One battery, <em>four stages</em>
+          </h2>
+          <p className="lp-lead" data-reveal style={{ ['--i' as string]: 2 }}>
+            {B0002.label} is synthetic, like every record here. Scroll, or move the slider under its passport, and the passport fills in.
+          </p>
+          <ol className="lp-life" aria-label="Stages of the record">
+            {STAGES.map((st, n) => (
+              <li key={st.key} ref={(el) => { blocks.current[n] = el; }} className={n === stage ? 'lp-statement is-on' : 'lp-statement'}>
+                <span className="lp-num" aria-hidden>0{n + 1}</span>
+                <h3 data-reveal>{st.clause}</h3>
+                <p data-reveal style={{ ['--i' as string]: 1 }}>{st.proof}</p>
+              </li>
+            ))}
+          </ol>
         </div>
-        <p className="lp-stage-bar">
-          <span>{B0002.label} · synthetic record</span>
-          <span>{B0002.model} · {B0002.spec}</span>
-        </p>
+        <div className="lp-stage" data-spot role="region" aria-label={`Passport of synthetic battery ${B0002.label}`}>
+          <div className="lp-stage-glow" aria-hidden />
+          <div className="lp-stage-body">
+            <div className="lp-tilt" data-tilt>
+              <PassportObject stage={stage} />
+            </div>
+            <div className="lp-slider">
+              <span className="lp-track" aria-hidden>
+                <span style={{ transform: `scaleX(${stage / (STAGES.length - 1)})` }} />
+              </span>
+              <input
+                type="range" min={0} max={STAGES.length - 1} step={1} value={stage}
+                aria-label="Lifecycle stage" aria-valuetext={s.name}
+                onChange={(e) => setStage(Number(e.target.value))}
+              />
+              <ol className="lp-stops">
+                {STAGES.map((st, n) => (
+                  <li key={st.key} aria-current={n === stage ? 'step' : undefined}>
+                    <button type="button" onClick={() => setStage(n)}>{st.name}</button>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+          <p className="lp-stage-bar">
+            <span>{B0002.label} · synthetic record</span>
+            <span>{B0002.model} · {B0002.spec}</span>
+          </p>
+        </div>
       </div>
-      <ol className="lp-life" aria-label="Stages of the record">
-        {STAGES.map((st, n) => (
-          <li key={st.key} ref={(el) => { blocks.current[n] = el; }} className={n === stage ? 'lp-statement is-on' : 'lp-statement'}>
-            <h3 data-reveal>{st.clause}</h3>
-            <p data-reveal style={{ ['--i' as string]: 1 }}>{st.proof}</p>
-          </li>
-        ))}
-      </ol>
-    </div>
+    </section>
   );
 }
 
@@ -159,7 +167,7 @@ export function RulesDemo() {
         </div>
       </div>
       <div className="lp-rules-in">
-        <div className="lp-block" data-reveal>
+        <div className="lp-block" data-reveal data-spot>
           <h3>One record, three readers.</h3>
           <p>Access is enforced where the data is read, not in the screen. A customer sees their own battery without internal costs or controlled detail.</p>
           <div className="lp-seg" role="group" aria-label="View the record as">
@@ -168,7 +176,7 @@ export function RulesDemo() {
             ))}
           </div>
         </div>
-        <div className="lp-block" data-reveal>
+        <div className="lp-block" data-reveal data-spot>
           <h3>Missing stays missing.</h3>
           <p>A cost nobody entered is listed as unknown, never counted as zero, so a total is either complete or says it is not.</p>
           <label className="lp-switch">
@@ -176,7 +184,7 @@ export function RulesDemo() {
             Input cost has been allocated
           </label>
         </div>
-        <div className="lp-block" data-reveal>
+        <div className="lp-block" data-reveal data-spot>
           <h3>A person decides.</h3>
           <p>The rule check reports whether the result meets the demonstration threshold. Only a battery engineer can qualify a battery, and only with a reason.</p>
           <div className="lp-actions">
@@ -184,7 +192,7 @@ export function RulesDemo() {
             <button type="button" className="lp-ghost" onClick={() => approve('person')}>Approve as the current reader</button>
           </div>
         </div>
-        <div className="lp-block" data-reveal>
+        <div className="lp-block" data-reveal data-spot>
           <h3>A label finds; it never opens.</h3>
           <p>The QR code on a battery is a lookup reference. It finds the record; your sign-in decides what you see.</p>
           <label className="lp-type">
@@ -198,9 +206,12 @@ export function RulesDemo() {
 }
 
 export type Question = { q: string; where: string; more: string; pic: number };
+/** A photograph (with its credit) or a drawing (`art`). A drawing is always captioned as an illustration. */
 export type Picture = {
-  src: string; alt: string; width: number; height: number; caption: string;
-  title: string; by: string; licence: string; licenceUrl?: string; url: string; focus?: string;
+  alt: string; caption: string;
+  src?: string; width?: number; height?: number; focus?: string;
+  title?: string; by?: string; licence?: string; licenceUrl?: string; url?: string;
+  art?: ReactNode;
 };
 
 /**
@@ -215,25 +226,38 @@ export function QuestionList({ rows, pictures }: { rows: Question[]; pictures: P
 
   return (
     <section className="lp-q" id="questions" aria-labelledby="q-h">
-      <h2 id="q-h" className="lp-q-h" data-reveal>Questions it answers</h2>
+      <div className="lp-q-head">
+        <p className="lp-eyebrow" data-reveal>What it is for</p>
+        <h2 id="q-h" className="lp-h2" data-reveal style={{ ['--i' as string]: 1 }}>Questions it answers</h2>
+      </div>
       <figure className="lp-q-fig" data-reveal style={{ ['--i' as string]: 1 }}>
         <div className="lp-q-pics">
-          {pictures.map((p, n) => (
-            <Image
-              key={p.src} src={p.src} alt={p.alt} width={p.width} height={p.height}
-              sizes="(max-width: 900px) 100vw, 34vw"
-              className={n === pic ? 'is-on' : undefined}
-              style={p.focus ? { objectPosition: p.focus } : undefined}
-              aria-hidden={n !== pic}
-            />
-          ))}
+          {pictures.map((p, n) =>
+            p.art ? (
+              <div key={n} role="img" aria-label={p.alt} aria-hidden={n !== pic} className={n === pic ? 'lp-art is-on' : 'lp-art'}>{p.art}</div>
+            ) : (
+              <Image
+                key={p.src} src={p.src!} alt={p.alt} width={p.width!} height={p.height!}
+                sizes="(max-width: 900px) 100vw, 34vw"
+                className={n === pic ? 'is-on' : undefined}
+                style={p.focus ? { objectPosition: p.focus } : undefined}
+                aria-hidden={n !== pic}
+              />
+            ),
+          )}
         </div>
         <figcaption className="lp-q-caps">
           {pictures.map((p, n) => (
-            <span key={p.src} className={n === pic ? 'lp-cap is-on' : 'lp-cap'}>
+            <span key={n} className={n === pic ? 'lp-cap is-on' : 'lp-cap'}>
               {p.caption}{' '}
-              <a href={p.url} rel="noopener noreferrer" target="_blank">{p.title}</a>, {p.by},{' '}
-              {p.licenceUrl ? <a href={p.licenceUrl} rel="noopener noreferrer" target="_blank">{p.licence}</a> : p.licence}, via Wikimedia Commons.
+              {p.art ? (
+                <>Illustration, drawn for this page.</>
+              ) : (
+                <>
+                  <a href={p.url} rel="noopener noreferrer" target="_blank">{p.title}</a>, {p.by},{' '}
+                  {p.licenceUrl ? <a href={p.licenceUrl} rel="noopener noreferrer" target="_blank">{p.licence}</a> : p.licence}, via Wikimedia Commons.
+                </>
+              )}
             </span>
           ))}
         </figcaption>
@@ -242,14 +266,13 @@ export function QuestionList({ rows, pictures }: { rows: Question[]; pictures: P
         {rows.map((r, i) => (
           <li
             key={r.q}
+            data-spot
             ref={(el) => { items.current[i] = el; }}
             className={i === active ? 'lp-qrow is-on' : 'lp-qrow'}
             onMouseEnter={() => setActive(i)}
             onFocus={() => setActive(i)}
-            data-reveal
-            style={{ ['--i' as string]: i }}
           >
-            <button type="button" aria-expanded={i === active} aria-controls={`q-more-${i}`} onClick={() => setActive(i)}>
+            <button type="button" data-reveal style={{ ['--i' as string]: i }} aria-expanded={i === active} aria-controls={`q-more-${i}`} onClick={() => setActive(i)}>
               <span className="lp-qrow-q">{r.q}</span>
               <span className="lp-qrow-where">{r.where}</span>
             </button>
@@ -293,7 +316,7 @@ export function OpenPassport() {
   };
 
   return (
-    <form data-ui className="dlg" onSubmit={submit} action="/signin" method="get" aria-labelledby="open-title" data-reveal style={{ ['--i' as string]: 2 }}>
+    <form data-ui data-spot className="dlg" onSubmit={submit} action="/signin" method="get" aria-labelledby="open-title" data-reveal style={{ ['--i' as string]: 2 }}>
       <input type="hidden" name="next" value={dest} />
       <p id="open-title" className="dlg-title">Open a battery passport</p>
       <label className="dlg-label" htmlFor="open-label">Battery label</label>
@@ -315,19 +338,23 @@ export function OpenPassport() {
           ))}
         </div>
       </fieldset>
-      <button type="submit" className="dlg-go">Show the passport</button>
+      <button type="submit" className="dlg-go" data-magnet>Show the passport</button>
       <p className="dlg-note">Demonstration sign-in. No password.</p>
     </form>
   );
 }
 
-/** Reveals each [data-reveal] / [data-open] once as it enters. Without script everything is already visible. */
+/**
+ * Reveals each [data-reveal] / [data-open] once as it enters, by setting `data-in`. It is an attribute and not a class on
+ * purpose: React rewrites a managed className on re-render, which would hide the element again.
+ * Without script everything is already visible.
+ */
 export function Reveals() {
   useEffect(() => {
     const els = document.querySelectorAll<HTMLElement>('.lp [data-reveal], .lp [data-open]');
-    if (!('IntersectionObserver' in window)) { els.forEach((e) => e.classList.add('is-in')); return; }
+    if (!('IntersectionObserver' in window)) { els.forEach((e) => e.setAttribute('data-in', '')); return; }
     const io = new IntersectionObserver((entries) => {
-      for (const e of entries) if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); }
+      for (const e of entries) if (e.isIntersecting) { e.target.setAttribute('data-in', ''); io.unobserve(e.target); }
     }, { rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
     els.forEach((e) => io.observe(e));
     return () => io.disconnect();

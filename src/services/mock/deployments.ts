@@ -3,7 +3,7 @@ import { INVENTORY_GROUP_LABELS, inventoryGroupOf, type InventoryGroup } from '@
 import { ConflictError, NotFoundError, ValidationError, canActorSeeSite } from '@/domain/permissions';
 import type { Battery, WarrantyRecord } from '@/domain/types';
 import {
-  audit, canSeeBattery, canSeeSite, db, familyOf, getBatteryOrThrow, latency, pushEvent, authorize, setState, siteName, sourceName,
+  audit, canSeeBattery, canSeeSite, db, familyOf, getBatteryOrThrow, latency, pushEvent, qualityIndexFor, authorize, setState, siteName, sourceName,
   type Ctx,
 } from '../core';
 import type { CompatibilityCheck, DeploymentRepository, DeploymentValidation, InventoryOverview, SiteView } from '../types';
@@ -74,7 +74,8 @@ export function createDeploymentRepository(ctx: Ctx): DeploymentRepository {
       authorize(ctx, 'inventory.read');
       const d = db(ctx);
       const groups = Object.fromEntries((Object.keys(INVENTORY_GROUP_LABELS) as InventoryGroup[]).map((g) => [g, []])) as unknown as InventoryOverview['groups'];
-      d.batteries.filter((b) => canSeeBattery(ctx, b)).forEach((b) => groups[inventoryGroupOf(b.lifecycleState)].push(toListItem(ctx, b)));
+      const idx = qualityIndexFor(ctx);
+      d.batteries.filter((b) => canSeeBattery(ctx, b)).forEach((b) => groups[inventoryGroupOf(b.lifecycleState)].push(toListItem(ctx, b, idx)));
       const byFamily = d.families.map((f) => {
         const own = d.batteries.filter((b) => b.familyId === f.id && canSeeBattery(ctx, b));
         return {
@@ -192,9 +193,10 @@ export function createDeploymentRepository(ctx: Ctx): DeploymentRepository {
     async deployable() {
       await latency(ctx);
       authorize(ctx, 'inventory.read');
+      const idx = qualityIndexFor(ctx);
       return db(ctx).batteries
         .filter((b) => ['qualified', 'reserved'].includes(b.lifecycleState) && canSeeBattery(ctx, b))
-        .map((b) => toListItem(ctx, b));
+        .map((b) => toListItem(ctx, b, idx));
     },
   };
 }

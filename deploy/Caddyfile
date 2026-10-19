@@ -1,0 +1,12 @@
+# One public origin. Swap this for your own ingress or load balancer: the only contract is the three
+# path prefixes below going to the API and everything else going to the web app.
+:8080 {
+	encode gzip
+	@api path /api/* /health /ready /metrics
+	handle @api {
+		reverse_proxy api:4000
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+}

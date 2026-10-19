@@ -208,13 +208,32 @@ async function bumpVersion(tx: Tx): Promise<void> {
 interface CacheEntry { version: number; predictions: boolean; db: DemoDb; original: Snapshot['original'] }
 const caches = new WeakMap<object, CacheEntry>();
 
+/** Freezes every record and array, so a read that tries to change shared data fails loudly instead of corrupting it. */
+export function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const v of Object.values(value as object)) deepFreeze(v);
+  }
+  return value;
+}
+
 /**
- * `loadSnapshot` with an in-process cache. The version is read inside the caller's transaction,
- * so the cached records are exactly what this transaction would have loaded. Callers get a deep
- * copy because services modify records in place.
+ * What a read request sees: the shared, frozen records, plus its own copy of the audit list, because a read can
+ * still add an audit entry (an export, a denied attempt). Nothing else is copied.
+ */
+function readView(db: DemoDb): DemoDb {
+  return { ...db, audit: [...db.audit] };
+}
+
+/**
+ * `loadSnapshot` with an in-process cache. The version is read inside the caller's transaction, so the cached
+ * records are exactly what this transaction would have loaded.
+ *
+ * Writers get a private deep copy, because services modify records in place. Readers share one frozen copy:
+ * cloning every record on every read was the largest cost once the register passed a few thousand batteries.
  */
 export async function loadSnapshotCached(
-  tx: Tx, cacheKey: object, opts: { predictions: boolean }, onCache?: (hit: boolean) => void,
+  tx: Tx, cacheKey: object, opts: { predictions: boolean; readOnly?: boolean }, onCache?: (hit: boolean) => void,
 ): Promise<Snapshot> {
   const [row] = await tx.select({ version: s.dataVersion.version }).from(s.dataVersion).where(eq(s.dataVersion.id, 1));
   const version = row?.version ?? -1;
@@ -222,13 +241,15 @@ export async function loadSnapshotCached(
   const isHit = !!hit && hit.version === version && hit.predictions === opts.predictions;
   onCache?.(isHit);
   if (isHit) {
-    return { db: structuredClone(hit.db), original: hit.original };
+    return { db: opts.readOnly ? readView(hit.db) : structuredClone(hit.db), original: hit.original };
   }
-  const snap = await loadSnapshot(tx, opts);
+  const snap = await loadSnapshot(tx, { predictions: opts.predictions });
+  // The cache always holds a frozen copy: a reader may be handed it directly.
+  const frozen = deepFreeze(opts.readOnly ? snap.db : structuredClone(snap.db));
   if (!hit || version >= hit.version) {
-    caches.set(cacheKey, { version, predictions: opts.predictions, db: structuredClone(snap.db), original: snap.original });
+    caches.set(cacheKey, { version, predictions: opts.predictions, db: frozen, original: snap.original });
   }
-  return snap;
+  return opts.readOnly ? { db: readView(frozen), original: snap.original } : snap;
 }
 
 /** The API may only record a human review on a prediction. Predictions themselves come from the ML service. */

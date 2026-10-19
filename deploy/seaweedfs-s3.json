@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "synovra",
+      "credentials": [{ "accessKey": "synovra-access", "secretKey": "synovra-secret-local-only" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

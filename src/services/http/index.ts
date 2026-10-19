@@ -7,6 +7,7 @@
  * in HTTP mode; these answers only cover places that embed them (for example passport tabs).
  */
 import { SAMPLE_CSV } from '@/domain/csv';
+import { benchProfiles } from '@/domain/benchProfile';
 import { BENCH_COLUMNS, BENCH_SAMPLE_CSV } from '../mock/benchImport';
 import { AGENT_TOOLS } from '../agent/tools';
 import { ConflictError, NotFoundError } from '@/domain/permissions';
@@ -169,7 +170,7 @@ function admin(): AdminRepository {
 }
 
 function overview(): OverviewRepository {
-  return { get: () => api.get('/overview') };
+  return { get: () => api.get('/overview'), home: () => api.get('/home') };
 }
 
 function insights(): InsightsRepository {
@@ -190,6 +191,7 @@ export function createHttpServices(): Services {
     insights: insights(), values: { record: (input) => api.post(`/batteries/${enc(input.batteryId)}/values`, input) },
     bench: {
       columns: () => [...BENCH_COLUMNS], sample: () => BENCH_SAMPLE_CSV,
+      profiles: () => benchProfiles().map(({ id, name, description }) => ({ id, name, description })),
       preview: (input) => api.post('/bench-imports/preview', input), commit: (input) => api.post('/bench-imports/commit', input),
     },
     agent: {

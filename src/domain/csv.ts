@@ -1,7 +1,7 @@
 import type { ImportFieldValue, ImportIssue, ImportTemplate } from './types';
 
 /** Minimal RFC-4180 style CSV parser (quotes, escaped quotes, CRLF, BOM). */
-export function parseCsv(text: string): { headers: string[]; rows: string[][] } {
+export function parseCsv(text: string, delimiter: ',' | ';' | '\t' = ','): { headers: string[]; rows: string[][] } {
   const src = text.replace(/^﻿/, '');
   const out: string[][] = [];
   let row: string[] = [];
@@ -14,7 +14,7 @@ export function parseCsv(text: string): { headers: string[]; rows: string[][] } 
         if (src[i + 1] === '"') { cell += '"'; i++; } else inQuotes = false;
       } else cell += ch;
     } else if (ch === '"') inQuotes = true;
-    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === delimiter) { row.push(cell); cell = ''; }
     else if (ch === '\n' || ch === '\r') {
       if (ch === '\r' && src[i + 1] === '\n') i++;
       row.push(cell); cell = '';

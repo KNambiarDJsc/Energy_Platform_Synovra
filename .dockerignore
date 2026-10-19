@@ -7,3 +7,9 @@ server/dist
 test-results
 playwright-report
 *.log
+
+ml/.data
+ml/out
+.git
+.github
+docs

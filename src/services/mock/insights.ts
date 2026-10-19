@@ -5,7 +5,7 @@ import { routeDecisionSchema } from '@/domain/schemas';
 import { ConflictError, NotFoundError, ValidationError, can } from '@/domain/permissions';
 import type { Battery, CostEntry, RestorationAttempt, RestorationReasonCode } from '@/domain/types';
 import {
-  audit, authorize, canSeeBattery, db, evidenceStatus, familyOf, getBatteryOrThrow, hashText, lastApprovedTest, latency, pushEvent, qualityOf, type Ctx,
+  audit, authorize, byBattery, byId, canSeeBattery, db, evidenceStatus, familyOf, getBatteryOrThrow, hashText, lastApprovedTest, latency, pushEvent, qualityIndexFor, qualityOf, type Ctx,
 } from '../core';
 import type {
   AgentFinding, AgentKind, AgentReport, AnalystAnswer, AnalystToolCall, AssistantCitation, CollectionPipeline, CollectionStep,
@@ -56,7 +56,7 @@ export function trainingStatus(ctx: Ctx, a: RestorationAttempt): { eligible: boo
   const d = db(ctx);
   if (!isDecided(a)) return { eligible: false, reason: 'Not decided yet' };
   if (a.status !== 'approved' && !a.decisionReasonCode) return { eligible: false, reason: 'Decided before reason codes existed' };
-  const before = d.tests.find((t) => t.id === a.beforeTestId);
+  const before = a.beforeTestId ? byId(d.tests).get(a.beforeTestId) : undefined;
   if (!before || before.status !== 'approved' || !before.reviewedAt) return { eligible: false, reason: 'No approved before-test' };
   if (before.reviewedAt > a.startedAt) return { eligible: false, reason: 'Before-test approved after the attempt started' };
   if (before.result.capacityAh === null) return { eligible: false, reason: 'Before-test has no capacity value' };
@@ -77,7 +77,7 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
 
   /** Known money in per battery (sales, fees, settlements). Unknown amounts are left out, so sums are minimums. */
   function knownValue(batteryId: string, kinds?: string[]) {
-    const vs = db(ctx).values.filter((v) => v.batteryId === batteryId && v.amountAed !== null && (!kinds || kinds.includes(v.kind)));
+    const vs = (byBattery(db(ctx).values).get(batteryId) ?? []).filter((v) => v.amountAed !== null && (!kinds || kinds.includes(v.kind)));
     return vs.length ? vs.reduce((n, v) => n + (v.amountAed ?? 0), 0) : null;
   }
 
@@ -113,7 +113,7 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
     const fromCost = (x: { value: number | null; n: number }, what: string) => (!showCosts ? hidden
       : x.value === null ? { value: null, source: `No known ${what} recorded for this family. Enter a value.` }
         : { value: x.value, source: `Average of known ${what} on ${x.n} ${fam.model} batteries` });
-    const spent = showCosts ? d.costs.filter((x) => x.batteryId === b.id && x.amountAed !== null).reduce((s, x) => s + (x.amountAed ?? 0), 0) : null;
+    const spent = showCosts ? (byBattery(d.costs).get(b.id) ?? []).filter((x) => x.amountAed !== null).reduce((s, x) => s + (x.amountAed ?? 0), 0) : null;
     const fields: Record<keyof RouteInputs, { value: number | null; source: string }> = {
       pSaleable: c.n
         ? { value: Math.round((c.qualified / c.n) * 1000) / 1000, source: `Observed: ${c.qualified} of ${c.n} decided ${fam.model} attempts qualified. Synthetic data; not a model.` }
@@ -155,8 +155,12 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
       const attempts = d.attempts.filter((a) => ids.has(a.batteryId));
       const decided = attempts.filter(isDecided);
       const notApproved = decided.filter((a) => a.status !== 'approved');
-      const afterTests = decided.map((a) => d.tests.find((t) => t.id === a.afterTestId)).filter((t): t is NonNullable<typeof t> => !!t);
-      const leftLab = bats.filter((b) => ['deployed', 'reserved', 'returned', 'recycling_queue', 'recycled'].includes(b.lifecycleState) || d.assignments.some((x) => x.batteryId === b.id));
+      const testById = byId(d.tests);
+      const afterTests = decided.map((a) => (a.afterTestId ? testById.get(a.afterTestId) : undefined)).filter((t): t is NonNullable<typeof t> => !!t);
+      const assigned = byBattery(d.assignments);
+      const recycledOf = byBattery(d.recycling);
+      const warrantyOf = byBattery(d.warranties);
+      const leftLab = bats.filter((b) => ['deployed', 'reserved', 'returned', 'recycling_queue', 'recycled'].includes(b.lifecycleState) || assigned.has(b.id));
       const costs = d.costs.filter((c) => (c.batteryId ? ids.has(c.batteryId) : true));
       const count = <T,>(xs: T[], f: (x: T) => boolean) => xs.filter(f).length;
       const testFields = (list: typeof tests) => [
@@ -174,7 +178,7 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
       const withInitial = new Set(approvedInitial.map((t) => t.batteryId));
       const withAttempt = new Set(attempts.map((a) => a.batteryId));
       const labelled = new Set(decided.filter((a) => a.status === 'approved' || a.decisionReasonCode).filter((a) => {
-        const t = d.tests.find((x) => x.id === a.afterTestId);
+        const t = a.afterTestId ? testById.get(a.afterTestId) : undefined;
         return t?.status === 'approved' && t.result.capacityAh !== null;
       }).map((a) => a.batteryId));
       const withOutcome = new Set(leftLab.map((b) => b.id));
@@ -228,8 +232,8 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
           step({
             key: 'outcome', step: 'Outcome and value', capturedIn: 'Deployment, return, warranty, recycling', href: '/app/deployments', applicable: leftLab.length,
             fields: [
-              { field: 'Where it went, with dates', present: count(leftLab, (b) => d.assignments.some((x) => x.batteryId === b.id) || d.recycling.some((r) => r.batteryId === b.id)) },
-              { field: 'Warranty terms', present: count(leftLab, (b) => d.warranties.some((w) => w.batteryId === b.id && !!w.termsRef)) },
+              { field: 'Where it went, with dates', present: count(leftLab, (b) => assigned.has(b.id) || recycledOf.has(b.id)) },
+              { field: 'Warranty terms', present: count(leftLab, (b) => (warrantyOf.get(b.id) ?? []).some((w) => !!w.termsRef)) },
               { field: 'Sale price or recovered value', present: count(leftLab, (b) => knownValue(b.id) !== null) },
             ],
           }),
@@ -260,7 +264,8 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
       const attempts = d.attempts.filter((a) => ids.has(a.batteryId));
       const costs = d.costs.filter((c) => (c.batteryId ? ids.has(c.batteryId) : true));
       const quarantined = d.imports.filter((j) => j.status === 'committed').flatMap((j) => j.rows).filter((r) => r.outcome === 'quarantine').length;
-      const qualities = bats.map((b) => qualityOf(ctx, b));
+      const qidx = qualityIndexFor(ctx);
+      const qualities = bats.map((b) => qualityOf(ctx, b, qidx));
       const simulatedTelemetry = ctx.store.mode === 'demo' && ctx.store.telemetry.length > 0;
       const unmappedSensors = d.sensors.filter((s) => !d.sensorAssignments.some((x) => x.sensorId === s.id && x.slotId && !x.endAt)).length;
       const imported = bats.filter((b) => /import/i.test(b.sourceSystem)).length;
@@ -430,7 +435,8 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
       const everDeployed = new Set(d.assignments.filter((a) => ids.has(a.batteryId)).map((a) => a.batteryId)).size;
       const claims = d.warranties.filter((w) => ids.has(w.batteryId)).reduce((n, w) => n + w.claims.length, 0);
       const returned = bats.filter((b) => b.lifecycleState === 'returned').length;
-      const complete = bats.filter((b) => qualityOf(ctx, b).level === 'complete').length;
+      const qidx = qualityIndexFor(ctx);
+      const complete = bats.filter((b) => qualityOf(ctx, b, qidx).level === 'complete').length;
       const recycled = d.recycling.filter((r) => ids.has(r.batteryId) && r.state === 'recycled');
       const showCosts = can(actor.role, 'cost.read');
       const costs = d.costs.filter((c) => c.kind !== 'warranty_provision' && (c.batteryId ? ids.has(c.batteryId) : true));
@@ -451,8 +457,9 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
           : { key: 'cost_per_qualified', label: 'Cost per qualified battery', value: null, status: 'hidden', basis: 'Costs are not shown to your role.' },
         (() => {
           if (!showCosts) return { key: 'contribution', label: 'Recovery contribution per battery', value: null, status: 'hidden' as const, basis: 'Costs and values are not shown to your role.' };
+          const costsOf = byBattery(d.costs);
           const rows = bats.map((b) => ({ b, value: knownValue(b.id) })).filter((x) => x.value !== null).map((x) => {
-            const cost = d.costs.filter((c) => c.batteryId === x.b.id && c.amountAed !== null).reduce((n, c) => n + (c.amountAed ?? 0), 0);
+            const cost = (costsOf.get(x.b.id) ?? []).filter((c) => c.amountAed !== null).reduce((n, c) => n + (c.amountAed ?? 0), 0);
             return x.value! - cost;
           });
           const unknownValues = d.values.filter((v) => ids.has(v.batteryId) && v.amountAed === null).length;
@@ -489,7 +496,8 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
 
       if (kind === 'data_steward') {
         const findings: AgentFinding[] = [];
-        const incomplete = bats.map((b) => ({ b, q: qualityOf(ctx, b) })).filter((x) => x.q.level !== 'complete');
+        const qidx = qualityIndexFor(ctx);
+        const incomplete = bats.map((b) => ({ b, q: qualityOf(ctx, b, qidx) })).filter((x) => x.q.level !== 'complete');
         const conflicted = incomplete.filter((x) => x.q.conflicts.length > 0);
         if (conflicted.length) {
           findings.push({
@@ -504,7 +512,8 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
           attention: false,
           citations: list.slice(0, 8).map((x) => cite('battery', x.b.id, x.b.label)),
         }));
-        const noCode = d.attempts.filter((a) => (a.status === 'rejected' || a.status === 'rework') && !a.decisionReasonCode && bats.some((b) => b.id === a.batteryId));
+        const batIds = new Set(bats.map((b) => b.id));
+        const noCode = d.attempts.filter((a) => (a.status === 'rejected' || a.status === 'rework') && !a.decisionReasonCode && batIds.has(a.batteryId));
         if (noCode.length) findings.push({ text: `${noCode.length} rework or rejection decisions have no reason code, so they cannot be used as training labels.`, attention: true, citations: noCode.map((a) => cite('attempt', a.id, `Attempt ${a.attemptNo}`)) });
         const unknownCosts = d.costs.filter((c) => c.amountAed === null);
         if (unknownCosts.length && can(actor.role, 'cost.read')) findings.push({ text: `${unknownCosts.length} cost entries have no amount. Totals that include them are minimums.`, attention: false, citations: [] });
@@ -594,7 +603,8 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
       const findings: AgentFinding[] = [];
       for (const fam of d.families) {
         const fBats = bats.filter((b) => b.familyId === fam.id);
-        const decided = d.attempts.filter((a) => fBats.some((b) => b.id === a.batteryId)).filter(isDecided)
+        const fBatIds = new Set(fBats.map((b) => b.id));
+        const decided = d.attempts.filter((a) => fBatIds.has(a.batteryId)).filter(isDecided)
           .filter((a) => since === null || (a.decidedAt !== null && Date.parse(a.decidedAt) >= since));
         if (!decided.length) continue;
         const ok = decided.filter((a) => a.status === 'approved').length;
@@ -680,9 +690,10 @@ export function createInsightsRepository(ctx: Ctx): InsightsRepository {
           tools.push({ tool: 'get_cost_lines', input: 'all visible batteries', result: 'not permitted for your role' });
           return answer(null, true, 'Costs and values are not shown to your role, so this cannot be answered for you.');
         }
+        const costsOf = byBattery(d.costs);
         const rows = visibleBatteries().map((b) => {
           const value = knownValue(b.id);
-          const known = d.costs.filter((c) => c.batteryId === b.id && c.amountAed !== null);
+          const known = (costsOf.get(b.id) ?? []).filter((c) => c.amountAed !== null);
           return { b, value, cost: known.reduce((n, c) => n + (c.amountAed ?? 0), 0), costLines: known.length };
         });
         const comparable = rows.filter((x) => x.value !== null && x.costLines > 0);

@@ -1,0 +1,85 @@
+# The whole system on one machine, for evaluation and as the shape of a real deployment.
+#
+#   docker compose -f deploy/compose.yml up --build        then open http://localhost:8088 (set SYNOVRA_PORT to change it)
+#
+# Every service is a seam you can replace (see docs/architecture.md, "Pluggability"):
+#   db       any PostgreSQL 16 (set DATABASE_URL on the api)
+#   storage  any S3-compatible store (EVIDENCE_S3_* on the api); SeaweedFS here
+#   proxy    your own ingress; it only has to route /api, /health, /ready to the api
+#   agent    any model server: Ollama on the host by default, or an OpenAI-compatible endpoint
+#
+# Evaluation settings: dev sign-in and fixed local passwords. A real deployment sets AUTH_MODE=oidc, its own
+# secrets, DATA_MODE=pilot and a malware scanner (server/README.md).
+name: synovra
+services:
+  db:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_USER: synovra
+      POSTGRES_PASSWORD: synovra-local-only
+      POSTGRES_DB: synovra
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synovra -d synovra"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Any S3-compatible store works; SeaweedFS is used here because it is freely pullable and a real object
+  # store. Pinned to the digest this file was tested with.
+  storage:
+    image: chrislusf/seaweedfs@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    command: server -dir=/data -master.volumeSizeLimitMB=1024 -s3 -s3.config=/etc/seaweedfs/s3.json
+    volumes:
+      - evidence:/data
+      - ./seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9333/cluster/status >/dev/null || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  storage-init:
+    image: chrislusf/seaweedfs@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    depends_on:
+      storage: { condition: service_healthy }
+    entrypoint: ["/bin/sh", "-c"]
+    # Idempotent: creating a bucket that exists is an error in the shell, and a restart must not fail.
+    command: ["sleep 3; echo 's3.bucket.create -name synovra-evidence' | weed shell -master=storage:9333 2>&1 | tee /tmp/out; grep -q -e 'created bucket' -e 'already exists' /tmp/out"]
+    restart: "no"
+
+  api:
+    build: { context: .., dockerfile: server/Dockerfile }
+    depends_on:
+      db: { condition: service_healthy }
+      storage-init: { condition: service_completed_successfully }
+    environment:
+      DATABASE_URL: postgres://synovra:synovra-local-only@db:5432/synovra
+      DATA_MODE: ${DATA_MODE:-demo}
+      AUTH_MODE: dev
+      NODE_ENV: development
+      DEV_JWT_SECRET: local-development-secret-change-me
+      CORS_ORIGINS: http://localhost:${SYNOVRA_PORT:-8088}
+      PORT: "4000"
+      EVIDENCE_STORE: s3
+      EVIDENCE_S3_ENDPOINT: http://storage:8333
+      EVIDENCE_S3_BUCKET: synovra-evidence
+      EVIDENCE_S3_ACCESS_KEY_ID: synovra-access
+      EVIDENCE_S3_SECRET_ACCESS_KEY: synovra-secret-local-only
+      # Agent: a model server on the host. Leave Ollama stopped and the agent reports itself unavailable.
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  web:
+    build: { context: .., dockerfile: Dockerfile }
+    depends_on: [api]
+
+  proxy:
+    image: caddy:2.8-alpine
+    depends_on: [api, web]
+    ports: ["${SYNOVRA_PORT:-8088}:8080"]
+    volumes: ["./Caddyfile:/etc/caddy/Caddyfile:ro"]
+
+volumes:
+  pgdata:
+  evidence:

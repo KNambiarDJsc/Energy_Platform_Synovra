@@ -36,6 +36,20 @@ Health: `GET /health` (process up), `GET /ready` (database reachable). Deploymen
 | `FEATURE_INTELLIGENCE` | on in demo, off in pilot | Serve model outputs from the `predictions` table. |
 | `SEED_ON_START` | on in demo | Load the synthetic seed when the database is empty. |
 | `PORT` | `4000` | |
+| `LLM_PROVIDER` | `ollama` | Where the agent's model runs: `ollama` (this machine) or `openai` (any OpenAI-compatible server). |
+| `OLLAMA_URL`, `OLLAMA_MODEL` | `http://localhost:11434`, first suitable installed model | For `LLM_PROVIDER=ollama`. |
+| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | — | For `LLM_PROVIDER=openai`. Tool results, which contain record contents, are sent to this URL. |
+| `BENCH_PROFILES_FILE` | unset | JSON array of extra bench export layouts (see `src/domain/benchProfile.ts`). An invalid file stops start-up. |
+| `RATE_LIMIT_PER_MINUTE`, `RATE_LIMIT_WRITES_PER_MINUTE`, `RATE_LIMIT_ANONYMOUS_PER_MINUTE` | `600`, `120`, `60` | Per-user and anonymous limits; raise them only to load-test. |
+
+### Measuring scale
+
+```bash
+DATABASE_URL=postgres://… npx tsx server/scripts/scale-seed.ts 5000   # into an empty throwaway database
+node server/scripts/load-test.mjs http://localhost:4100 6             # one at a time, then 8 at once
+```
+
+Results and the limits found are in `docs/architecture.md`, "What was measured, and where it stops".
 
 ## Pilot setup
 

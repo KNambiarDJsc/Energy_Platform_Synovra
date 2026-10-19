@@ -21,11 +21,13 @@ const OUTCOME: Record<BenchRow['outcome'], [string, 'green' | 'neutral' | 'red']
 export function BenchImport() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [source, setSource] = useState<{ fileName: string; text: string } | null>(null);
+  const [source, setSource] = useState<{ fileName: string; text: string; profileId: string } | null>(null);
+  const profiles = getServices().bench.profiles();
+  const [profileId, setProfileId] = useState(profiles[0]?.id ?? 'synovra');
   const [view, setView] = useState<BenchPreview | null>(null);
   const [done, setDone] = useState<BenchCommitResult | null>(null);
 
-  const preview = useAction<{ fileName: string; text: string }, BenchPreview>((s, a) => s.bench.preview(a), {
+  const preview = useAction<{ fileName: string; text: string; profileId: string }, BenchPreview>((s, a) => s.bench.preview(a), {
     toastError: false, onSuccess: (p, a) => { setView(p); setSource(a); setDone(null); },
   });
   const commit = useAction<void, BenchCommitResult>((s) => s.bench.commit(source!), {
@@ -38,7 +40,7 @@ export function BenchImport() {
     if (!file) return;
     if (!/\.csv$/i.test(file.name)) { setFileError('Only .csv files are accepted. Export the bench results as CSV first.'); return; }
     if (file.size > 1024 * 1024) { setFileError('The file is larger than 1 MB.'); return; }
-    preview.mutate({ fileName: file.name, text: await file.text() });
+    preview.mutate({ fileName: file.name, text: await file.text(), profileId });
   }
 
   const cols: Column<BenchRow>[] = [
@@ -69,6 +71,13 @@ export function BenchImport() {
           </Button>
         }
       >
+        {profiles.length > 1 && (
+          <Field label="Export layout" hint={profiles.find((p) => p.id === profileId)?.description}>
+            <select className="input" value={profileId} onChange={(e) => setProfileId(e.target.value)}>
+              {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </Field>
+        )}
         <Field label="CSV file" error={fileError} hint={`Columns: ${getServices().bench.columns().join(', ')}.`}>
           <input
             ref={fileRef}
@@ -86,7 +95,8 @@ export function BenchImport() {
             onClick={() => {
               if (fileRef.current) fileRef.current.value = '';
               setFileError(null);
-              preview.mutate({ fileName: 'sample-bench-results.csv', text: getServices().bench.sample() });
+              setProfileId(profiles[0]?.id ?? 'synovra');
+              preview.mutate({ fileName: 'sample-bench-results.csv', text: getServices().bench.sample(), profileId: profiles[0]?.id ?? 'synovra' });
             }}
           >
             Use the sample bench file
@@ -100,6 +110,11 @@ export function BenchImport() {
 
       {view && (
         <Section title={`2. Review: ${view.fileName}`} description={`File hash ${view.fileHash.slice(0, 10)}…`}>
+          {view.conversions.length > 0 && (
+            <Notice tone="info" className="mb-4" title={`Read with the layout “${view.profile.name}”`}>
+              <ul className="list-disc pl-5">{view.conversions.map((c) => <li key={c}>{c}</li>)}</ul>
+            </Notice>
+          )}
           {view.priorCommitAt && (
             <Notice tone="warn" className="mb-4" title="This exact file was committed before">
               Committed {formatDateTime(view.priorCommitAt)}. Importing it again creates nothing.

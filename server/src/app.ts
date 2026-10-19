@@ -23,7 +23,7 @@ import { createScanner, type Scanner } from './evidence/scan';
 import { createBlobStore, readVerified, type BlobStore } from './evidence/storage';
 import { clientAddress, createErrorNotifier, Metrics, RateLimiter, requestIdFrom, routeLabel, tokenMatches } from './observability';
 import { withServices, type Timing } from './uow';
-import { ollamaChat } from '../../src/services/agent';
+import { llmProvider } from '../../src/services/agent';
 import { runAgentLoop } from '../../src/services/agent/loop';
 import { AGENT_TOOLS, runTool as runAgentTool } from '../../src/services/agent/tools';
 
@@ -353,10 +353,10 @@ export function createApp(deps: AppDeps) {
     const goal = (b.goal ?? '').trim().slice(0, 600);
     if (!goal) throw new ValidationError('Give the agent a goal');
     const st = await withServices(deps, principal, 'read', async (s) => { s.agent.checkAccess(); return s.agent.status(); });
-    if (!st.available || !st.model) throw new ConflictError(st.reason ?? 'Ollama is not available');
+    if (!st.available || !st.model) throw new ConflictError(st.reason ?? 'No language model is available');
     const model = b.model && st.models.includes(b.model) ? b.model : st.model;
     const run = await runAgentLoop({
-      goal, model, chat: ollamaChat(st.url, model), tools: AGENT_TOOLS, maxSteps: 5,
+      goal, model, chat: llmProvider().chat(model), tools: AGENT_TOOLS, maxSteps: 5,
       runTool: (name, args) => withServices(deps, principal, 'read', (s) => runAgentTool(s, name, args)),
     });
     await withServices(deps, principal, 'write', async (s) => { s.agent.recordRun(run); return null; });
@@ -364,22 +364,22 @@ export function createApp(deps: AppDeps) {
   });
 
   // Bench results by CSV: preview changes nothing; commit creates submitted tests and audits the file hash.
-  api.post('/bench-imports/preview', read(async (s, c) => s.bench.preview(await body<{ fileName: string; text: string }>(c))));
+  api.post('/bench-imports/preview', read(async (s, c) => s.bench.preview(await body<{ fileName: string; text: string; profileId?: string }>(c))));
   // The file itself is evidence for every row it creates, so it goes through the same size, type, scan and
   // checksum path as any upload before the service sees it. A pilot refuses a commit without it.
   api.post('/bench-imports/commit', async (c) => {
     const principal = c.get('principal');
-    const b = await body<{ fileName: string; text: string }>(c);
+    const b = await body<{ fileName: string; text: string; profileId?: string }>(c);
     if (typeof b.text !== 'string' || typeof b.fileName !== 'string') throw new ValidationError('Send the file name and its text.');
     const bytes = new TextEncoder().encode(b.text);
     const info = inspectUpload(b.fileName, bytes);
     await withServices(deps, principal, 'read', async (s, actor) => {
-      if (!can(actor.role, 'battery.import') || !can(actor.role, 'test.create')) await s.bench.commit({ fileName: info.fileName, text: b.text });
+      if (!can(actor.role, 'battery.import') || !can(actor.role, 'test.create')) await s.bench.commit({ fileName: info.fileName, text: b.text, profileId: b.profileId });
     }, c.get('timing'));
     const scanStatus = await scanner.scan(bytes);
     const { key, checksum } = await blobs.put(bytes, info.contentType);
     const stored: StoredEvidence = { checksum, storageKey: key, contentType: info.contentType, sizeKb: info.sizeKb, scanStatus };
-    return c.json(await withServices(deps, principal, 'write', (s) => s.bench.commit({ fileName: info.fileName, text: b.text }, stored), c.get('timing')) as object);
+    return c.json(await withServices(deps, principal, 'write', (s) => s.bench.commit({ fileName: info.fileName, text: b.text, profileId: b.profileId }, stored), c.get('timing')) as object);
   });
   api.post('/batteries/:id/values', write(async (s, c) => s.values.record({ ...(await body<object>(c)), batteryId: c.req.param('id') } as never)));
   // A question is recorded in the audit log, so this is a write even though it changes no battery record.
@@ -414,6 +414,7 @@ export function createApp(deps: AppDeps) {
   api.post('/admin/reset-demo', write(async (s) => { await s.admin.resetDemo(); return { ok: true }; }));
 
   api.get('/overview', read((s) => s.overview.get()));
+  api.get('/home', read((s) => s.overview.home()));
 
   // V2/V3 areas without a server implementation answer clearly instead of with empty data.
   for (const [prefix, label] of [['/telemetry', 'Monitoring'], ['/alerts', 'Alerts'], ['/tasks', 'Service tasks'], ['/assistant', 'Assistant']] as const) {

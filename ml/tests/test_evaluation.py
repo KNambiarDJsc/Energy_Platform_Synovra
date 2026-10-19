@@ -1,4 +1,4 @@
-"""Run: python -I -m unittest discover -s ml/tests -t ml   (from the repository root)"""
+"""Run: python -I ml/tests/test_evaluation.py   (from the repository root)"""
 import sys
 import unittest
 from pathlib import Path

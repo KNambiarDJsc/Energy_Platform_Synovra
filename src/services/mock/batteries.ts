@@ -1,15 +1,16 @@
 import { createBatterySchema, correctionSchema, reasonSchema } from '@/domain/schemas';
 import { can, ConflictError, NotFoundError, ValidationError, isCustomerAudience } from '@/domain/permissions';
-import { LIFECYCLE_LABELS } from '@/domain/lifecycle';
+import { LIFECYCLE_LABELS, type QualityIndex } from '@/domain/lifecycle';
 import type { Battery, EvidenceFile } from '@/domain/types';
 import {
-  audit, canSeeBattery, canSeeEvidence, canSeeSite, db, evidenceStatus, familyOf, getBatteryOrThrow, lastApprovedTest, latency,
-  pctOfRated, pushEvent, qualityOf, authorize, siteName, sourceName, type Ctx,
+  audit, byBattery, canSeeBattery, canSeeEvidence, canSeeSite, db, evidenceStatus, familyOf, getBatteryOrThrow, lastApprovedTest, latency,
+  pctOfRated, pushEvent, qualityIndexFor, qualityOf, authorize, siteName, sourceName, type Ctx,
 } from '../core';
 import type {
   AssignmentView, BatteryFilters, BatteryListItem, BatteryPassport, BatteryRepository, LocationDetail,
   QrLookupResult, TelemetrySummary, TimelineEvent,
 } from '../types';
+import { statusFor } from './status';
 import { telemetrySummaryFor } from './telemetry';
 
 export function newUuid(): string {
@@ -48,13 +49,13 @@ export function locationOf(ctx: Ctx, b: Battery): LocationDetail {
   };
 }
 
-export function toListItem(ctx: Ctx, b: Battery): BatteryListItem {
+export function toListItem(ctx: Ctx, b: Battery, index?: QualityIndex): BatteryListItem {
   const d = db(ctx);
   const f = familyOf(ctx, b);
   const loc = locationOf(ctx, b);
   const t = lastApprovedTest(d, b.id);
-  const q = qualityOf(ctx, b);
-  const w = d.warranties.find((x) => x.batteryId === b.id);
+  const q = qualityOf(ctx, b, index);
+  const w = byBattery(d.warranties).get(b.id)?.[0];
   const es = evidenceStatus(d, b);
   return {
     id: b.id, label: b.label, publicRef: b.publicRef, manufacturerSerial: b.manufacturerSerial,
@@ -67,6 +68,7 @@ export function toListItem(ctx: Ctx, b: Battery): BatteryListItem {
     quality: q, evidenceStatus: { code: es.code, label: es.label },
     warrantyState: w?.state ?? null, updatedAt: b.updatedAt,
     duplicateWarning: q.conflicts[0] ?? null,
+    status: (({ status, headline, nextStep }) => ({ code: status, headline, nextStep }))(statusFor(ctx, b, index)),
   };
 }
 
@@ -77,14 +79,16 @@ export function createBatteryRepository(ctx: Ctx): BatteryRepository {
       authorize(ctx, 'battery.read');
       const d = db(ctx);
       const q = filters.q?.trim().toLowerCase();
+      const idx = qualityIndexFor(ctx);
       const items = d.batteries
         .filter((b) => canSeeBattery(ctx, b))
-        .map((b) => toListItem(ctx, b))
+        .map((b) => toListItem(ctx, b, idx))
         .filter((i) => {
           if (filters.manufacturer && i.manufacturer !== filters.manufacturer) return false;
           if (filters.chemistry && i.chemistry !== filters.chemistry) return false;
           if (filters.state && i.lifecycleState !== filters.state) return false;
           if (filters.qualityLevel && i.quality.level !== filters.qualityLevel) return false;
+          if (filters.status && i.status.code !== filters.status) return false;
           if (filters.siteId) {
             const b = d.batteries.find((x) => x.id === i.id)!;
             if (locationOf(ctx, b).siteId !== filters.siteId) return false;
@@ -198,14 +202,22 @@ export function createBatteryRepository(ctx: Ctx): BatteryRepository {
       }
       d.batteries.filter((x) => x.replacesBatteryId === b.id && canSeeBattery(ctx, x)).forEach((x) =>
         related.push({ id: x.id, label: x.label, publicRef: x.publicRef, relation: 'Replaced by this battery (separate identity)' }));
-      const q = qualityOf(ctx, b);
+      const qidx = qualityIndexFor(ctx);
+      const q = qualityOf(ctx, b, qidx);
       if (!customer) {
-        d.batteries.filter((x) => x.id !== b.id && canSeeBattery(ctx, x) && (
-          (x.manufacturerSerial && b.manufacturerSerial && x.manufacturerSerial.toLowerCase() === b.manufacturerSerial.toLowerCase()) ||
-          d.aliases.some((al) => al.batteryId === x.id && d.aliases.some((m) => m.batteryId === b.id && m.value.toLowerCase() === al.value.toLowerCase())) ||
-          d.aliases.some((al) => al.batteryId === b.id && x.manufacturerSerial && al.value.toLowerCase() === x.manufacturerSerial.toLowerCase()) ||
-          d.aliases.some((al) => al.batteryId === x.id && b.manufacturerSerial && al.value.toLowerCase() === b.manufacturerSerial.toLowerCase())
-        )).forEach((x) => related.push({ id: x.id, label: x.label, publicRef: x.publicRef, relation: 'Possible duplicate identity, needs review' }));
+        // Other batteries that share a serial or an alias with this one, in either direction: a handful of lookups.
+        const mySerial = b.manufacturerSerial?.toLowerCase();
+        const mine = (byBattery(d.aliases).get(b.id) ?? []).map((a) => a.value.toLowerCase());
+        const candidates = new Set<string>([
+          ...(mySerial ? (qidx.serials.get(mySerial) ?? []) : []),
+          ...(mySerial ? (qidx.aliasValues.get(mySerial) ?? []) : []),
+          ...mine.flatMap((v) => [...(qidx.aliasValues.get(v) ?? []), ...(qidx.serials.get(v) ?? [])]),
+        ]);
+        candidates.delete(b.id);
+        if (candidates.size) {
+          d.batteries.filter((x) => candidates.has(x.id) && canSeeBattery(ctx, x))
+            .forEach((x) => related.push({ id: x.id, label: x.label, publicRef: x.publicRef, relation: 'Possible duplicate identity, needs review' }));
+        }
       }
 
       const loc = locationOf(ctx, b);
@@ -213,7 +225,7 @@ export function createBatteryRepository(ctx: Ctx): BatteryRepository {
       return {
         battery: customer ? { ...b, internalNotes: '' } : b,
         family, aliases, retiredRefs, quality: q, evidenceStatus: evidenceStatus(d, b), location: loc,
-        lastApprovedTest: lastApprovedTest(d, b.id), events, tests, stringTests, attempts, assignments, telemetry,
+        lastApprovedTest: lastApprovedTest(d, b.id), events, tests, stringTests, attempts, assignments, telemetry, status: statusFor(ctx, b),
         costs: showCosts ? d.costs.filter((c) => c.batteryId === b.id) : null,
         values: showCosts ? d.values.filter((v) => v.batteryId === b.id) : null,
         warranty: can(actor.role, 'warranty.read') ? d.warranties.find((w) => w.batteryId === b.id) ?? null : null,
@@ -335,7 +347,9 @@ export function createBatteryRepository(ctx: Ctx): BatteryRepository {
       await latency(ctx);
       const actor = authorize(ctx, 'battery.export');
       const d = db(ctx);
-      const rows = d.batteries.filter((b) => canSeeBattery(ctx, b) && (!ids || ids.includes(b.id))).map((b) => toListItem(ctx, b));
+      const idx = qualityIndexFor(ctx);
+      const wanted = ids ? new Set(ids) : null;
+      const rows = d.batteries.filter((b) => canSeeBattery(ctx, b) && (!wanted || wanted.has(b.id))).map((b) => toListItem(ctx, b, idx));
       const header = ['label', 'public_reference', 'manufacturer_serial', 'manufacturer', 'model', 'chemistry', 'rated_voltage_v', 'rated_capacity_ah', 'lifecycle_state', 'site', 'position', 'data_quality', 'warranty_state', 'updated_at'];
       const esc = (v: unknown) => {
         const s = v === null || v === undefined ? '' : String(v);

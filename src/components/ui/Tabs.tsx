@@ -1,6 +1,7 @@
 'use client';
 import * as RadixTabs from '@radix-ui/react-tabs';
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useScrollFade } from '@/lib/useScrollFade';
 
 export interface TabItem {
   value: string;
@@ -19,6 +20,7 @@ export function Tabs({
 }: { tabs: TabItem[]; value: string; onValueChange: (v: string) => void; label: string }) {
   const listRef = useRef<HTMLDivElement>(null);
   const [thumb, setThumb] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [fadeRef, fadeStyle] = useScrollFade<HTMLDivElement>();
 
   useLayoutEffect(() => {
     const list = listRef.current;
@@ -44,7 +46,7 @@ export function Tabs({
 
   return (
     <RadixTabs.Root value={value} onValueChange={onValueChange}>
-      <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:overflow-visible md:px-0 [&::-webkit-scrollbar]:hidden">
+      <div ref={fadeRef} style={fadeStyle} className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:overflow-visible md:px-0 [&::-webkit-scrollbar]:hidden">
         <RadixTabs.List ref={listRef} aria-label={label} className="relative inline-flex min-w-max gap-1 md:flex md:min-w-0 md:flex-wrap md:gap-0.5">
           {thumb && (
             <span

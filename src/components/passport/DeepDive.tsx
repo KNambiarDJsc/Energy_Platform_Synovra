@@ -1,18 +1,21 @@
 'use client';
 import * as RadixTabs from '@radix-ui/react-tabs';
 import {
-  Activity, ArrowLeft, ArrowRight, BatteryCharging, CalendarClock, Check, FileText, Gauge, History, LineChart, Thermometer, Wrench, Zap,
+  Activity, ArrowLeft, ArrowRight, BatteryCharging, CalendarClock, Check, ChevronRight, FileText, Gauge, History, LineChart, Thermometer, Wrench, Zap,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { LifecycleBadge } from '@/components/ui/Badge';
+import { LifecycleBadge, TestStatusBadge } from '@/components/ui/Badge';
+import { FACTOR_WORD, FactorDot, KindTag, StatusBadge } from '@/components/ui/Status';
 import { buttonClass } from '@/components/ui/buttonClass';
 import { QUALIFICATION_THRESHOLD_PCT } from '@/data/seed';
 import { LIFECYCLE_LABELS } from '@/domain/lifecycle';
 import { TEMPERATURE_RULE, TEMPERATURE_SCALE } from '@/domain/limits';
+import { STATUS_LABELS, type StatusAssessment } from '@/domain/status';
 import type { Alert, LifecycleEvent, TestSession } from '@/domain/types';
 import { cn, formatDate, formatNumber, formatShortDate, formatTime } from '@/lib/format';
+import { useScrollFade } from '@/lib/useScrollFade';
 import { useRuntime, useSession, useSvcQuery } from '@/lib/hooks';
 import { getServices } from '@/services';
 import type { BatteryPassport } from '@/services/types';
@@ -147,7 +150,7 @@ function TemperatureScale({ value, low, high }: { value: number | null; low: num
           </span>
         )}
       </div>
-      <div className="mt-2 flex justify-between text-[12px] leading-4 text-muted">
+      <div className="mt-2 flex justify-between text-[13px] leading-4 text-muted">
         <span>{minC} °C</span>
         <span>{maxC} °C</span>
       </div>
@@ -174,7 +177,7 @@ function CapacityHistory({ tests, rated }: { tests: TestSession[]; rated: number
       <div className="relative ml-24 flex h-32 items-end gap-3 border-b border-line pb-px" role="img"
         aria-label={`Approved capacity tests: ${rows.map((r) => `${TEST_LABEL[r.t.kind]} ${formatNumber(r.pct, 0)}% of rated`).join(', ')}. Demonstration threshold ${QUALIFICATION_THRESHOLD_PCT}%.`}>
         <span className="absolute inset-x-0 border-t border-dashed border-copper" style={{ bottom: `${(QUALIFICATION_THRESHOLD_PCT / top) * 100}%` }} aria-hidden>
-          <span className="absolute -top-5 left-0 bg-white pr-1 text-[12px] text-copper-700">{QUALIFICATION_THRESHOLD_PCT}% demo threshold</span>
+          <span className="absolute -top-5 left-0 bg-white pr-1 text-[13px] text-copper-700">{QUALIFICATION_THRESHOLD_PCT}% demo threshold</span>
         </span>
         {rows.map((r, i) => (
           <div key={r.t.id} className="flex min-w-0 flex-1 flex-col items-center justify-end" style={{ height: '100%' }}>
@@ -184,7 +187,7 @@ function CapacityHistory({ tests, rated }: { tests: TestSession[]; rated: number
           </div>
         ))}
       </div>
-      <figcaption className="ml-24 mt-2 flex gap-3 text-[12px] leading-4 text-muted">
+      <figcaption className="ml-24 mt-2 flex gap-3 text-[13px] leading-4 text-muted">
         {rows.map((r) => (
           <span key={r.t.id} className="min-w-0 flex-1 text-center">{TEST_LABEL[r.t.kind]}<span className="block">{formatDate(r.t.startedAt)}</span></span>
         ))}
@@ -226,41 +229,133 @@ function Fact({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function nextStep(p: BatteryPassport, alert: Alert | null): string {
-  const s = p.battery.lifecycleState;
-  if (alert) return `Review the open alert: ${alert.title.toLowerCase()}.`;
-  if (s === 'received') return 'Record an intake inspection and an initial capacity test.';
-  if (s === 'testing') return 'Submit the test for an engineer’s review.';
-  if (s === 'restoration_candidate') return 'Open a restoration attempt in a batch for this family.';
-  if (s === 'in_restoration') return 'Finish the attempt, then record and submit the after-test.';
-  if (s === 'awaiting_review') return 'Waiting for an engineer’s qualification decision.';
-  if (s === 'rework') return 'Start a further restoration attempt, or reject.';
-  if (s === 'qualified') return 'Ready to reserve or deploy to a compatible slot.';
-  if (s === 'reserved') return 'Install at the planned site and record the slot.';
-  if (s === 'deployed' && p.telemetry.freshness === 'stale') return 'Telemetry is stale. Check the site gateway.';
-  if (s === 'deployed') return 'In service. Nothing needs doing now.';
-  if (s === 'returned') return 'Test it again before any reuse.';
-  return 'Hand over to a licensed recycler and file the certificate.';
+function EvidenceRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[84px_minmax(0,1fr)] gap-x-3 py-2.5">
+      <dt className="text-[13px] leading-5 text-muted">{label}</dt>
+      <dd className="min-w-0 text-sm leading-5 text-ink">{children}</dd>
+    </div>
+  );
 }
 
-function OverviewPanel({ p, alert }: { p: BatteryPassport; alert: Alert | null }) {
+/**
+ * The newest approved test, with everything needed to judge it: the value and its unit, when and how it was
+ * measured, on which instrument and calibration, and who approved it. A missing item says "Not recorded";
+ * an absent test says "No approved test", never a zero. A newer test that is still under review is named, but
+ * not counted.
+ */
+function LatestEvidence({ p, protocol }: { p: BatteryPassport; protocol: string }) {
   const test = p.lastApprovedTest;
-  const pct = test?.result.capacityAh != null ? (test.result.capacityAh / p.family.ratedCapacityAh) * 100 : null;
+  const rated = p.family.ratedCapacityAh;
+  const newer = p.tests
+    .filter((t) => t.level === 'battery' && t.status !== 'approved' && t.status !== 'draft' && (!test || t.startedAt > test.startedAt))
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+  const pending = newer && (
+    <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-amber-50 px-3 py-2 text-[13px] leading-5 text-amber-700">
+      <TestStatusBadge status={newer.status} />
+      <span>
+        A newer {TEST_LABEL[newer.kind].toLowerCase()} test ({formatDate(newer.startedAt)}, {formatNumber(newer.result.capacityAh, 0, 'Ah')}) is not counted until an engineer approves it.
+      </span>
+    </p>
+  );
+  if (!test) {
+    return (
+      <section aria-labelledby="latest-h" className="border-t border-line pt-5">
+        <h3 id="latest-h" className="text-[13px] font-medium text-muted">Latest approved test</h3>
+        <p className="mt-1 font-display text-[28px] leading-8 text-ink">No approved test</p>
+        <p className="mt-1 text-sm text-ink-2">Capacity is unknown, not zero.</p>
+        {pending}
+      </section>
+    );
+  }
+  const pct = test.result.capacityAh === null ? null : (test.result.capacityAh / rated) * 100;
+  const files = p.evidence.filter((e) => test.evidenceIds.includes(e.id));
+  const c = test.conditions;
+  return (
+    <section aria-labelledby="latest-h" className="border-t border-line pt-5">
+      <h3 id="latest-h" className="text-[13px] font-medium text-muted">Latest approved test</h3>
+      <p className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+        <span className="font-display text-[40px] leading-[44px] tracking-[-0.02em] text-ink"><Num n={test.result.capacityAh} unit="Ah" /></span>
+        <span className="text-sm text-ink-2">{pct === null ? `of rated ${rated} Ah` : `${formatNumber(pct, 0)}% of rated ${rated} Ah`}</span>
+      </p>
+      <dl className="mt-3 divide-y divide-line border-t border-line">
+        <EvidenceRow label="Tested">{formatDate(test.startedAt)} · {TEST_LABEL[test.kind]} test</EvidenceRow>
+        <EvidenceRow label="Method">{protocol}</EvidenceRow>
+        <EvidenceRow label="Conditions">
+          {formatNumber(c.loadCurrentA, 1, 'A')} to {formatNumber(c.cutoffVoltageV, 2, 'V')}, ambient {formatNumber(c.ambientTempC, 0, '°C')}
+          <span className="block text-[13px] text-muted">Not temperature-corrected.</span>
+        </EvidenceRow>
+        <EvidenceRow label="Instrument">
+          {test.instrument.trim() || <span className="text-muted">Not recorded</span>}
+          <span className="block text-[13px] text-muted">
+            Calibration {test.calibrationRef.trim() ? test.calibrationRef : <span className="font-medium text-amber-700">not recorded</span>}
+          </span>
+        </EvidenceRow>
+        <EvidenceRow label="Review">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <TestStatusBadge status={test.status} />
+            <span>{test.reviewerName ?? 'Reviewer not recorded'}{test.reviewedAt ? `, ${formatDate(test.reviewedAt)}` : ''}</span>
+          </span>
+        </EvidenceRow>
+        <EvidenceRow label="Report">
+          {files.length === 0 ? <span className="text-muted">No report attached</span> : files.length === 1 ? files[0].fileName : `${files.length} files attached`}
+        </EvidenceRow>
+      </dl>
+      {pending}
+    </section>
+  );
+}
+
+/**
+ * Level 1, the glance: the status in words and one line. Level 2, the why: every factor that decided it, each with
+ * the kind of number behind it. What the platform cannot know yet is said, not hidden.
+ */
+function StatusGlance({ s: st }: { s: StatusAssessment }) {
+  return (
+    <section aria-labelledby="status-glance-h">
+      <h3 id="status-glance-h" className="sr-only">Status</h3>
+      <StatusBadge status={st.status} />
+      <p className="mt-2 font-display text-[22px] leading-7 tracking-[-0.01em] text-ink">{st.headline}</p>
+      <ul className="mt-4 divide-y divide-line border-y border-line" aria-label="What decided the status">
+        {st.factors.map((f) => (
+          <li key={f.key} className="grid grid-cols-[auto_92px_minmax(0,1fr)] items-baseline gap-x-3 py-2.5 text-sm leading-5">
+            <FactorDot state={f.state} />
+            <span className="text-ink-2">{f.label}<span className="sr-only">: {FACTOR_WORD[f.state]}.</span></span>
+            <span className="min-w-0 text-ink">{f.detail} <KindTag kind={f.kind} className="ml-1 whitespace-nowrap" /></span>
+          </li>
+        ))}
+        <li className="grid grid-cols-[auto_92px_minmax(0,1fr)] items-baseline gap-x-3 py-2.5 text-sm leading-5">
+          <FactorDot state="unknown" />
+          <span className="text-ink-2">Plate condition</span>
+          <span className="min-w-0 text-muted">Not modelled. No validated model, and plates cannot be seen without opening the case. <KindTag kind="modelled" className="ml-1 whitespace-nowrap" /></span>
+        </li>
+        <li className="grid grid-cols-[auto_92px_minmax(0,1fr)] items-baseline gap-x-3 py-2.5 text-sm leading-5">
+          <FactorDot state="unknown" />
+          <span className="text-ink-2">Replacement</span>
+          <span className="min-w-0 text-muted">Not estimated until a model passes validation. <KindTag kind="predicted" className="ml-1 whitespace-nowrap" /></span>
+        </li>
+      </ul>
+      <p className="mt-2 text-[13px] leading-5 text-muted">
+        Rule {st.rule.name} {st.rule.version}{st.rule.placeholder ? ', placeholder thresholds' : ''}. A status, not a health score.
+      </p>
+    </section>
+  );
+}
+
+function OverviewPanel({ p, protocol }: { p: BatteryPassport; protocol: string }) {
   return (
     <div className="space-y-6">
       <PanelHead icon={Activity} title="Where it stands" />
+      <StatusGlance s={p.status} />
       <div className="flex flex-wrap items-center gap-2">
         <LifecycleBadge state={p.battery.lifecycleState} />
         <span className="text-sm text-ink-2">{p.evidenceStatus.label}</span>
       </div>
       <p className="text-[15px] leading-6 text-ink">{p.evidenceStatus.detail}</p>
-      <dl className="grid grid-cols-2 gap-5 border-t border-line pt-5">
-        <Fact label="Last approved capacity" value={test ? formatNumber(test.result.capacityAh, 0, 'Ah') : 'None'} />
-        <Fact label="Of rated" value={pct === null ? 'Unknown' : `${formatNumber(pct, 0)}%`} />
-      </dl>
+      <LatestEvidence p={p} protocol={protocol} />
       <div className="rounded-xl bg-canvas p-4">
         <p className="text-[13px] font-medium text-muted">Next step</p>
-        <p className="mt-1 text-[15px] leading-6 text-ink">{nextStep(p, alert)}</p>
+        <p className="mt-1 text-[15px] leading-6 text-ink">{p.status.nextStep}</p>
         <ProvLine prov={{ kind: 'rule', text: 'Suggested by a fixed rule, not a model' }} className="mt-2" />
       </div>
     </div>
@@ -452,8 +547,8 @@ function Attention({ alert, canAssistant }: { alert: Alert | null; canAssistant:
       <div className="flex items-start gap-3 border-t border-line pt-5">
         <Check className="mt-1 h-5 w-5 shrink-0 text-approved" aria-hidden />
         <div>
-          <p className="font-display text-[22px] leading-7 text-ink">Nothing needs attention</p>
-          <p className="text-[13px] text-muted">No open alert for this battery. That is not proof of good condition.</p>
+          <p className="font-display text-[22px] leading-7 text-ink">No open alerts</p>
+          <p className="text-[13px] text-muted">No alert rule has fired for this battery. That is not proof of good condition; the status above says what the record shows.</p>
         </div>
       </div>
     );
@@ -484,14 +579,14 @@ function Attention({ alert, canAssistant }: { alert: Alert | null; canAssistant:
 
 /* ------------------------------ since last visit ------------------------------ */
 
-interface VisitSnap { at: string; events: number; eventIds: string[]; temperatureC: number | null; capacityPct: number | null; lifecycle: string; openAlerts: number }
+interface VisitSnap { at: string; events: number; eventIds: string[]; temperatureC: number | null; capacityPct: number | null; lifecycle: string; openAlerts: number; status?: string }
 
 function snapOf(p: BatteryPassport, openAlerts: number): VisitSnap {
   const t = p.lastApprovedTest;
   return {
     at: '', events: p.events.length, eventIds: p.events.map((e) => e.id).slice(-50),
     temperatureC: p.telemetry.temperatureC, capacityPct: t?.result.capacityAh != null ? Math.round((t.result.capacityAh / p.family.ratedCapacityAh) * 1000) / 10 : null,
-    lifecycle: p.battery.lifecycleState, openAlerts,
+    lifecycle: p.battery.lifecycleState, openAlerts, status: p.status.status,
   };
 }
 
@@ -534,6 +629,9 @@ function SinceLastVisit({ p, previous, current }: { p: BatteryPassport; previous
     const known = new Set(previous.eventIds);
     const fresh = p.events.filter((e) => !known.has(e.id));
     if (fresh.length) items.push({ label: `${fresh.length} new ${fresh.length === 1 ? 'event' : 'events'}`, value: fresh[fresh.length - 1].title });
+    if (previous.status && current.status && previous.status !== current.status) {
+      items.push({ label: 'Status', value: `${STATUS_LABELS[previous.status as keyof typeof STATUS_LABELS] ?? previous.status} → ${STATUS_LABELS[current.status as keyof typeof STATUS_LABELS]}` });
+    }
     if (previous.lifecycle !== current.lifecycle) {
       items.push({ label: 'Lifecycle', value: `${LIFECYCLE_LABELS[previous.lifecycle as keyof typeof LIFECYCLE_LABELS] ?? previous.lifecycle} → ${LIFECYCLE_LABELS[p.battery.lifecycleState]}` });
     }
@@ -568,6 +666,74 @@ function SinceLastVisit({ p, previous, current }: { p: BatteryPassport; previous
           </dl>
         </>
       )}
+    </section>
+  );
+}
+
+/* ------------------------------ what an intervention changed ------------------------------ */
+
+type Change = { label: string; unit: string; before: number | null; after: number | null; better: 'up' | 'down'; scaleMax: number; kind: 'measured' | 'calculated'; digits: number };
+
+/**
+ * Before and after the most recent decided intervention, from the two tests that bracket it. The bars move from
+ * the before value to the after value, once, as the section arrives: the animation shows what changed, and the
+ * numbers beside it are the evidence. It shows what changed on this battery, not that the process caused it.
+ */
+function InterventionChange({ p }: { p: BatteryPassport }) {
+  const decided = p.attempts
+    .filter((a) => a.decidedAt && a.beforeTestId && a.afterTestId)
+    .sort((a, b) => (b.decidedAt ?? '').localeCompare(a.decidedAt ?? ''));
+  const attempt = decided[0];
+  const before = attempt ? p.tests.find((t) => t.id === attempt.beforeTestId) : undefined;
+  const after = attempt ? p.tests.find((t) => t.id === attempt.afterTestId) : undefined;
+  if (!attempt || !before || !after) return null;
+  const rated = p.family.ratedCapacityAh;
+  const pct = (t: TestSession) => (t.result.capacityAh === null ? null : (t.result.capacityAh / rated) * 100);
+  const rise = (t: TestSession) => (t.result.temperatureC === null || t.conditions.ambientTempC === null ? null : t.result.temperatureC - t.conditions.ambientTempC);
+  const rows: Change[] = [
+    { label: 'Capacity, of rated', unit: '%', before: pct(before), after: pct(after), better: 'up', scaleMax: 110, kind: 'calculated', digits: 0 },
+    { label: 'Internal resistance', unit: 'mΩ', before: before.result.internalResistanceMOhm, after: after.result.internalResistanceMOhm, better: 'down', scaleMax: Math.max(1, (before.result.internalResistanceMOhm ?? 0), (after.result.internalResistanceMOhm ?? 0)) * 1.25, kind: 'measured', digits: 1 },
+    { label: 'Battery above ambient, at test', unit: '°C', before: rise(before), after: rise(after), better: 'down', scaleMax: Math.max(2, Math.abs(rise(before) ?? 0), Math.abs(rise(after) ?? 0)) * 1.4, kind: 'calculated', digits: 1 },
+  ];
+  const outcome = attempt.status === 'approved' ? 'Qualified by an engineer' : attempt.status === 'rejected' ? 'Rejected by an engineer' : attempt.status === 'rework' ? 'Sent back for rework' : 'Decided';
+  return (
+    <section aria-labelledby="change-h" className="border-t border-line pt-8">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+        <h2 id="change-h" className="font-display text-[26px] leading-8 text-ink">What the last intervention changed</h2>
+        <p className="text-sm text-ink-2">Attempt {attempt.attemptNo} · {formatDate(before.startedAt)} → {formatDate(after.startedAt)} · {outcome}</p>
+      </div>
+      <ul className="mt-6 grid gap-x-10 gap-y-7 md:grid-cols-3">
+        {rows.map((r) => {
+          const known = r.before !== null && r.after !== null;
+          const delta = known ? r.after! - r.before! : null;
+          const improved = delta === null || Math.abs(delta) < 10 ** -r.digits ? null : (r.better === 'up' ? delta > 0 : delta < 0);
+          const w = (v: number | null) => `${v === null ? 0 : Math.max(2, Math.min(100, (Math.abs(v) / r.scaleMax) * 100))}%`;
+          return (
+            <li key={r.label} className="min-w-0">
+              <p className="flex items-baseline justify-between gap-3 text-sm text-ink-2">{r.label}<KindTag kind={r.kind} /></p>
+              {known ? (
+                <>
+                  <p className="mt-1.5 font-display text-[30px] leading-9 tracking-[-0.015em] text-ink">
+                    <Num n={r.before} digits={r.digits} unit={r.unit} /> <span className="text-muted">→</span> <Num n={r.after} digits={r.digits} unit={r.unit} />
+                  </p>
+                  <div className="mt-3 space-y-1.5" aria-hidden>
+                    <span className="block h-1.5 rounded-full bg-fill"><span className="anim-grow block h-full rounded-full bg-field" style={{ width: w(r.before) }} /></span>
+                    <span className="block h-1.5 rounded-full bg-fill"><span className={cn('anim-grow block h-full rounded-full', improved === false ? 'bg-heat' : 'bg-teal')} style={{ width: w(r.after), animationDelay: '250ms' }} /></span>
+                  </div>
+                  <p className={cn('mt-2 text-[13px]', improved === true ? 'text-approved-700' : improved === false ? 'text-critical-700' : 'text-muted')}>
+                    {improved === null ? 'No change' : `${delta! > 0 ? '+' : '−'}${formatNumber(Math.abs(delta!), r.digits)}${r.unit === '%' ? ' points' : ` ${r.unit}`}${improved ? ', better' : ', worse'}`}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1.5 text-[15px] text-muted">Not recorded on both tests.</p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-5 max-w-[78ch] text-[13px] leading-5 text-muted">
+        Based on measurements before and after the intervention: the {TEST_LABEL[before.kind].toLowerCase()} test and the {TEST_LABEL[after.kind].toLowerCase()} test. It shows what changed on this battery, not that the process caused it.
+      </p>
     </section>
   );
 }
@@ -615,6 +781,7 @@ const LENSES: { value: Lens; label: string }[] = [
 function LensList() {
   const listRef = useRef<HTMLDivElement>(null);
   const [bar, setBar] = useState<{ x: number; w: number } | null>(null);
+  const [fadeRef, fadeStyle] = useScrollFade<HTMLDivElement>();
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return;
@@ -630,7 +797,7 @@ function LensList() {
     return () => { mo.disconnect(); ro.disconnect(); };
   }, []);
   return (
-    <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden">
+    <div ref={fadeRef} style={fadeStyle} className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden">
       <RadixTabs.List ref={listRef} aria-label="Battery lens" className="relative mx-auto flex w-max gap-1 md:gap-3">
         {bar && <span aria-hidden className="absolute bottom-0 left-0 h-[2px] rounded-full bg-copper transition-[transform,width] duration-300 ease-out" style={{ transform: `translateX(${bar.x}px)`, width: bar.w }} />}
         {LENSES.map((l) => (
@@ -687,6 +854,7 @@ export function DeepDive({
   const canTelemetry = session.can('telemetry.read') && session.has('monitoring') && p.telemetry.available;
   const canAssistant = session.can('assistant.use') && session.has('assistant');
   const now = useMemo(() => getServices().telemetry.snapshotAt(), []);
+  const protocols = useSvcQuery(['tests', 'protocols'], (s) => s.tests.protocols(), { enabled: session.can('test.read') });
 
   const series = useSvcQuery(['telemetry', 'series', p.battery.id, 7], (s) => s.telemetry.series(p.battery.id, 7), { enabled: canTelemetry });
   const peers = useSvcQuery(['telemetry', 'peers', p.battery.id, 7], (s) => s.telemetry.stringPeers(p.battery.id, 7), { enabled: canTelemetry });
@@ -704,6 +872,9 @@ export function DeepDive({
   const testedShort = (iso: string): Prov => ({ kind: 'tested', text: `Tested ${formatShortDate(iso)}` });
   const sensorIr = p.telemetry.available && p.telemetry.resistanceMOhm !== null;
   const stages = storyStages(p);
+  const latestProtocol = p.lastApprovedTest ? protocols.data?.find((x) => x.id === p.lastApprovedTest!.protocolId) : undefined;
+  const protocolLabel = latestProtocol ? `${latestProtocol.name}, ${latestProtocol.revision}` : p.lastApprovedTest ? p.lastApprovedTest.protocolId : 'Not recorded';
+  const serialClash = p.quality.conflicts.some((x) => x.startsWith('Serial'));
 
   const current = snapOf(p, openAlerts.length);
   const previous = useLastVisit(session.user ? `synovra-visit:${session.user.id}:${p.battery.id}` : null, current);
@@ -714,18 +885,29 @@ export function DeepDive({
   return (
     <div className="space-y-12">
       <RadixTabs.Root value={lens} onValueChange={(v) => onLens(v as Lens)}>
-        <div className="relative grid gap-x-8 gap-y-6 [grid-template-areas:'back'_'id'_'tabs'_'fig'_'panel'] lg:grid-cols-[230px_minmax(0,1fr)] lg:[grid-template-areas:'back_tabs'_'id_fig'_'panel_panel'] xl:grid-cols-[220px_minmax(0,1fr)_356px] xl:[grid-template-areas:'back_tabs_tabs'_'id_fig_panel']">
+        <div className="relative grid gap-x-8 gap-y-6 [grid-template-areas:'back'_'id'_'tabs'_'panel'_'stages'_'fig'] lg:grid-cols-[230px_minmax(0,1fr)] lg:[grid-template-areas:'back_tabs'_'id_fig'_'stages_fig'_'panel_panel'] xl:grid-cols-[220px_minmax(0,1fr)_356px] xl:[grid-template-areas:'back_tabs_tabs'_'id_fig_panel'_'stages_fig_panel'] lg:grid-rows-[auto_auto_1fr_auto] xl:grid-rows-[auto_auto_1fr]">
           {/* spotlight behind the battery */}
           <span aria-hidden className="pointer-events-none absolute inset-x-0 -top-10 bottom-0 -z-10 lg:-inset-x-8 bg-[radial-gradient(55%_50%_at_45%_45%,#FFFFFF_0%,rgba(255,255,255,0)_70%)]" />
 
-          <Link href="/app/batteries" className="inline-flex min-h-[40px] items-center gap-2 self-center justify-self-start rounded-md text-[15px] text-ink-2 [grid-area:back] hover:text-ink">
-            <ArrowLeft className="h-4 w-4" aria-hidden /> Batteries
-          </Link>
+          <nav aria-label="Breadcrumb" className="self-center justify-self-start [grid-area:back]">
+            <ol className="flex min-h-[40px] items-center gap-1.5 text-[15px] text-ink-2">
+              <li>
+                <Link href="/app/batteries" className="inline-flex items-center gap-1.5 rounded-md hover:text-ink">
+                  <ArrowLeft className="h-4 w-4" aria-hidden /> Batteries
+                </Link>
+              </li>
+              <li aria-current="page" className="flex items-center gap-1.5">
+                <ChevronRight className="h-3.5 w-3.5 text-muted" aria-hidden />
+                <span className="mono font-medium text-ink">{p.battery.label}</span>
+              </li>
+            </ol>
+          </nav>
           <div className="min-w-0 self-center [grid-area:tabs]"><LensList /></div>
 
           {/* identity */}
           <div className="min-w-0 [grid-area:id]">
             <h1 className="mono font-display text-[52px] font-normal leading-[54px] tracking-[-0.025em] text-ink">{p.battery.label}</h1>
+            <p className="mt-3"><StatusBadge status={p.status.status} /></p>
             <p className="mt-3 text-[17px] leading-6 text-ink-2">
               {here ? <>{here.siteName}<span className="block text-[15px] text-muted">{here.bankName} / {here.stringName}, position {here.position}</span></> : p.battery.physicalLocation}
             </p>
@@ -736,18 +918,33 @@ export function DeepDive({
             <p className="mt-4">
               <ProvLine prov={{ kind: statusDot as ProvKind, text: p.telemetry.lastReadingAt ? `${status} · ${stamp(p.telemetry.lastReadingAt)}` : status }} />
             </p>
-            <p className="mono mt-2 text-[13px] text-muted">{p.battery.publicRef}</p>
+            <dl className="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-[13px] leading-5">
+              <dt className="text-muted">Serial</dt>
+              <dd className="min-w-0 break-all text-ink">
+                {p.battery.manufacturerSerial ? <span className="mono">{p.battery.manufacturerSerial}</span> : <span className="text-muted">Not recorded</span>}
+                {serialClash && <span className="ml-1.5 font-medium text-critical-700">also on another record</span>}
+              </dd>
+              <dt className="text-muted">QR reference</dt>
+              <dd className="mono min-w-0 break-all text-ink">{p.battery.publicRef}</dd>
+              <dt className="text-muted">Assignment</dt>
+              <dd className="text-ink">{here ? `In service since ${formatDate(here.startAt)}` : 'Not deployed'}</dd>
+            </dl>
             <div className="mt-5 flex flex-wrap gap-2">{actions}</div>
+          </div>
 
-            <ol className="mt-7 space-y-2.5" aria-label="Lifecycle progress">
+          {/* lifecycle progress */}
+          <div className="min-w-0 [grid-area:stages]">
+            <ol className="space-y-3" aria-label="Lifecycle progress">
               {stages.map((st) => (
-                <li key={st.key} className="flex items-center gap-2.5 text-sm">
-                  <span className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded-full',
+                <li key={st.key} className="flex items-start gap-2.5 text-sm">
+                  <span className={cn('mt-[3px] flex h-4 w-4 shrink-0 items-center justify-center rounded-full',
                     st.state === 'done' ? 'bg-teal' : st.state === 'current' ? 'bg-copper' : st.state === 'problem' ? 'bg-critical' : 'border border-field')} aria-hidden>
                     {st.state === 'done' && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />}
                   </span>
-                  <span className={cn(st.state === 'pending' || st.state === 'skipped' ? 'text-muted' : 'font-medium text-ink')}>{st.label}</span>
-                  <span className="truncate text-[13px] text-muted">{st.detail}</span>
+                  <span className="min-w-0">
+                    <span className={cn(st.state === 'pending' || st.state === 'skipped' ? 'text-muted' : 'font-medium text-ink')}>{st.label}</span>
+                    {st.detail && <span className="block text-[13px] leading-[18px] text-muted">{st.detail}</span>}
+                  </span>
                   <span className="sr-only">, {st.state === 'done' ? 'done' : st.state === 'current' ? 'now' : st.state === 'problem' ? 'problem' : 'not yet'}.</span>
                 </li>
               ))}
@@ -768,7 +965,7 @@ export function DeepDive({
           <aside className="card min-w-0 p-6 [grid-area:panel] xl:self-start" aria-label="Lens details">
             {LENSES.map((l) => (
               <RadixTabs.Content key={l.value} value={l.value} className="lens-in focus-visible:outline-none">
-                {l.value === 'overview' && <OverviewPanel p={p} alert={topAlert} />}
+                {l.value === 'overview' && <OverviewPanel p={p} protocol={protocolLabel} />}
                 {l.value === 'temperature' && <TemperaturePanel p={p} simulated={simulated} series={temps} />}
                 {l.value === 'capacity' && <CapacityPanel p={p} />}
                 {l.value === 'voltage' && <VoltagePanel p={p} simulated={simulated} peers={peerPoints} />}
@@ -823,6 +1020,8 @@ export function DeepDive({
           </div>
         </section>
       </div>
+
+      <InterventionChange p={p} />
 
       {/* what changed, and what happened */}
       <div className="grid gap-10 border-t border-line pt-8 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">

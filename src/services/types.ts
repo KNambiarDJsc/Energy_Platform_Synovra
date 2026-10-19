@@ -3,6 +3,7 @@
  * `services/index.ts` wires the in-browser mock implementations; a FastAPI/PostgreSQL
  * adapter can implement the same interfaces (see docs/API_ADAPTER.md for the endpoint mapping).
  */
+import type { BatteryStatus, StatusAssessment } from '@/domain/status';
 import type {
   Alert, AlertState, AlertType, AuditEvent, Battery, BatteryAlias, BatteryAssignment, BatteryFamily, CostEntry,
   DataQuality, EvidenceFile, ImportJob, ImportTemplate, LifecycleEvent, LifecycleState, NotificationSetting,
@@ -28,6 +29,8 @@ export interface BatteryFilters {
   updatedFrom?: string;
   updatedTo?: string;
   qualityLevel?: string;
+  /** Good, watching, needs attention, baseline or out of service: see src/domain/status.ts. */
+  status?: BatteryStatus | '';
 }
 
 export interface BatteryListItem {
@@ -51,6 +54,8 @@ export interface BatteryListItem {
   warrantyState: WarrantyRecord['state'] | null;
   updatedAt: string;
   duplicateWarning: string | null;
+  /** The status and its one-line reason. The full reasoning is on the passport. */
+  status: { code: BatteryStatus; headline: string; nextStep: string };
 }
 
 export interface LocationDetail {
@@ -114,6 +119,8 @@ export interface BatteryPassport {
   tasks: ServiceTask[];
   predictions: Prediction[];
   relatedBatteries: { id: string; label: string; publicRef: string; relation: string }[];
+  /** Good, watching, needs attention or baseline, with every factor that decided it. Never a score. */
+  status: StatusAssessment;
   /** True when customer-audience redaction has been applied. */
   redacted: boolean;
   redactions: string[];
@@ -454,8 +461,25 @@ export interface OverviewData {
   trends: { week: string; received: number; qualified: number; deployed: number }[];
   snapshotAt: string;
 }
+/** One battery on the home screen: which, where, why, and what to do. */
+export interface HomeItem { id: string; label: string; place: string; headline: string; nextStep: string }
+
+/** The calm home: how everything is doing, what needs attention, what happens next. */
+export interface HomeView {
+  snapshotAt: string;
+  /** Batteries still in the fleet: every status except out of service. */
+  inFleet: number;
+  retired: number;
+  counts: { good: number; watching: number; attention: number; baseline: number };
+  attention: HomeItem[];
+  watching: HomeItem[];
+  actions: { now: number; scheduled: number; completed: number };
+  rule: StatusAssessment['rule'];
+}
+
 export interface OverviewRepository {
   get(): Promise<OverviewData>;
+  home(): Promise<HomeView>;
 }
 
 /* ------------------------------ Insights: the learning foundation ------------------------------ */
@@ -635,6 +659,9 @@ export interface BenchRow {
 export interface BenchPreview {
   fileName: string;
   fileHash: string;
+  /** The export layout the file was read with, and anything the profile changed on the way in. */
+  profile: { id: string; name: string };
+  conversions: string[];
   priorCommitAt: string | null;
   rows: BenchRow[];
   counts: { create: number; skipped: number; quarantined: number };
@@ -651,9 +678,11 @@ export interface BenchCommitResult {
 export interface BenchImportRepository {
   columns(): string[];
   sample(): string;
-  preview(input: { fileName: string; text: string }): Promise<BenchPreview>;
+  /** The export layouts this installation can read. The first is Synovra's own. */
+  profiles(): { id: string; name: string; description: string }[];
+  preview(input: { fileName: string; text: string; profileId?: string }): Promise<BenchPreview>;
   /** `stored` is set by the API after it has scanned and stored the file's bytes. In pilot mode the commit is refused without it. */
-  commit(input: { fileName: string; text: string }, stored?: StoredEvidence): Promise<BenchCommitResult>;
+  commit(input: { fileName: string; text: string; profileId?: string }, stored?: StoredEvidence): Promise<BenchCommitResult>;
 }
 
 /** Money in per battery. Records are only ever added; a correction is a new record with a note. */

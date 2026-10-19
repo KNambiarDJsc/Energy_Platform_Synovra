@@ -21,7 +21,7 @@ import { DemoBanner } from './DemoBanner';
 import { NAV, navForPath, type NavItem } from './nav';
 
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
-const SIDEBAR = 'lg:w-[264px]';
+const SIDEBAR = 'lg:w-[236px] xl:w-[264px]';
 
 function useVisibleNav(): NavItem[] {
   const { can, has } = useSession();
@@ -88,8 +88,9 @@ function NavList({ items, pathname, alertCount, onNavigate }: { items: NavItem[]
                     onClick={onNavigate}
                     aria-current={active ? 'page' : undefined}
                     className={cn(
-                      'group flex min-h-[40px] items-center gap-3 rounded-md px-3 text-[15px] transition-[background-color,color] duration-150',
-                      active ? 'bg-fill-2 font-semibold text-ink' : 'font-medium text-ink-2 hover:bg-fill hover:text-ink',
+                      'group relative flex min-h-[40px] items-center gap-3 rounded-md px-3 text-[15px] transition-[background-color,color] duration-150',
+                      // The chosen place gets a copper edge as well as a tint, so it reads in black and white too.
+                      active ? 'bg-fill-2 font-semibold text-ink before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-copper' : 'font-medium text-ink-2 hover:bg-fill hover:text-ink',
                     )}
                   >
                     <n.icon className={cn('h-[18px] w-[18px] shrink-0 transition-colors', active ? 'text-copper' : 'text-muted group-hover:text-ink-2')} strokeWidth={1.85} aria-hidden />
@@ -246,13 +247,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   }
 
-  const mobileTabs = items.filter((n) => ['/app/overview', '/app/batteries', '/app/alerts', '/app/tests'].includes(n.href)).slice(0, 3);
+  const mobileTabs = items.filter((n) => ['/app/home', '/app/batteries', '/app/alerts', '/app/tests'].includes(n.href)).slice(0, 3);
 
   return (
     <div className="min-h-[100dvh]">
       <div className="no-print sticky top-0 z-40">
         <DemoBanner />
-        <header className="flex h-[60px] items-center gap-2 bg-canvas px-3 md:px-6 lg:pl-[288px] lg:pr-8">
+        <header className="flex h-[60px] items-center gap-2 bg-canvas px-3 md:px-6 lg:pl-[260px] lg:pr-8 xl:pl-[288px]">
           <button
             type="button"
             className="flex h-10 w-10 items-center justify-center rounded-full text-ink transition-colors hover:bg-fill lg:hidden"
@@ -319,7 +320,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main id="main" className="px-4 pb-28 pt-3 md:px-6 lg:ml-[264px] lg:px-8 lg:pb-14 lg:pt-5" tabIndex={-1}>
+      <main id="main" className="px-4 pb-28 pt-3 md:px-6 lg:ml-[236px] lg:px-8 xl:ml-[264px] lg:pb-14 lg:pt-5" tabIndex={-1}>
         <div className="mx-auto max-w-[1200px]">
           {/* Role switcher also on phones, where the top bar is crowded */}
           <RoleSwitcher id="role-switch-m" showLabel className="no-print mb-5 sm:hidden" />
@@ -346,12 +347,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               key={n.href}
               href={n.href}
               aria-current={active ? 'page' : undefined}
-              className={cn('relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[12px] font-medium transition-colors', active ? 'text-copper-700' : 'text-muted')}
+              className={cn('relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[13px] font-medium transition-colors', active ? 'text-copper-700' : 'text-muted')}
             >
               <n.icon className="h-[22px] w-[22px]" strokeWidth={active ? 2.1 : 1.8} aria-hidden />
               {n.label.split(' ')[0]}
               {n.href === '/app/alerts' && alertCount > 0 && (
-                <span className="num absolute right-[26%] top-1.5 rounded-full bg-critical px-1.5 text-[11px] font-semibold leading-4 text-white">{alertCount}</span>
+                <span className="num absolute right-[26%] top-1.5 rounded-full bg-critical px-1.5 text-[12px] font-semibold leading-4 text-white">{alertCount}</span>
               )}
             </Link>
           );
@@ -359,7 +360,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button
           type="button"
           onClick={() => setMenuOpen(true)}
-          className="flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[12px] font-medium text-muted"
+          className="flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[13px] font-medium text-muted"
         >
           <Menu className="h-[22px] w-[22px]" strokeWidth={1.8} aria-hidden />
           More

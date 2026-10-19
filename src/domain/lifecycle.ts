@@ -1,4 +1,4 @@
-import type { DataQuality, Battery, BatteryFamily, BatteryAlias, LifecycleState } from './types';
+import type { DataQuality, DataQualityLevel, Battery, BatteryFamily, BatteryAlias, LifecycleState } from './types';
 
 export const LIFECYCLE_LABELS: Record<LifecycleState, string> = {
   received: 'Received',
@@ -20,6 +20,33 @@ export const LIFECYCLE_ORDER: LifecycleState[] = [
   'received', 'testing', 'restoration_candidate', 'in_restoration', 'awaiting_review',
   'rework', 'qualified', 'reserved', 'deployed', 'returned', 'rejected', 'recycling_queue', 'recycled',
 ];
+
+/**
+ * What a person would do next, from the lifecycle state alone. A fixed rule, not a model and not a diagnosis:
+ * it never reads a measurement. The passport adds what an open alert or stale telemetry change.
+ */
+export const NEXT_STEP_BY_STATE: Record<LifecycleState, string> = {
+  received: 'Record an intake inspection and an initial capacity test.',
+  testing: 'Submit the test for an engineer’s review.',
+  restoration_candidate: 'Open a restoration attempt in a batch for this family.',
+  in_restoration: 'Finish the attempt, then record and submit the after-test.',
+  awaiting_review: 'Waiting for an engineer’s qualification decision.',
+  rework: 'Start a further restoration attempt, or reject.',
+  qualified: 'Ready to reserve or deploy to a compatible slot.',
+  reserved: 'Install at the planned site and record the slot.',
+  deployed: 'In service. Nothing needs doing now.',
+  returned: 'Test it again before any reuse.',
+  rejected: 'Move to the recycling queue.',
+  recycling_queue: 'Hand over to a licensed recycler and file the certificate.',
+  recycled: 'Closed. Nothing more to do.',
+};
+
+/** Where the record itself is in doubt, that comes first: nothing else is reliable until it is settled. */
+export function nextStepFor(state: LifecycleState, quality?: { level: DataQualityLevel }): { text: string; attention: boolean } {
+  if (quality?.level === 'conflict') return { text: 'Resolve the identity conflict first.', attention: true };
+  const attention = state === 'awaiting_review' || state === 'returned' || state === 'rework';
+  return { text: NEXT_STEP_BY_STATE[state], attention };
+}
 
 /** Allowed transitions. Anything not listed is rejected by the service layer. */
 export const TRANSITIONS: Record<LifecycleState, LifecycleState[]> = {
@@ -92,6 +119,24 @@ export function inventoryGroupOf(state: LifecycleState): InventoryGroup {
   }
 }
 
+/**
+ * Who holds each serial and each alias value (lower-cased), built once so that checking every battery for a
+ * duplicate costs one lookup each instead of a scan of every other battery. Build it fresh for each pass over
+ * the register: a correction can change a serial, so an index must not outlive the request that built it.
+ */
+export interface QualityIndex {
+  serials: Map<string, string[]>;
+  aliasValues: Map<string, string[]>;
+}
+export function buildQualityIndex(batteries: Battery[], aliases: BatteryAlias[]): QualityIndex {
+  const add = (m: Map<string, string[]>, key: string, id: string) => { const l = m.get(key); if (l) l.push(id); else m.set(key, [id]); };
+  const serials = new Map<string, string[]>();
+  const aliasValues = new Map<string, string[]>();
+  for (const b of batteries) if (b.manufacturerSerial) add(serials, b.manufacturerSerial.toLowerCase(), b.id);
+  for (const a of aliases) add(aliasValues, a.value.toLowerCase(), a.batteryId);
+  return { serials, aliasValues };
+}
+
 /** Explainable data-quality: lists exactly what is missing instead of a single score. */
 export function assessDataQuality(
   battery: Battery,
@@ -100,7 +145,9 @@ export function assessDataQuality(
   allBatteries: Battery[],
   allAliases: BatteryAlias[],
   hasApprovedTest: boolean,
+  index?: QualityIndex,
 ): DataQuality {
+  const other = (ids: string[] | undefined) => !!ids && ids.some((id) => id !== battery.id);
   const missing: string[] = [];
   const conflicts: string[] = [];
   if (!battery.manufacturerSerial) missing.push('Manufacturer serial');
@@ -109,19 +156,21 @@ export function assessDataQuality(
   if (!hasApprovedTest && !['received', 'testing'].includes(battery.lifecycleState)) missing.push('Approved test');
 
   if (battery.manufacturerSerial) {
-    const dup = allBatteries.find(
-      (b) => b.id !== battery.id && b.manufacturerSerial?.toLowerCase() === battery.manufacturerSerial!.toLowerCase(),
-    );
+    const dup = index
+      ? other(index.serials.get(battery.manufacturerSerial.toLowerCase()))
+      : allBatteries.some((b) => b.id !== battery.id && b.manufacturerSerial?.toLowerCase() === battery.manufacturerSerial!.toLowerCase());
     if (dup) conflicts.push(`Serial ${battery.manufacturerSerial} is also recorded on another battery record`);
   }
   for (const alias of aliases) {
-    const clash = allAliases.find((a) => a.batteryId !== battery.id && a.value.toLowerCase() === alias.value.toLowerCase());
+    const clash = index
+      ? other(index.aliasValues.get(alias.value.toLowerCase()))
+      : allAliases.some((a) => a.batteryId !== battery.id && a.value.toLowerCase() === alias.value.toLowerCase());
     if (clash) conflicts.push(`Alias ${alias.value} is also used by another battery record`);
   }
   for (const alias of aliases) {
-    const serialClash = allBatteries.find(
-      (b) => b.id !== battery.id && b.manufacturerSerial?.toLowerCase() === alias.value.toLowerCase(),
-    );
+    const serialClash = index
+      ? other(index.serials.get(alias.value.toLowerCase()))
+      : allBatteries.some((b) => b.id !== battery.id && b.manufacturerSerial?.toLowerCase() === alias.value.toLowerCase());
     if (serialClash) conflicts.push(`Alias ${alias.value} matches the serial of another battery record`);
   }
 

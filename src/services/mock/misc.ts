@@ -2,10 +2,12 @@ import { ConflictError, NotFoundError, ROLE_LABELS, ValidationError, canActorSee
 import { userInputSchema, userUpdateSchema } from '@/domain/schemas';
 import type { DemoDb, LifecycleState, Role, User } from '@/domain/types';
 import {
-  audit, canSeeBattery, canSeeSite, db, latency, qualityOf, authorize, type Ctx,
+  audit, canSeeBattery, canSeeSite, db, latency, qualityIndexFor, qualityOf, authorize, type Ctx,
 } from '../core';
-import type { AdminRepository, OverviewData, OverviewRepository, PredictionRepository, PredictionView } from '../types';
+import type { AdminRepository, HomeItem, HomeView, OverviewData, OverviewRepository, PredictionRepository, PredictionView } from '../types';
 import { ACTIVE_ALERT_STATES } from './alerts';
+import { locationOf } from './batteries';
+import { statusFor } from './status';
 
 export function createPredictionRepository(ctx: Ctx): PredictionRepository {
   return {
@@ -146,12 +148,48 @@ export function createAdminRepository(ctx: Ctx): AdminRepository {
 
 export function createOverviewRepository(ctx: Ctx): OverviewRepository {
   return {
+    async home(): Promise<HomeView> {
+      await latency(ctx);
+      authorize(ctx, 'battery.read');
+      const d = db(ctx);
+      const actor = ctx.actor();
+      const qidx = qualityIndexFor(ctx);
+      const rows = d.batteries.filter((b) => canSeeBattery(ctx, b)).map((b) => ({ b, s: statusFor(ctx, b, qidx) }));
+      const item = ({ b, s }: (typeof rows)[number]): HomeItem => {
+        const loc = locationOf(ctx, b);
+        return {
+          id: b.id, label: b.label, headline: s.headline,
+          place: loc.siteName ? `${loc.siteName}${loc.stringName ? `, ${loc.bankName} / ${loc.stringName}, position ${loc.position}` : ''}` : b.physicalLocation,
+          nextStep: s.nextStep,
+        };
+      };
+      // Most urgent first, then by label, so the list reads the same every time.
+      const of = (code: string) => rows.filter((r) => r.s.status === code).sort((x, y) => x.s.urgency - y.s.urgency || x.b.label.localeCompare(y.b.label));
+      const tasks = d.tasks.filter((t) => canActorSeeSite(actor, t.siteId));
+      const attention = of('attention');
+      return {
+        snapshotAt: ctx.store.snapshotAt,
+        inFleet: rows.filter((r) => r.s.status !== 'retired').length,
+        retired: of('retired').length,
+        counts: { good: of('good').length, watching: of('watching').length, attention: attention.length, baseline: of('baseline').length },
+        attention: attention.slice(0, 6).map(item),
+        watching: of('watching').slice(0, 4).map(item),
+        actions: {
+          now: attention.length,
+          scheduled: tasks.filter((t) => t.status === 'open' || t.status === 'in_progress').length,
+          completed: tasks.filter((t) => t.status === 'done').length,
+        },
+        rule: rows[0]?.s.rule ?? { name: 'battery-status', version: '', placeholder: true },
+      };
+    },
+
     async get(): Promise<OverviewData> {
       await latency(ctx);
       authorize(ctx, 'battery.read');
       const d = db(ctx);
       const actor = ctx.actor();
       const batteries = d.batteries.filter((b) => canSeeBattery(ctx, b));
+      const visible = new Map(batteries.map((b) => [b.id, b] as const));
       const count = (...s: LifecycleState[]) => batteries.filter((b) => s.includes(b.lifecycleState)).length;
       const sites = d.sites.filter((s) => canSeeSite(ctx, s));
       const alerts = d.alerts.filter((a) => {
@@ -159,14 +197,15 @@ export function createOverviewRepository(ctx: Ctx): OverviewRepository {
         return s && canSeeSite(ctx, s) && !(isCustomerAudience(actor.role) && a.source.kind === 'model');
       });
       const active = alerts.filter((a) => ACTIVE_ALERT_STATES.includes(a.state));
-      const q = batteries.map((b) => qualityOf(ctx, b).level);
-      const inBatches = d.attempts.filter((a) => batteries.some((b) => b.id === a.batteryId));
+      const qidx = qualityIndexFor(ctx);
+      const q = batteries.map((b) => qualityOf(ctx, b, qidx).level);
+      const inBatches = d.attempts.filter((a) => visible.has(a.batteryId));
       const qualifiedBatteries = new Set(inBatches.filter((a) => a.status === 'approved').map((a) => a.batteryId)).size;
       const attempted = new Set(inBatches.map((a) => a.batteryId)).size;
       const decided = new Set(inBatches.filter((a) => ['approved', 'rejected'].includes(a.status)).map((a) => a.batteryId)).size;
 
       const states: LifecycleState[] = ['received', 'testing', 'restoration_candidate', 'in_restoration', 'awaiting_review', 'rework', 'qualified', 'reserved', 'deployed', 'returned', 'rejected', 'recycling_queue', 'recycled'];
-      const events = d.events.filter((e) => batteries.some((b) => b.id === e.batteryId));
+      const events = d.events.filter((e) => visible.has(e.batteryId));
       const snapshot = Date.parse(ctx.store.snapshotAt);
       const weeks = Array.from({ length: 8 }, (_, i) => {
         const end = snapshot - (7 - i) * 7 * 86_400_000;
@@ -187,7 +226,7 @@ export function createOverviewRepository(ctx: Ctx): OverviewRepository {
           testing: count('testing', 'restoration_candidate', 'in_restoration', 'rework'),
           qualified: count('qualified', 'reserved'),
           deployed: count('deployed'),
-          needsReview: count('awaiting_review') + d.tests.filter((t) => ['submitted', 'under_review'].includes(t.status) && batteries.some((b) => b.id === t.batteryId) && batteries.find((b) => b.id === t.batteryId)?.lifecycleState !== 'awaiting_review').length,
+          needsReview: count('awaiting_review') + d.tests.filter((t) => ['submitted', 'under_review'].includes(t.status) && t.batteryId !== null && visible.has(t.batteryId) && visible.get(t.batteryId)!.lifecycleState !== 'awaiting_review').length,
           activeAlerts: active.length, criticalAlerts: active.filter((a) => a.severity === 'critical').length,
         },
         restoration: { qualified: qualifiedBatteries, attempted, yieldPct: decided ? Math.round((qualifiedBatteries / decided) * 1000) / 10 : null },

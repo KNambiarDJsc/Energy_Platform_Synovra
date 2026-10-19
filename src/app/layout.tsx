@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Newsreader } from 'next/font/google';
+import { Geist_Mono, Inter, Newsreader } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { Providers } from '@/components/app/Providers';
 import './globals.css';
@@ -7,7 +7,9 @@ import './globals.css';
 // The optical-size axis gives large titles the tighter display cut and small text the open text cut.
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap', axes: ['opsz'] });
 // Titles and the figure a person reads first are set in a serif with its own optical sizes; data stays in Inter.
-const display = Newsreader({ subsets: ['latin'], variable: '--font-display', display: 'swap', axes: ['opsz'] });
+const display = Newsreader({ subsets: ['latin'], variable: '--font-display', display: 'swap', axes: ['opsz'], style: ['normal', 'italic'] });
+// Labels, numerals and readouts: a monospace gives the technical voice a face of its own. Used sparingly, never for reading text.
+const mono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
 export const metadata: Metadata = {
   title: { default: 'Synovra Battery Intelligence', template: '%s · Synovra Battery Intelligence' },
@@ -20,7 +22,7 @@ export const viewport: Viewport = { width: 'device-width', initialScale: 1, them
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     // The inline script marks script-capable pages before paint, so entrance motion never hides content without it.
-    <html lang="en" className={`${inter.variable} ${display.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${display.variable} ${mono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js')" }} />
       </head>

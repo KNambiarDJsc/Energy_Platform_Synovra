@@ -18,6 +18,15 @@ npx playwright install chromium   # first time only
 npm run test:e2e             # builds into .next-e2e and serves on :3100; safe while dev/start is running
 ```
 
+### Run the whole stack
+
+```bash
+docker compose -f deploy/compose.yml up -d --build   # PostgreSQL, object storage, API, web, proxy
+node deploy/smoke.mjs http://localhost:8088           # end-to-end check through the public address
+```
+
+Open `http://localhost:8088` (set `SYNOVRA_PORT` to change it). This uses dev sign-in and demo data; see `docs/architecture.md` ("The deployable stack", "Pluggability: the seams") for what to change for a pilot. CI (`.github/workflows/ci.yml`) runs lint, types, unit, API (PGlite and PostgreSQL), Python, browser and this stack check.
+
 For demos, always use the production server. In development mode Next.js compiles each route on its first visit, which makes sidebar clicks take several seconds; the production build switches pages in roughly 100–250 ms.
 
 The demo database lives in the browser (in memory, mirrored to `localStorage` key `synovra-demo-db-v4`). Clear site data to reset it. The demo clock is fixed at **2026-10-13 05:00 UTC** so the seed stays consistent.
@@ -78,6 +87,7 @@ Battery (identity, `publicRef`, aliases, retired refs) → family (rated values,
 | --- | --- |
 | `docs/architecture.md` | Components, workflow, data boundaries, deployment, ML and agent operations, threat model, known unknowns |
 | `docs/ML_PLAN.md` | Which models, on which labels, by version; learning versus unlearning; compute |
+| `docs/customer-ux-alignment.md` | The customer-experience vision and the data strategy mapped onto the prototype: built, partial, deliberately not built, and what data unlocks the rest |
 | `docs/pilot-readiness.md` | The pilot plan's acceptance criteria checked against the code: built, partial, gap |
 | `docs/research/papers.md` | What the battery and agent research supports here, and what it does not; unverified citations listed separately |
 | `docs/research/datasets.md` | Public datasets, their licences, and the rule that they never enter Synovra's records |

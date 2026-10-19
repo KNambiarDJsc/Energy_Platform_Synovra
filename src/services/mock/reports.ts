@@ -4,7 +4,7 @@ import { RESTORATION_REASON_LABELS, notQualifiedReasons } from '@/domain/outcome
 import { ConflictError, NotFoundError, ValidationError, can, isCustomerAudience } from '@/domain/permissions';
 import type { Report, ReportSection, ReportTemplateId } from '@/domain/types';
 import {
-  audit, canSeeBattery, canSeeSite, db, evidenceStatus, familyOf, lastApprovedTest, latency, pctOfRated, qualityOf, authorize,
+  audit, canSeeBattery, canSeeSite, db, evidenceStatus, familyOf, lastApprovedTest, latency, pctOfRated, qualityIndexFor, qualityOf, authorize,
   siteName, type Ctx,
 } from '../core';
 import type { ReportRepository, ReportTemplate } from '../types';
@@ -162,7 +162,8 @@ export function createReportRepository(ctx: Ctx): ReportRepository {
     if (templateId === 'data_completeness') {
       const list = batteryRows();
       scope = 'All visible batteries';
-      const q = list.map((b) => ({ b, q: qualityOf(ctx, b) }));
+      const qidx = qualityIndexFor(ctx);
+      const q = list.map((b) => ({ b, q: qualityOf(ctx, b, qidx) }));
       sections.push({ heading: 'Summary', visibility: 'customer', columns: ['Level', 'Batteries'], rows: (['complete', 'partial', 'incomplete', 'conflict'] as const).map((l) => [l, String(q.filter((x) => x.q.level === l).length)]) });
       sections.push({ heading: 'Items needing attention', visibility: 'customer', columns: ['Battery', 'Level', 'Missing', 'Conflicts'],
         rows: q.filter((x) => x.q.level !== 'complete').map((x) => [x.b.label, x.q.level, x.q.missing.join('; ') || dash, x.q.conflicts.join('; ') || dash]) });

@@ -76,7 +76,7 @@ export async function withServices<T>(
     let t = performance.now();
     timing.waitMs = Math.round(t - requested);
     const userId = await resolveUserId(tx, principal);
-    const snap = await loadSnapshotCached(tx, deps.db, { predictions: deps.config.features.intelligence }, (hit) => { timing.cache = hit ? 'hit' : 'miss'; });
+    const snap = await loadSnapshotCached(tx, deps.db, { predictions: deps.config.features.intelligence, readOnly: mode === 'read' }, (hit) => { timing.cache = hit ? 'hit' : 'miss'; });
     timing.loadMs = Math.round(performance.now() - t);
     t = performance.now();
     const user = snap.db.users.find((u) => u.id === userId);

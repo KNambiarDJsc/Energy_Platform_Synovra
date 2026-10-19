@@ -1,3 +1,4 @@
+import { benchProfile, benchProfiles, normalizeBenchText } from '@/domain/benchProfile';
 import { parseCsv } from '@/domain/csv';
 import { ValidationError } from '@/domain/permissions';
 import type { TestKind, TestSession } from '@/domain/types';
@@ -27,9 +28,13 @@ B-0001,initial,2026-10-12,proto_c10,12.61,4.6,25.1,126.5,20,10.8,25,6.3,Discharg
 const KINDS: TestKind[] = ['intake_inspection', 'initial', 'final', 'periodic'];
 
 export function createBenchImport(ctx: Ctx): BenchImportRepository {
-  function check(text: string): { hash: string; rows: BenchRow[] } {
+  function check(text: string, profileId?: string): { hash: string; rows: BenchRow[]; profile: { id: string; name: string }; conversions: string[] } {
     const d = db(ctx);
-    const { headers, rows } = parseCsv(text);
+    const profile = benchProfile(profileId);
+    if (!profile) throw new ValidationError(`No export profile "${profileId}" is installed.`);
+    // The hash is of the file as exported; the checks below read it in Synovra's layout.
+    const converted = normalizeBenchText(text, profile);
+    const { headers, rows } = parseCsv(converted.text);
     const col = (name: string) => headers.findIndex((h) => h.trim().toLowerCase() === name);
     const missingCols = ['battery', 'test_kind', 'test_date', 'protocol', 'capacity_ah', 'instrument', 'calibration_ref'].filter((c) => col(c) < 0);
     if (missingCols.length) throw new ValidationError('The file is missing required columns', missingCols.map((c) => `Column "${c}" not found`));
@@ -81,7 +86,7 @@ export function createBenchImport(ctx: Ctx): BenchImportRepository {
       const fields = Object.fromEntries(headers.map((h, j) => [h.trim().toLowerCase(), (r[j] ?? '').trim()]));
       out.push({ rowNumber: i + 2, batteryLabel: label || '(empty)', batteryId: b?.id ?? null, kind: KINDS.includes(kind) ? kind : null, date, capacityAh: Number.isNaN(values.capacity as number) ? null : values.capacity, attemptId, issues, outcome, note, fields });
     });
-    return { hash: hashText(text), rows: out };
+    return { hash: hashText(text), rows: out, profile: { id: profile.id, name: profile.name }, conversions: converted.notes };
   }
 
   const authorizeImport = () => {
@@ -93,21 +98,22 @@ export function createBenchImport(ctx: Ctx): BenchImportRepository {
   return {
     columns: () => [...BENCH_COLUMNS],
     sample: () => BENCH_SAMPLE_CSV,
+    profiles: () => benchProfiles().map(({ id, name, description }) => ({ id, name, description })),
 
-    async preview({ fileName, text }) {
+    async preview({ fileName, text, profileId }) {
       await latency(ctx);
       authorizeImport();
-      const { hash, rows } = check(text);
+      const { hash, rows, profile, conversions } = check(text, profileId);
       const prior = priorCommit(hash);
       const shown = prior ? rows.map((r) => (r.outcome === 'create' ? { ...r, outcome: 'skip' as const, note: 'This exact file was committed before: skipped.' } : r)) : rows;
-      return { fileName, fileHash: hash, priorCommitAt: prior, rows: shown, counts: tally(shown) };
+      return { fileName, fileHash: hash, profile, conversions, priorCommitAt: prior, rows: shown, counts: tally(shown) };
     },
 
-    async commit({ fileName, text }, stored) {
+    async commit({ fileName, text, profileId }, stored) {
       await latency(ctx);
       const actor = authorizeImport();
       const d = db(ctx);
-      const { hash, rows } = check(text);
+      const { hash, rows } = check(text, profileId);
       const prior = priorCommit(hash);
       const toCreate = prior ? [] : rows.filter((r) => r.outcome === 'create');
       const created: string[] = [];

@@ -1,5 +1,5 @@
 import {
-  Activity, Bell, Boxes, Brain, FileText, FlaskConical, LayoutDashboard, MapPinned, PackagePlus, Settings, Battery, Wrench,
+  Activity, Bell, Boxes, Brain, FileText, FlaskConical, House, LayoutDashboard, MapPinned, PackagePlus, Settings, Battery, Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import type { Permission } from '@/domain/permissions';
@@ -18,6 +18,7 @@ export interface NavItem {
 }
 
 export const NAV: NavItem[] = [
+  { href: '/app/home', label: 'Home', icon: House, permission: 'battery.read', group: 'Operate', purpose: 'How every battery is doing, what changed and what needs attention.' },
   { href: '/app/overview', label: 'Overview', icon: LayoutDashboard, permission: 'battery.read', group: 'Operate', purpose: 'Fleet position, work waiting and data completeness.' },
   { href: '/app/batteries', label: 'Batteries', icon: Battery, permission: 'battery.read', group: 'Operate', purpose: 'Every battery record and its passport.' },
   { href: '/app/alerts', label: 'Alerts & tasks', icon: Bell, permission: 'alert.read', feature: 'alerts', group: 'Operate', purpose: 'Alerts, acknowledgement and service tasks.' },

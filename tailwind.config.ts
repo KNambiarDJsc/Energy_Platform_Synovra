@@ -36,6 +36,8 @@ const config: Config = {
         sans: ['var(--font-inter)', 'Inter', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
         // Titles and the figures a person reads first. Data, tables and controls stay in the sans.
         display: ['var(--font-display)', 'Newsreader', 'ui-serif', 'Georgia', 'Cambria', 'Times New Roman', 'serif'],
+        // Labels and the kind of a number (measured, calculated...): small, technical, never body text.
+        mono: ['var(--font-mono)', 'ui-monospace', 'SF Mono', 'Cascadia Mono', 'Menlo', 'Consolas', 'monospace'],
       },
       // Tracking tightens as size grows, the way a grotesque is set on screen.
       fontSize: {
