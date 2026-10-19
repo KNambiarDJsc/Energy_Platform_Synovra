@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist_Mono, Inter, Newsreader } from 'next/font/google';
+import { Geist_Mono, Instrument_Serif, Inter } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { Providers } from '@/components/app/Providers';
 import './globals.css';
 
 // The optical-size axis gives large titles the tighter display cut and small text the open text cut.
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap', axes: ['opsz'] });
-// Titles and the figure a person reads first are set in a serif with its own optical sizes; data stays in Inter.
-const display = Newsreader({ subsets: ['latin'], variable: '--font-display', display: 'swap', axes: ['opsz'], style: ['normal', 'italic'] });
+// Titles and the figure a person reads first are set in Instrument Serif, upright only; reading text, data and controls stay in Inter.
+const display = Instrument_Serif({ subsets: ['latin'], weight: '400', variable: '--font-display', display: 'swap' });
 // Labels, numerals and readouts: a monospace gives the technical voice a face of its own. Used sparingly, never for reading text.
 const mono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     'A verifiable operational history for every lead-acid battery: intake, testing, restoration, qualification, deployment, monitoring and recycling. Demonstration build with synthetic data.',
 };
 
-export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#F5F1EA' };
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#F4F4F3' };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

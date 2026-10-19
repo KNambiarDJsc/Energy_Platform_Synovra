@@ -3,11 +3,11 @@
 @tailwind utilities;
 
 :root {
-  --night: #231e19;
-  --copper: #a34d1f;
-  --canvas: #f5f1ea;
-  --ink: #1f1b16;
-  --muted: #6b6359;
+  --night: #111113;
+  --copper: #d9480f;
+  --canvas: #f4f4f3;
+  --ink: #111111;
+  --muted: #6b6b70;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.32, 0.64, 1);
 }
@@ -30,7 +30,7 @@ body {
 }
 
 ::selection {
-  background: rgba(163, 77, 31, 0.18);
+  background: rgba(242, 84, 27, 0.18);
 }
 
 @layer components {

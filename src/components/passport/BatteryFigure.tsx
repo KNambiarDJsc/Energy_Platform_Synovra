@@ -125,15 +125,15 @@ export function BatteryFigure({ unitType, chemistry, lens, onLens, temperatureC,
           <defs>
             <linearGradient id={`${id}-case`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.72" />
-              <stop offset="1" stopColor="#E8DCCB" stopOpacity="0.62" />
+              <stop offset="1" stopColor="#E4E4E6" stopOpacity="0.62" />
             </linearGradient>
             <linearGradient id={`${id}-lid`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#F4EEE5" />
-              <stop offset="1" stopColor="#D9CDBC" />
+              <stop offset="0" stopColor="#F4F4F3" />
+              <stop offset="1" stopColor="#D6D6D9" />
             </linearGradient>
             <linearGradient id={`${id}-neg`} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor="#8A8177" />
-              <stop offset="1" stopColor="#5E564D" />
+              <stop offset="0" stopColor="#8A8A8F" />
+              <stop offset="1" stopColor="#5E5E63" />
             </linearGradient>
             <linearGradient id={`${id}-pos`} x1="0" y1="0" x2="1" y2="0">
               <stop offset="0" stopColor="#7A452A" />
@@ -141,17 +141,17 @@ export function BatteryFigure({ unitType, chemistry, lens, onLens, temperatureC,
             </linearGradient>
             <linearGradient id={`${id}-sep`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stopColor="#FFFFFF" stopOpacity={agm ? 0.85 : 0.55} />
-              <stop offset="1" stopColor="#F3EADF" stopOpacity={agm ? 0.7 : 0.4} />
+              <stop offset="1" stopColor="#F0F0EF" stopOpacity={agm ? 0.7 : 0.4} />
             </linearGradient>
             <linearGradient id={`${id}-copper`} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor="#7E3A15" />
+              <stop offset="0" stopColor="#9A3412" />
               <stop offset="0.45" stopColor="#E2A06F" />
-              <stop offset="1" stopColor="#8F4219" />
+              <stop offset="1" stopColor="#D9480F" />
             </linearGradient>
             <linearGradient id={`${id}-night`} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor="#1A1612" />
-              <stop offset="0.45" stopColor="#5A5148" />
-              <stop offset="1" stopColor="#231E19" />
+              <stop offset="0" stopColor="#18181A" />
+              <stop offset="0.45" stopColor="#59595E" />
+              <stop offset="1" stopColor="#111113" />
             </linearGradient>
             <linearGradient id={`${id}-sheen`} x1="0" y1="0" x2="1" y2="1">
               <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.55" />
@@ -187,7 +187,7 @@ export function BatteryFigure({ unitType, chemistry, lens, onLens, temperatureC,
 
           <g clipPath={`url(#${id}-inner)`}>
             {/* electrolyte in a flooded cell: a light band; its level is checked on site, not recorded here */}
-            {!agm && tubular && <rect x={g.caseX} y={g.plateTop - 12} width={g.caseW} height={g.caseH} fill="#E9D9B8" opacity="0.28" />}
+            {!agm && tubular && <rect x={g.caseX} y={g.plateTop - 12} width={g.caseW} height={g.caseH} fill="#E6E6E4" opacity="0.28" />}
             <g className="figure-fade" style={{ opacity: lens === 'temperature' ? 0.55 : lens === 'voltage' ? 0.75 : 1 }}>
               {Array.from({ length: g.cells }, (_, c) => (
                 <Plates key={c} id={id} tubular={tubular} x0={innerX + c * cellW + 9} x1={innerX + (c + 1) * cellW - 9} top={g.plateTop} bottom={g.plateBottom} />
@@ -195,7 +195,7 @@ export function BatteryFigure({ unitType, chemistry, lens, onLens, temperatureC,
             </g>
             {/* plate emphasis for the capacity lens */}
             <rect x={innerX} y={g.plateTop - 6} width={innerW} height={g.plateBottom - g.plateTop + 12} rx={8}
-              fill="none" stroke="#A34D1F" strokeWidth="2" strokeDasharray="6 6" className="figure-fade" style={{ opacity: lens === 'capacity' ? 0.9 : 0 }} />
+              fill="none" stroke="#C2410C" strokeWidth="2" strokeDasharray="6 6" className="figure-fade" style={{ opacity: lens === 'capacity' ? 0.9 : 0 }} />
             {/* cell partitions */}
             {Array.from({ length: g.cells - 1 }, (_, i) => (
               <rect key={i} x={innerX + (i + 1) * cellW - 1.5} y={g.caseY + 18} width={3} height={g.caseH - 30} fill="rgba(110,90,64,0.22)" />
@@ -219,22 +219,22 @@ export function BatteryFigure({ unitType, chemistry, lens, onLens, temperatureC,
           {/* lid */}
           <rect x={g.lidX} y={g.caseY - 30} width={g.lidW} height={38} rx={12} fill={`url(#${id}-lid)`} stroke="rgba(110,90,64,0.38)" strokeWidth="1.5" />
           {Array.from({ length: g.cells }, (_, c) => (
-            <rect key={c} x={innerX + c * cellW + cellW / 2 - 13} y={g.caseY - 20} width={26} height={8} rx={4} fill="#CDBFAC" />
+            <rect key={c} x={innerX + c * cellW + cellW / 2 - 13} y={g.caseY - 20} width={26} height={8} rx={4} fill="#C8C8CC" />
           ))}
 
           {/* terminals: negative in night, positive in copper */}
           {[{ x: g.negX, fill: `url(#${id}-night)`, sign: '−' }, { x: g.posX, fill: `url(#${id}-copper)`, sign: '+' }].map((t) => (
             <g key={t.sign}>
-              <circle cx={t.x} cy={g.caseY - 52} r={30} fill="#F2A877" className="figure-fade" style={{ opacity: lens === 'voltage' ? 0.35 : 0 }} />
+              <circle cx={t.x} cy={g.caseY - 52} r={30} fill="#FF8A5C" className="figure-fade" style={{ opacity: lens === 'voltage' ? 0.35 : 0 }} />
               <rect x={t.x - 19} y={g.caseY - 58} width={38} height={34} rx={6} fill={t.fill} />
-              <ellipse cx={t.x} cy={g.caseY - 58} rx={19} ry={5.5} fill={t.sign === '+' ? '#F0B98E' : '#6E655B'} />
-              <text x={t.x} y={g.caseY - 64} textAnchor="middle" fontSize="15" fontWeight="600" fill="#4A433B" aria-hidden>{t.sign}</text>
+              <ellipse cx={t.x} cy={g.caseY - 58} rx={19} ry={5.5} fill={t.sign === '+' ? '#F0B98E' : '#6D6D72'} />
+              <text x={t.x} y={g.caseY - 64} textAnchor="middle" fontSize="15" fontWeight="600" fill="#3F3F46" aria-hidden>{t.sign}</text>
             </g>
           ))}
 
           {/* leader to the detail inset */}
           <g className="figure-fade" style={{ opacity: lens === 'capacity' || lens === 'overview' ? 1 : 0.35 }}>
-            <circle cx={g.hot.capacity[0]} cy={g.hot.capacity[1] - 40} r={4} fill="#FFFFFF" stroke="#A34D1F" strokeWidth="1.5" />
+            <circle cx={g.hot.capacity[0]} cy={g.hot.capacity[1] - 40} r={4} fill="#FFFFFF" stroke="#C2410C" strokeWidth="1.5" />
             <path d={`M${g.hot.capacity[0] + 4} ${g.hot.capacity[1] - 40} L${g.detail[0] - 60} ${g.detail[1]} H${g.view.x + g.view.w - 70}`} stroke="#FFFFFF" strokeWidth="1.5" fill="none" opacity="0.9" />
           </g>
         </svg>
@@ -263,11 +263,11 @@ export function BatteryFigure({ unitType, chemistry, lens, onLens, temperatureC,
 
       {/* plate detail, drawn larger: an illustration of the construction, not a view into this unit */}
       <figure className="pointer-events-none absolute bottom-2 right-0 hidden w-[132px] text-right sm:block">
-        <div className="ml-auto h-[112px] w-[112px] overflow-hidden rounded-full bg-[#2A221B] ring-4 ring-white/80">
+        <div className="ml-auto h-[112px] w-[112px] overflow-hidden rounded-full bg-[#28282B] ring-4 ring-white/80">
           <svg viewBox="0 0 112 112" className="h-full w-full" aria-hidden>
             {Array.from({ length: 7 }, (_, i) => (
               <g key={i}>
-                <rect x={6 + i * 15} y={-4} width={tubular ? 11 : 6} height={120} rx={tubular ? 5.5 : 1.5} fill={i % 2 ? '#6E3F25' : '#7D756B'} />
+                <rect x={6 + i * 15} y={-4} width={tubular ? 11 : 6} height={120} rx={tubular ? 5.5 : 1.5} fill={i % 2 ? '#6E3F25' : '#7C7C81'} />
                 {!tubular && <rect x={13 + i * 15} y={-4} width={7} height={120} fill={agm ? 'rgba(255,255,255,0.78)' : 'rgba(255,255,255,0.45)'} />}
                 {!tubular && agm && Array.from({ length: 9 }, (_, k) => (
                   <circle key={k} cx={15 + i * 15 + (k % 2) * 3} cy={8 + k * 12} r={1.4} fill="rgba(200,190,175,0.9)" />

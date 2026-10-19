@@ -8,9 +8,9 @@ import { formatDateTime, formatNumber } from '@/lib/format';
 
 /** Chart chrome: recessive hairline grid, muted tick text, a baseline one step darker than the grid. */
 const TABLE_ROW = 'border-t border-line'; // taste-skill-ignore: rows of a real data table
-const GRID = '#E6DFD4';
-const BASELINE = '#D3CABD';
-const TICK = { fontSize: 12, fill: '#6B6359' };
+const GRID = '#E4E4E7';
+const BASELINE = '#D4D4D8';
+const TICK = { fontSize: 12, fill: '#6B6B70' };
 
 interface LinePoint {
   t: string;

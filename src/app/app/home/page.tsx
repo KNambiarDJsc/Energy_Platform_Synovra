@@ -106,11 +106,11 @@ export default function HomePage() {
                 label={`${h.inFleet} batteries: ${ORDER.map((s) => `${h.counts[s]} ${STATUS_LABELS[s].toLowerCase()}`).join(', ')}.`}
                 parts={ORDER.map((s) => ({ status: s, count: h.counts[s] }))}
               >
-                <span className="font-display text-[56px] font-light leading-none tracking-[-0.03em] text-ink">{h.inFleet}</span>
+                <span className="font-display text-[60px] font-normal leading-none tracking-[-0.01em] text-ink">{h.inFleet}</span>
                 <span className="mt-1.5 text-sm text-muted">batteries</span>
               </StatusRing>
               <div className="min-w-0 flex-1">
-                <h1 id="home-h" className="font-display text-[34px] font-light leading-[40px] tracking-[-0.02em] text-ink md:text-[44px] md:leading-[50px]">
+                <h1 id="home-h" className="font-display text-[36px] font-normal leading-[40px] tracking-[-0.01em] text-ink md:text-[44px] md:leading-[50px]">
                   {summary(h)}
                 </h1>
                 <ul className="mt-6 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4" aria-label="Batteries by status">

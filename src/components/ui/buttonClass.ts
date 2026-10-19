@@ -7,7 +7,7 @@ export type Size = 'sm' | 'md';
 const base =
   'inline-flex select-none items-center justify-center gap-2 rounded-full font-medium transition-[transform,background-color,color,opacity] duration-150 ease-out active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100';
 const variants: Record<Variant, string> = {
-  primary: 'bg-copper text-white hover:bg-copper-600 active:bg-copper-700',
+  primary: 'bg-ink text-white hover:bg-night-700 active:bg-black',
   secondary: 'bg-fill text-ink hover:bg-fill-2 active:bg-fill-3',
   ghost: 'text-copper-700 hover:bg-fill active:bg-fill-2',
   danger: 'bg-critical text-white hover:bg-critical-700',

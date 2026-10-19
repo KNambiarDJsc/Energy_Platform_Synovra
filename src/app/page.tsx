@@ -1,24 +1,22 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { DemoBanner } from '@/components/app/DemoBanner';
+import { ExplodedBattery } from '@/components/landing/ExplodedBattery';
 import { AuditProof, EvidenceProof, ReadingProof, RecyclingProof } from '@/components/landing/Fragments';
-import { HeroBattery } from '@/components/landing/HeroBattery';
+import { FluidHover } from '@/components/landing/FluidHover';
 import { Lifecycle, OpenPassport, QuestionList, Reveals, RulesDemo, type Picture, type Question } from '@/components/landing/Interactive';
-import { Marquee } from '@/components/landing/Marquee';
+import { Menu } from '@/components/landing/Menu';
 import { Motion } from '@/components/landing/Motion';
-import { Pointer } from '@/components/landing/Pointer';
 import { PlateField } from '@/components/landing/PlateField';
-import { Words } from '@/components/landing/Words';
+import { Pointer } from '@/components/landing/Pointer';
+import { Slot } from '@/components/landing/Slot';
+import { Solutions, type Solution } from '@/components/landing/Solutions';
 import './landing.css';
 
-/**
- * Two drawings made for this page and two public-domain photographs of lead. Nothing here shows Synovra, its
- * sites or its customers, and each caption says what the picture is.
- */
+/** Two drawings made for this page and two public-domain photographs of lead. Each caption says what the picture is. */
 const PICTURES: Picture[] = [
   {
-    alt: 'Plates of lead standing in a row, lit from below in copper.',
+    alt: 'Plates of lead standing in a row, lit from below in orange.',
     caption: 'Plates of lead stand in every cell of a battery. The record follows the battery they live in.',
     art: <PlateField tone="copper" seed={1} />,
   },
@@ -92,37 +90,60 @@ const ABSENT: [string, string][] = [
   ['Customers', 'None; names invented'],
 ];
 
-const JOURNEY = ['Intake', 'Test', 'Restoration', 'Qualification', 'Deployment', 'Recycling'];
+/** The hero's status panel: what the record covers and how each part reaches it today. Words, not colour alone. */
+const COVERAGE: [string, string, 'on' | 'sim' | 'off'][] = [
+  ['Identity', 'In use', 'on'], ['Intake', 'In use', 'on'], ['Tests', 'In use', 'on'], ['Restoration', 'In use', 'on'], ['Decisions', 'In use', 'on'],
+  ['Deployment', 'In use', 'on'], ['Telemetry', 'Simulated', 'sim'], ['Machines', 'Not connected', 'off'], ['Warranty', 'In use', 'on'], ['Recycling', 'In use', 'on'],
+];
+
+/** The hero ticker: points the product holds to, one at a time. */
+const NOTES: [string, string][] = [
+  ['A status, never a health score', 'Good, watching, needs attention or baseline, from fixed rules over what is on record.'],
+  ['Every value says what kind it is', 'Measured, calculated, modelled or predicted, so a forecast never looks like a reading.'],
+  ['A person decides', 'A rule check informs. Only an engineer qualifies a battery, and only with a written reason.'],
+];
+
+/** Shortened SHA-256-style prefixes, invented: the product keeps a full checksum with every evidence file. */
+const HASHES = ['9f2c41ab', 'e07d85c3', '3b19f6a0', 'a4c2e911', '5d80b7f2', 'c61e03d8', '7a9b44e5', '12f0c8ad', 'b3d7621e'];
+
+const SOLUTIONS: Solution[] = [
+  { key: 'identity', n: '01', title: 'Identity and intake', text: 'One permanent ID the moment a battery is scanned. Serial, family, source and photographs stay on one record that never changes.', href: '/signin?next=%2Fapp%2Fintake', slot: 'solution-identity', note: 'Illustration: a battery being scanned, its record opening beside it.' },
+  { key: 'evidence', n: '02', title: 'Tests and evidence', text: 'Capacity and resistance tests with protocol, conditions, instrument and calibration. An engineer reviews every result.', href: '/signin?next=%2Fapp%2Ftests', slot: 'solution-evidence', note: 'Illustration: a bench test with its curve, instrument and certificate.' },
+  { key: 'decisions', n: '03', title: 'Restoration and decisions', text: 'Every attempt in its batch, with reason codes, before and after tests, and a person’s written decision.', href: '/signin?next=%2Fapp%2Frestoration', slot: 'solution-decisions', note: 'Illustration: two tests either side of an attempt, a reviewer’s sign-off.' },
+  { key: 'recovery', n: '04', title: 'Service and recycling', text: 'Where each battery went: deployment, service, warranty, and the recycler’s certificate. The record stays when the battery leaves.', href: '/signin?next=%2Fapp%2Fdeployments', slot: 'solution-recovery', note: 'Illustration: a battery’s last journey, from site to recycler.' },
+];
+
+const PLATFORM: [string, string, string, string][] = [
+  ['01', 'One identity', 'A permanent ID; the label and QR only point to it.', '#lifecycle'],
+  ['02', 'Evidence', 'Tests with method, instrument and calibration, and files with checksums.', '#enforces'],
+  ['03', 'Decisions', 'Who approved what, and why, with refusals recorded.', '#rules'],
+  ['04', 'Money in', 'Costs and sales, with unknown kept unknown.', '#questions'],
+  ['05', 'Recycling', 'The consignment and the certificate that closes it.', '#honesty'],
+];
 
 function Mark({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 28 28" aria-hidden>
-      <rect x="1" y="5" width="26" height="20" rx="5" fill="#231E19" stroke="#fff" strokeOpacity="0.14" />
-      <rect x="6" y="2" width="5" height="4" rx="1" fill="#6B6359" />
-      <rect x="17" y="2" width="5" height="4" rx="1" fill="#C2652F" />
-      <path d="M7 16.5h4l2.2-5 3 8 2.2-3H21" stroke="#F2A877" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="1" y="5" width="26" height="20" rx="3" fill="currentColor" />
+      <rect x="6" y="2" width="5" height="4" rx="1" fill="currentColor" />
+      <rect x="17" y="2" width="5" height="4" rx="1" fill="currentColor" />
+      <path d="M7 16.5h4l2.2-5 3 8 2.2-3H21" stroke="var(--mark, #ff5841)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-/** A floating bar that stays under the demonstration notice. Glass over whatever scrolls beneath it. */
-function Nav() {
+function Header() {
   return (
-    <div className="lp-navwrap">
-      <nav className="lp-nav" aria-label="Site">
-        <Link href="/" className="lp-mark" aria-label="Synovra Battery Intelligence, home">
-          <Mark size={26} />
-          <span>Synovra</span>
-        </Link>
-        <ul className="lp-nav-links">
-          <li><a className="lp-link" href="#lifecycle">How it works</a></li>
-          <li><a className="lp-link" href="#rules">Try the rules</a></li>
-          <li><a className="lp-link" href="#questions">Questions</a></li>
-          <li><a className="lp-link" href="#honesty">What is real</a></li>
-        </ul>
-        <Link className="lp-nav-cta" href="/signin" data-magnet>Demo sign-in</Link>
-      </nav>
-    </div>
+    <header className="lp-head">
+      <Link href="/" className="lp-mark" aria-label="Synovra Battery Intelligence, home">
+        <Mark size={30} />
+        <span>Synovra</span>
+      </Link>
+      <div className="lp-head-r">
+        <Link className="lp-head-cta" href="/signin">Demo sign-in</Link>
+        <Menu />
+      </div>
+    </header>
   );
 }
 
@@ -131,133 +152,165 @@ export default function LandingPage() {
     <div className="lp">
       <DemoBanner />
       <div className="lp-progress" aria-hidden />
-      <Nav />
+      <Header />
       <Reveals />
       <Motion />
       <Pointer />
+      <FluidHover />
       <main id="main">
-        {/* the first screen: one object, one sentence, one action */}
-        <section className="lp-hero lp-grain" data-hero data-scene="leave" aria-label="Synovra Battery Intelligence">
-          <div className="lp-hero-light" aria-hidden />
-          <div className="lp-hero-copy">
-            <p className="lp-eyebrow" data-rise>Synovra · Battery Intelligence</p>
-            <h1 className="lp-h1">
-              <span className="lp-line"><span data-line style={{ ['--i' as string]: 0 }}>Every battery,</span></span>{' '}
-              <span className="lp-line"><span data-line style={{ ['--i' as string]: 1 }}><em>on the record.</em></span></span>
-            </h1>
-            <p className="lp-sub" data-rise style={{ ['--i' as string]: 3 }}>
-              One passport for each lead-acid battery, from intake to recycling. Every claim on it points to the record behind it.
-            </p>
-            <div className="lp-cta-row" data-rise style={{ ['--i' as string]: 4 }}>
-              <Link className="lp-btn" href="/signin" data-magnet>Open the demo</Link>
-              <a className="lp-textlink" href="#lifecycle">See how it works <span aria-hidden>↓</span></a>
+        {/* ------------------------------------------------------------ hero: a title block, a media slot, two side panels */}
+        <section className="lp-hero" data-hero aria-label="Synovra Battery Intelligence">
+          <div className="lp-hero-main">
+            <div className="lp-hero-title">
+              <h1 className="lp-h1">
+                <span className="lp-line"><span data-line style={{ ['--i' as string]: 0 }}>Every battery,</span></span>{' '}
+                <span className="lp-line"><span data-line style={{ ['--i' as string]: 1 }}>on the record.</span></span>
+              </h1>
+              <div className="lp-hero-side" data-rise style={{ ['--i' as string]: 2 }}>
+                <p className="lp-sub">One passport for each lead-acid battery, from intake to recycling. Every claim on it points to the record behind it.</p>
+                <div className="lp-cta-row">
+                  <Link className="lp-btn" href="/signin" data-magnet>Open the demo</Link>
+                  <a className="lp-textlink" href="#platform">Explore the platform <span aria-hidden>↓</span></a>
+                </div>
+              </div>
+            </div>
+            <Slot
+              name="hero-media" kind="video" ratio="21 / 9" dark
+              note="Video: a battery passing through intake, test, restoration and a decision, ending on its record."
+            />
+            <div className="lp-notes" aria-label="What the product holds to" data-rise style={{ ['--i' as string]: 4 }}>
+              {NOTES.map(([t, d], i) => (
+                <p key={t} className="lp-note" style={{ ['--k' as string]: i }}><b>{t}</b><span>{d}</span></p>
+              ))}
             </div>
           </div>
-          <div className="lp-hero-object">
-            <HeroBattery />
-          </div>
-          <div className="lp-hero-foot" data-rise style={{ ['--i' as string]: 5 }}>
-            <ol className="lp-journey" aria-label="The stages a battery's record follows">
-              {JOURNEY.map((j) => <li key={j}>{j}</li>)}
-            </ol>
-            <p className="lp-illus">Illustration of a 12 V lead-acid battery in cutaway. Not a photograph or scan of any Synovra battery.</p>
-          </div>
+          <aside className="lp-hero-rail">
+            <div className="lp-rail-tag" data-rise style={{ ['--i' as string]: 3 }}>
+              <p>Every claim on a battery’s record points to the evidence behind it.</p>
+            </div>
+            <section className="lp-status" aria-labelledby="status-h" data-rise style={{ ['--i' as string]: 4 }}>
+              <h2 id="status-h">Record coverage</h2>
+              <ul data-fluid="y" className="lp-status-list">
+                {COVERAGE.map(([name, state, kind], i) => (
+                  <li key={name}>
+                    <span data-fluid-item tabIndex={0} className="lp-status-row">
+                      <span className="lp-status-n">{String(i + 1).padStart(2, '0')}.</span>
+                      <span className="lp-status-l">{name}</span>
+                      <span className="lp-status-s" data-kind={kind}>{state}</span>
+                      <i aria-hidden />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div className="lp-hash" role="group" aria-label="Sample evidence checksums, synthetic">
+                <span className="lp-hash-h">Evidence checksums · synthetic</span>
+                {HASHES.map((h) => <span key={h}>{h}</span>)}
+              </div>
+              <p className="lp-status-foot">Synthetic demonstration. Nothing here is connected to a real battery.</p>
+            </section>
+          </aside>
         </section>
 
-        {/* a sentence that fills in as it is read */}
-        <section className="lp-fill" data-scene="pin" aria-label="Why a record matters">
-          <div className="lp-fill-in">
-            <p className="lp-fill-big"><Words text="A used battery is only as good as the record behind it." /></p>
-            <p className="lp-fill-small" data-reveal>
-              Synovra keeps that record for lead-acid batteries: what was measured and on which instrument, what was done to the battery, who decided, and what it cost.
-            </p>
+        {/* ------------------------------------------------------------ solutions: a row you can drag */}
+        <section className="lp-solutions" id="solutions" aria-labelledby="sol-h">
+          <div className="lp-sec-head">
+            <p className="lp-eyebrow" data-reveal>Synovra solutions</p>
+            <h2 id="sol-h" className="lp-h2" data-reveal style={{ ['--i' as string]: 1 }}>Battery record solutions</h2>
+          </div>
+          <Solutions items={SOLUTIONS} />
+        </section>
+
+        {/* ------------------------------------------------------------ platform: the parts, and the battery itself */}
+        <section className="lp-platform" id="platform" aria-labelledby="plat-h">
+          <div className="lp-sec-head">
+            <p className="lp-eyebrow" data-reveal>The platform</p>
+            <h2 id="plat-h" className="lp-h2" data-reveal style={{ ['--i' as string]: 1 }}>Explore the platform.</h2>
+          </div>
+          <div className="lp-plat-grid">
+            <ul data-fluid="y" className="lp-plat-list" aria-label="What a battery's record is made of">
+              {PLATFORM.map(([n, t, d, href]) => (
+                <li key={n}>
+                  <a data-fluid-item href={href} className="lp-plat-row">
+                    <span className="lp-plat-n">{n}</span>
+                    <span className="lp-plat-t">{t}</span>
+                    <span className="lp-plat-d">{d}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <div className="lp-plat-twin">
+              <Slot name="platform-twin" kind="component" ratio="17 / 8.5" note="Component: the battery as an interactive exploded view, state following its data.">
+                <ExplodedBattery />
+              </Slot>
+              <p className="lp-plat-cap">Exploded view · illustration, not to scale. A battery’s data decides what its twin shows; none of it is modelled yet.</p>
+            </div>
           </div>
         </section>
 
         <Lifecycle />
 
-        {/* an interlude in photographs: the oldest record on lead */}
-        <section className="lp-interlude lp-grain" data-scene="through" aria-label="Lead and its records">
-          <Image
-            src="/landing/roman-lead-ingots.jpg" alt="" width={1920} height={1440} sizes="100vw"
-            className="lp-interlude-img" style={{ objectPosition: '30% 55%' }}
-          />
-          <div className="lp-interlude-shade" aria-hidden />
-          <div className="lp-interlude-copy">
-            <p className="lp-eyebrow" data-reveal>Lead keeps records</p>
-            <p className="lp-interlude-line" data-reveal style={{ ['--i' as string]: 1 }}>
-              Nearly two thousand years ago, a lead ingot was cast with the name of the emperor it was made under.
-            </p>
-            <p className="lp-credit" data-reveal style={{ ['--i' as string]: 2 }}>
-              <a href="https://commons.wikimedia.org/wiki/File:Lead_ingots.JPG" rel="noopener noreferrer" target="_blank">Lead ingots</a>, Rodw, public domain, via Wikimedia Commons.
+        <RulesDemo />
+
+        {/* ------------------------------------------------------------ what it enforces */}
+        <section className="lp-enf" id="enforces" aria-labelledby="enf-h">
+          <div className="lp-enf-head">
+            <p className="lp-eyebrow" data-reveal>Beyond the first four</p>
+            <h2 id="enf-h" className="lp-h2" data-reveal style={{ ['--i' as string]: 1 }}>What it enforces</h2>
+            <p className="lp-lead" data-reveal style={{ ['--i' as string]: 2 }}>
+              Beyond the rules you just tried, the record keeps four more. Each is shown here the way the product shows it.
             </p>
           </div>
+          {RULES.map((r, n) => (
+            <article className="lp-mod" key={r.title}>
+              <div className="lp-mod-panel" data-reveal data-spot>{r.proof}</div>
+              <div className="lp-mod-text">
+                <span className="lp-num" aria-hidden data-reveal>0{n + 1}</span>
+                <h3 data-reveal style={{ ['--i' as string]: 1 }}>{r.title}</h3>
+                <p data-reveal style={{ ['--i' as string]: 2 }}>{r.text}</p>
+                <p data-reveal style={{ ['--i' as string]: 3 }}>{r.aside}</p>
+              </div>
+            </article>
+          ))}
         </section>
-
-        <div className="lp-sheet-paper">
-          <RulesDemo />
-
-          <section className="lp-enf" aria-labelledby="enf-h">
-            <div className="lp-enf-head">
-              <p className="lp-eyebrow" data-reveal>Beyond the first four</p>
-              <h2 id="enf-h" className="lp-h2" data-reveal style={{ ['--i' as string]: 1 }}>What it <em>enforces</em></h2>
-              <p className="lp-lead" data-reveal style={{ ['--i' as string]: 2 }}>
-                Beyond the rules you just tried, the record keeps four more. Each is shown here the way the product shows it.
-              </p>
-            </div>
-            {RULES.map((r, n) => (
-              <article className="lp-mod" key={r.title}>
-                <div className="lp-mod-panel" data-reveal data-spot>{r.proof}</div>
-                <div className="lp-mod-text">
-                  <span className="lp-num" aria-hidden data-reveal>0{n + 1}</span>
-                  <h3 data-reveal style={{ ['--i' as string]: 1 }}>{r.title}</h3>
-                  <p data-reveal style={{ ['--i' as string]: 2 }}>{r.text}</p>
-                  <p data-reveal style={{ ['--i' as string]: 3 }}>{r.aside}</p>
-                </div>
-              </article>
-            ))}
-          </section>
-        </div>
 
         <QuestionList rows={QUESTIONS} pictures={PICTURES} />
 
-        <div className="lp-sheet-paper lp-sheet-paper-2">
-          <section className="lp-about" id="honesty" aria-label="What is real in this demonstration">
-            <div className="lp-letter">
-              <span className="lp-letter-mark" data-reveal><Mark size={26} /></span>
-              <p className="lp-letter-lead" data-reveal>
-                This is a demonstration build, and it says so on every screen. The batteries, sites, people and figures in it are invented, and nothing connects to a live customer, cloud or sensor.
-              </p>
-              <p data-reveal>
-                What is real is the record model and its rules: who may see what, what counts as evidence, and that qualifying a battery is always a person&apos;s decision.
-              </p>
-              <p data-reveal>
-                We built it for the people who handle used lead-acid batteries: restoration teams, battery engineers and lab technicians, the operators who install them, and the customers who need to know what they are getting.
-              </p>
-              <p data-reveal>
-                Open it as any of seven roles. Each sees the same battery differently, because the rules are checked on every read and write. The same screens also run against the Synovra API, with PostgreSQL, company sign-in and stored evidence files.
-              </p>
-              <p className="lp-sign" data-reveal>
-                <span>The Synovra team</span>
-                <span>Written for this demonstration, October 2026</span>
-              </p>
-            </div>
-            <div className="lp-absent">
-              <h2 data-reveal>What this demonstration does not have</h2>
-              <ul data-reveal style={{ ['--i' as string]: 1 }}>
-                {ABSENT.map(([what, state]) => (
-                  <li key={what} data-spot><span>{what}</span><span>{state}</span></li>
-                ))}
-              </ul>
-            </div>
-          </section>
-        </div>
+        {/* ------------------------------------------------------------ about */}
+        <section className="lp-about" id="honesty" aria-label="What is real in this demonstration">
+          <div className="lp-letter">
+            <span className="lp-letter-mark" data-reveal><Mark size={26} /></span>
+            <p className="lp-letter-lead" data-reveal>
+              This is a demonstration build, and it says so on every screen. The batteries, sites, people and figures in it are invented, and nothing connects to a live customer, cloud or sensor.
+            </p>
+            <p data-reveal>
+              What is real is the record model and its rules: who may see what, what counts as evidence, and that qualifying a battery is always a person&apos;s decision.
+            </p>
+            <p data-reveal>
+              We built it for the people who handle used lead-acid batteries: restoration teams, battery engineers and lab technicians, the operators who install them, and the customers who need to know what they are getting.
+            </p>
+            <p data-reveal>
+              Open it as any of seven roles. Each sees the same battery differently, because the rules are checked on every read and write. The same screens also run against the Synovra API, with PostgreSQL, company sign-in and stored evidence files.
+            </p>
+            <p className="lp-sign" data-reveal>
+              <span>The Synovra team</span>
+              <span>Written for this demonstration, October 2026</span>
+            </p>
+          </div>
+          <div className="lp-absent">
+            <h2 data-reveal>What this demonstration does not have</h2>
+            <ul data-reveal style={{ ['--i' as string]: 1 }}>
+              {ABSENT.map(([what, state]) => (
+                <li key={what} data-spot><span>{what}</span><span>{state}</span></li>
+              ))}
+            </ul>
+          </div>
+        </section>
 
-        <section className="lp-cta lp-grain" aria-labelledby="cta-h">
-          <div className="lp-cta-glow" aria-hidden />
+        {/* ------------------------------------------------------------ the close: the first step, already open */}
+        <section className="lp-cta" aria-labelledby="cta-h">
           <div className="lp-cta-text">
             <h2 id="cta-h" data-reveal>
-              <span>Open a</span> <span><em>passport.</em></span>
+              <span>Open a</span> <span>passport.</span>
             </h2>
             <p data-reveal style={{ ['--i' as string]: 1 }}>
               Choose a label and a reader. The button signs you in to the demonstration as that role and opens the battery&apos;s passport. Everything in it is synthetic.
@@ -267,26 +320,24 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="lp-foot lp-grain" data-scene="enter">
-        <Marquee words={JOURNEY} />
-        <div className="lp-foot-glow" aria-hidden />
+      <footer className="lp-foot" data-scene="enter">
         <div className="lp-foot-in" data-open>
           <div className="lp-foot-top">
             <div className="lp-foot-lead" data-f style={{ ['--i' as string]: 0 }}>
-              <p className="lp-foot-tag">Every battery,<br /> <em>on the record.</em></p>
+              <p className="lp-foot-tag">Every battery,<br /> on the record.</p>
               <p className="lp-foot-note">One passport per lead-acid battery, from intake to recycling. Every value says where it came from.</p>
             </div>
             <nav className="lp-foot-nav" aria-label="Footer" data-f style={{ ['--i' as string]: 1 }}>
-              <div>
+              <div data-fluid="y">
                 <p className="lp-foot-h">Explore</p>
-                <Link href="/signin" data-magnet>Demo sign-in<span className="lp-arr" aria-hidden>→</span></Link>
-                <a href="#lifecycle" data-magnet>How it works<span className="lp-arr" aria-hidden>↑</span></a>
-                <a href="#honesty" data-magnet>What is real<span className="lp-arr" aria-hidden>↑</span></a>
+                <Link data-fluid-item href="/signin">Demo sign-in<span className="lp-arr" aria-hidden>→</span></Link>
+                <a data-fluid-item href="#platform">Platform<span className="lp-arr" aria-hidden>↑</span></a>
+                <a data-fluid-item href="#honesty">What is real<span className="lp-arr" aria-hidden>↑</span></a>
               </div>
-              <div>
+              <div data-fluid="y">
                 <p className="lp-foot-h">Project</p>
-                <a href="https://github.com/KNambiarDJsc/Energy_Platform_Synovra" rel="noopener noreferrer" data-magnet>Source and docs<span className="lp-arr" aria-hidden>↗</span></a>
-                <a className="lp-totop" href="#main" data-magnet><span aria-hidden>↑</span> Back to top</a>
+                <a data-fluid-item href="https://github.com/KNambiarDJsc/Energy_Platform_Synovra" rel="noopener noreferrer">Source and docs<span className="lp-arr" aria-hidden>↗</span></a>
+                <a data-fluid-item className="lp-totop" href="#main"><span aria-hidden>↑</span> Back to top</a>
               </div>
             </nav>
           </div>

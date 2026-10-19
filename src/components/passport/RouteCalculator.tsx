@@ -137,7 +137,7 @@ function Calculator_({ view }: { view: RouteInputsView }) {
       <div className="space-y-4" aria-live="polite">
         {r.suggestion ? (
           <div className="rounded-xl bg-night p-5 text-white">
-            <p className="text-[13px] text-[#D9D0C4]">Suggested route · decision support, not a decision</p>
+            <p className="text-[13px] text-[#D4D4D8]">Suggested route · decision support, not a decision</p>
             <p className="mt-1 font-display text-[34px] leading-10">{ROUTE[r.suggestion].label}</p>
             <p className="mt-2 text-sm leading-[22px] text-[#EDE6DC]">{r.why}</p>
           </div>

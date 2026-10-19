@@ -17,7 +17,7 @@ const toneClass: Record<Tone, string> = {
   green: 'bg-approved-50 text-approved-700',
   amber: 'bg-amber-50 text-amber-700',
   red: 'bg-critical-50 text-critical-700',
-  stone: 'bg-[#ECE5DA] text-night',
+  stone: 'bg-[#EAEAE8] text-night',
 };
 
 /** Every status is communicated by text and an icon, never colour alone. A tint, no outline. */

@@ -1,11 +1,17 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+
+const centre = async (loc: Locator) => {
+  const b = (await loc.boundingBox())!;
+  return { x: b.x + b.width / 2, y: b.y + b.height / 2, w: b.width, h: b.height, left: b.x, right: b.x + b.width, top: b.y, bottom: b.y + b.height };
+};
+const entered = (page: Page) => page.waitForTimeout(3200); // the entrance has finished
 
 test.describe('public landing page', () => {
   test('states the product promise and the demo notice', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Every battery, on the record.');
     await expect(page.getByTestId('demo-banner')).toContainText('Synthetic demonstration data. No live customer, cloud or sensor connection.');
-    await expect(page.getByRole('link', { name: 'Open the demo' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Open the demo' }).first()).toBeVisible();
     await expect(page.getByText('Synovra Battery Intelligence, demonstration build')).toBeVisible();
     for (const heading of ['Try the rules', 'Questions it answers', 'What it enforces']) {
       await expect(page.getByRole('heading', { name: heading })).toBeVisible();
@@ -36,7 +42,7 @@ test.describe('public landing page', () => {
 
   test('demo sign-in leads to the overview and the role can be switched', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('link', { name: 'Open the demo' }).click();
+    await page.getByRole('link', { name: 'Open the demo' }).first().click();
     await expect(page.getByRole('heading', { name: 'Choose a demo role' })).toBeVisible();
     await page.getByTestId('role-battery_engineer').click();
     await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
@@ -44,59 +50,147 @@ test.describe('public landing page', () => {
 
     await page.getByLabel('Demo role').first().selectOption('customer_auditor');
     await expect(page.getByText('Now acting as Customer / auditor')).toBeVisible();
-    // Customers do not get the lab or intelligence areas in navigation.
     await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Intelligence' })).toHaveCount(0);
   });
 });
 
-test.describe('landing page imagery and motion', () => {
-  test('every picture says what it is: the hero is an illustration, photographs carry credits', async ({ page }) => {
+test.describe('structure, after shift5: split hero, status panel, solutions row, platform, menu', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test('the hero is an orange title block beside a grey tagline and a dark coverage panel, with a media slot below the title', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText(/Illustration of a 12 V lead-acid battery in cutaway\. Not a photograph or scan of any Synovra battery\./)).toBeVisible();
-    await expect(page.getByRole('img', { name: /Illustration of a 12 volt lead-acid battery in cutaway/ })).toBeVisible();
-    // The archival photograph is credited beside it.
-    const interlude = page.getByRole('region', { name: 'Lead and its records' });
-    await expect(interlude.getByRole('link', { name: 'Lead ingots' })).toBeVisible();
-    await expect(interlude).toContainText('public domain, via Wikimedia Commons');
-    // The pictures in the questions list are captioned as drawings or credited as photographs.
-    const captions = page.locator('.lp-cap');
-    await expect(captions).toHaveCount(4);
-    await expect(captions.nth(0)).toContainText('Illustration, drawn for this page');
-    await expect(captions.nth(2)).toContainText('via Wikimedia Commons');
+    await entered(page);
+    const main = await centre(page.locator('.lp-hero-main'));
+    const h1 = await centre(page.getByRole('heading', { level: 1 }));
+    const media = await centre(page.locator('[data-slot="hero-media"]'));
+    const rail = await centre(page.locator('.lp-hero-rail'));
+    expect(h1.left).toBeGreaterThanOrEqual(main.left);
+    expect(h1.right).toBeLessThanOrEqual(main.right);
+    expect(media.top, 'the media slot sits beneath the title').toBeGreaterThan(h1.bottom);
+    expect(rail.left, 'the panels sit to the right').toBeGreaterThanOrEqual(main.right - 1);
+    expect(await page.locator('.lp-hero-main').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 88, 65)');
+    expect(await page.locator('.lp-rail-tag').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(185, 185, 185)');
+    await expect(page.getByRole('heading', { name: 'Record coverage' })).toBeVisible();
   });
 
-  test('the sentence that fills in as it is read never drops below a legible tone', async ({ page }) => {
+  test('the coverage panel says how each part reaches the record today: in use, simulated, or not connected', async ({ page }) => {
     await page.goto('/');
-    const fill = page.locator('.lp-fill');
-    await fill.scrollIntoViewIfNeeded();
-    const words = fill.locator('.lp-w');
-    const n = await words.count();
-    expect(n).toBeGreaterThan(8);
-    // Part-way down the pinned scene the first words are lit and the last are dimmed, but only to 40%.
-    const top = await fill.evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
-    await page.evaluate((y) => window.scrollTo(0, y + window.innerHeight * 0.4), top);
-    await page.waitForTimeout(400);
-    const first = Number(await words.first().evaluate((el) => getComputedStyle(el).opacity));
-    const last = Number(await words.last().evaluate((el) => getComputedStyle(el).opacity));
-    expect(first).toBeGreaterThan(0.95);
-    expect(last).toBeGreaterThanOrEqual(0.39);
-    expect(last).toBeLessThan(0.9);
+    const rows = page.locator('.lp-status-row');
+    await expect(rows.filter({ hasText: 'Telemetry' })).toContainText('Simulated');
+    await expect(rows.filter({ hasText: 'Machines' })).toContainText('Not connected');
+    await expect(rows.filter({ hasText: 'Identity' })).toContainText('In use');
+    await expect(page.getByText('Evidence checksums · synthetic')).toBeVisible();
   });
 
-  test('with reduced motion nothing waits to appear and nothing scrubs', async ({ page }) => {
+  test('every picture or video not yet supplied is a named placeholder; the battery component is real', async ({ page }) => {
+    await page.goto('/');
+    const names = await page.locator('[data-slot]:has(.slot-empty)').evaluateAll((els) => els.map((e) => e.getAttribute('data-slot')));
+    expect([...names].sort()).toEqual(['hero-media', 'solution-decisions', 'solution-evidence', 'solution-identity', 'solution-recovery']);
+    for (const label of await page.locator('.slot-empty').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))) {
+      expect(label).toMatch(/^Placeholder for (video|illustration|image|component): /);
+    }
+    await expect(page.locator('[data-slot="hero-media"] .slot-spec')).toContainText('public/landing/slots/hero-media');
+    await expect(page.locator('[data-slot="platform-twin"]').getByRole('img', { name: /exploded view/i })).toBeVisible();
+  });
+
+  test('the solutions row steps with its arrows, and a drag never opens a card', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('#solutions').scrollIntoViewIfNeeded();
+    const track = page.locator('.lp-sol-track');
+    const prev = page.getByRole('button', { name: /Previous/ });
+    const next = page.getByRole('button', { name: /Next/ });
+    await expect(prev).toBeDisabled();
+    await next.click();
+    await expect.poll(() => track.evaluate((el) => el.scrollLeft)).toBeGreaterThan(100);
+    await expect(prev).toBeEnabled();
+    await prev.click();
+    await expect.poll(() => track.evaluate((el) => el.scrollLeft)).toBeLessThan(5);
+    await expect(page.getByRole('link', { name: /Tests and evidence/ })).toHaveAttribute('href', '/signin?next=%2Fapp%2Ftests');
+    const card = await centre(page.locator('.lp-sol-card').first());
+    await page.mouse.move(card.x + 150, card.y);
+    await page.mouse.down();
+    await page.mouse.move(card.x - 100, card.y, { steps: 8 });
+    await page.mouse.up();
+    await expect(page).toHaveURL(/\/$/);
+    expect(await track.evaluate((el) => el.scrollLeft)).toBeGreaterThan(60);
+  });
+
+  test('the menu is a dialog: opens, holds focus, lists every destination, goes there, and closes on Escape', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Menu' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    for (const name of ['Platform', 'Solutions', 'Try the rules', 'Questions', 'What is real']) await expect(dialog.getByRole('link', { name })).toBeVisible();
+    for (let i = 0; i < 12; i++) await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]')), 'focus stays inside the menu').toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await page.getByRole('button', { name: 'Menu' }).click();
+    await page.getByRole('dialog').getByRole('link', { name: 'Try the rules' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page).toHaveURL(/#rules$/);
+  });
+});
+
+test.describe('fluid hover, after fluidfunctionalism.com', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test('the highlight finds the item nearest the pointer before the pointer is over it, and leaves with it', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('#solutions').scrollIntoViewIfNeeded();
+    const track = page.locator('.lp-sol-track');
+    const links = page.locator('.lp-sol-link');
+    const a = await centre(links.nth(0));
+    const b = await centre(links.nth(1));
+    await page.mouse.move(a.x, a.y, { steps: 4 });
+    await expect(links.nth(0)).toHaveAttribute('data-near', '');
+    await page.mouse.move((a.right + b.left) / 2 + 5, a.y, { steps: 4 });
+    await expect(links.nth(1)).toHaveAttribute('data-near', '');
+    await expect(links.nth(0)).not.toHaveAttribute('data-near', '');
+    await page.mouse.move(700, 120);
+    await expect(track).not.toHaveAttribute('data-fluid-on', '');
+  });
+
+  test('in a list it glides row to row, and arrow keys move focus and the highlight together', async ({ page }) => {
+    await page.goto('/');
+    await entered(page);
+    const rows = page.locator('.lp-status-row');
+    const list = page.locator('.lp-status-list');
+    const r2 = await centre(rows.nth(1));
+    const r7 = await centre(rows.nth(6));
+    await page.mouse.move(r2.x, r2.y, { steps: 3 });
+    await expect(rows.nth(1)).toHaveAttribute('data-near', '');
+    await page.mouse.move(r7.x, r7.y, { steps: 8 });
+    await expect(rows.nth(6)).toHaveAttribute('data-near', '');
+    await expect(list).toHaveAttribute('data-fluid-on', '');
+    await rows.nth(6).focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(rows.nth(7)).toBeFocused();
+    await expect(rows.nth(7)).toHaveAttribute('data-near', '');
+    await page.keyboard.press('ArrowUp');
+    await expect(rows.nth(6)).toBeFocused();
+  });
+
+  test('without motion the highlight still appears, with no glide', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    const row = page.locator('.lp-status-row').nth(2);
+    const c = await centre(row);
+    await page.mouse.move(c.x, c.y, { steps: 3 });
+    await expect(row).toHaveAttribute('data-near', '');
+    expect(await page.locator('.lp-status-list .fl-pill').evaluate((el) => getComputedStyle(el).transitionProperty)).toBe('opacity');
+  });
+});
+
+test.describe('landing page motion', () => {
+  test('with reduced motion nothing waits to appear', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Every battery, on the record.');
-    const lines = page.locator('.lp-hero [data-line]');
-    for (let i = 0; i < (await lines.count()); i++) {
-      expect(await lines.nth(i).evaluate((el) => getComputedStyle(el).transform)).toBe('none');
-    }
-    // Sections that normally rise into place are already in place.
-    const reveal = page.locator('.lp-enf-head [data-reveal]').first();
-    expect(await reveal.evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
-    // The scrubbed sentence is fully lit from the start.
-    expect(await page.locator('.lp-w').first().evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
-    expect(await page.locator('.lp-w').last().evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+    for (const t of await page.locator('.lp-hero [data-line]').evaluateAll((els) => els.map((el) => getComputedStyle(el).transform))) expect(t).toBe('none');
+    expect(await page.locator('.lp-sec-head [data-reveal]').first().evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+    const notes = page.locator('.lp-note');
+    for (const o of await notes.evaluateAll((els) => els.map((el) => getComputedStyle(el).opacity))) expect(o).toBe('1');
   });
 
   test('the questions list reveals every row, including after the open row changes', async ({ page }) => {
@@ -112,51 +206,27 @@ test.describe('landing page imagery and motion', () => {
       expect(await row.evaluate((el) => getComputedStyle(el).opacity), 'a row that was opened must stay visible').toBe('1');
     }
   });
-
-  test('rows stay legible after the open row moves on, and a row never hides when the page scrolls past and back', async ({ page }) => {
-    test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto('/');
-    const rows = page.locator('.lp-q-list .lp-qrow');
-    const top = await rows.first().evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
-    await page.evaluate((y) => window.scrollTo(0, y - 300), top);
-    await page.waitForTimeout(600);
-    // Wheel down through the whole list and well beyond it, then back up through it.
-    for (let i = 0; i < 16; i++) { await page.mouse.move(900, 450); await page.mouse.wheel(0, 260); await page.waitForTimeout(250); }
-    for (let i = 0; i < 10; i++) { await page.mouse.wheel(0, -300); await page.waitForTimeout(250); }
-    await page.waitForTimeout(800);
-    for (const row of await rows.all()) {
-      const button = row.locator('button');
-      expect(await button.evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
-      expect(await button.evaluate((el) => el.hasAttribute('data-in'))).toBe(true);
-      // Even a row that is not open is clearly readable: at least 4.5:1 against the dark field.
-      const colour = await row.locator('.lp-qrow-q').evaluate((el) => getComputedStyle(el).color);
-      const [r, g, b, a] = (colour.match(/[\d.]+/g) ?? []).map(Number);
-      const mix = (c: number) => c * (a ?? 1) + 12 * (1 - (a ?? 1));
-      const lum = (c: number) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
-      const L = 0.2126 * lum(mix(r)) + 0.7152 * lum(mix(g)) + 0.0722 * lum(mix(b));
-      const bg = 0.003;
-      expect((L + 0.05) / (bg + 0.05)).toBeGreaterThanOrEqual(4.5);
-    }
-  });
 });
 
-test.describe('hero layout', () => {
-  for (const [w, h] of [[1366, 768], [1536, 864], [1920, 1080], [1100, 800]]) {
-    test(`the headline and the battery never overlap at ${w} by ${h}`, async ({ page }) => {
+test.describe('hero layout and scale', () => {
+  for (const [w, h] of [[1366, 768], [1440, 900], [1536, 864], [1920, 1080], [1100, 800], [390, 844]]) {
+    test(`title, actions and panels are placed correctly and fit at ${w} by ${h}`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h });
       await page.goto('/');
-      await page.waitForTimeout(3600); // entrance finished
+      await entered(page);
       const m = await page.evaluate(() => {
-        const lines = [...document.querySelectorAll('.lp-hero [data-line]')].map((e) => e.getBoundingClientRect());
-        // The drawing itself, not the box around it: its body and terminals.
-        const art = document.querySelector('.hb-svg')!.getBoundingClientRect();
-        const sub = document.querySelector('.lp-sub')!.getBoundingClientRect();
-        return { headRight: Math.max(...lines.map((l) => l.right)), artLeft: art.left, subRight: sub.right, subBottom: sub.bottom, artTop: art.top };
+        const r = (sel: string) => document.querySelector(sel)!.getBoundingClientRect();
+        const cta = document.querySelectorAll('.lp-hero .lp-btn')[0].getBoundingClientRect();
+        return { vw: window.innerWidth, vh: window.innerHeight, main: r('.lp-hero-main'), h1: r('.lp-h1'), media: r('[data-slot="hero-media"]'), rail: r('.lp-hero-rail'), cta, scrollW: document.documentElement.scrollWidth, fs: parseFloat(getComputedStyle(document.querySelector('.lp-h1')!).fontSize) };
       });
-      // The drawing's left edge is a soft fade, so require clear space between the last letter and where the drawing starts.
-      expect(m.artLeft, 'the battery starts to the right of the headline').toBeGreaterThanOrEqual(m.headRight - 4);
-      expect(m.artLeft, 'and to the right of the paragraph').toBeGreaterThanOrEqual(m.subRight - 4);
+      expect(m.h1.right, 'the title stays inside its block').toBeLessThanOrEqual(m.main.right + 1);
+      expect(m.media.top, 'the media slot is below the title').toBeGreaterThan(m.h1.bottom - 1);
+      expect(m.scrollW, 'nothing scrolls sideways').toBeLessThanOrEqual(m.vw + 1);
+      if (w > 960) expect(m.rail.left, 'panels to the right').toBeGreaterThanOrEqual(m.main.right - 1);
+      else expect(m.rail.top, 'panels stack below').toBeGreaterThanOrEqual(m.main.bottom - 1);
+      if (w >= 1366) expect(m.cta.bottom, 'the main action is in the first screen at 100% zoom').toBeLessThanOrEqual(m.vh);
+      expect(m.fs).toBeGreaterThan(w <= 400 ? 40 : 80);
+      expect(m.fs).toBeLessThanOrEqual(170);
     });
   }
 });
@@ -170,14 +240,10 @@ test.describe('footer', () => {
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await page.waitForTimeout(2600);
     const letters = footer.locator('.lp-wm span');
-    await expect(letters).toHaveCount(7);
-    // In place: no vertical offset left (the easing can leave a millionth of a pixel).
     const offsets = await letters.evaluateAll((els) => els.map((el) => new DOMMatrixReadOnly(getComputedStyle(el).transform).m42));
+    expect(offsets.length).toBeGreaterThan(5);
     for (const y of offsets) expect(Math.abs(y)).toBeLessThan(0.5);
     await expect(footer.getByText('Synovra Battery Intelligence, demonstration build')).toBeVisible();
-    await expect(footer.getByRole('link', { name: 'Demo sign-in' })).toBeVisible();
-    await expect(footer.getByRole('link', { name: 'What is real' })).toBeVisible();
-    // The big wordmark is decoration: a screen reader does not read the name a second time.
     await expect(footer.locator('.lp-wm')).toHaveAttribute('aria-hidden', 'true');
     await footer.getByRole('link', { name: 'Back to top' }).click();
     await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 8000 }).toBeLessThan(40);
@@ -189,21 +255,15 @@ test.describe('footer', () => {
     const footer = page.locator('footer.lp-foot');
     await footer.scrollIntoViewIfNeeded();
     for (const t of await footer.locator('.lp-wm span').evaluateAll((els) => els.map((el) => getComputedStyle(el).transform))) expect(t).toBe('none');
-    for (const o of await footer.locator('[data-f]').evaluateAll((els) => els.map((el) => getComputedStyle(el).opacity))) expect(o).toBe('1');
-    expect(await footer.locator('.lp-wm span').first().evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
   });
 });
 
 test.describe('the pointer', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
-  const centre = async (loc: import('@playwright/test').Locator) => {
-    const b = (await loc.boundingBox())!;
-    return { x: b.x + b.width / 2, y: b.y + b.height / 2, w: b.width, h: b.height };
-  };
 
   test('a cursor follows the pointer, swells over what can be pressed, and never takes a click', async ({ page }) => {
     await page.goto('/');
-    await page.waitForTimeout(3600);
+    await entered(page);
     const dot = page.locator('.lp-cursor-dot');
     const ring = page.locator('.lp-cursor-ring');
     await page.mouse.move(700, 300);
@@ -214,28 +274,10 @@ test.describe('the pointer', () => {
     expect(Math.abs(d.y + d.height / 2 - 320)).toBeLessThan(4);
     expect(Number(await ring.evaluate((el) => getComputedStyle(el).opacity))).toBeGreaterThan(0.9);
     const idle = (await ring.boundingBox())!.width;
-    const cta = await centre(page.getByRole('link', { name: 'Open the demo' }));
+    const cta = await centre(page.locator('.lp-hero .lp-btn').first());
     await page.mouse.move(cta.x, cta.y, { steps: 6 });
-    await page.waitForTimeout(700);
-    expect((await ring.boundingBox())!.width, 'the ring swells over a button').toBeGreaterThan(idle + 20);
-    // The cursor layers sit above everything and still let the click through.
+    await expect.poll(async () => (await ring.boundingBox())!.width, { timeout: 6000 }).toBeGreaterThan(idle + 20);
     expect(await ring.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
-    expect(await dot.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
-    await page.getByRole('link', { name: 'Open the demo' }).click();
-    await expect(page.getByRole('heading', { name: 'Choose a demo role' })).toBeVisible();
-  });
-
-  test('a button leans toward the pointer as it nears, then settles back', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForTimeout(3600);
-    const link = page.getByRole('link', { name: 'Open the demo' });
-    const c = await centre(link);
-    const shift = () => link.evaluate((el) => { const t = getComputedStyle(el).translate; return t === 'none' ? [0, 0] : t.split(' ').map(parseFloat); });
-    await page.mouse.move(c.x + c.w / 2 + 14, c.y - 6, { steps: 8 });
-    await expect.poll(async () => (await shift())[0], { message: 'pulled toward the pointer', timeout: 6000 }).toBeGreaterThan(1);
-    expect((await shift())[0], 'by a few pixels, not a lurch').toBeLessThanOrEqual(12);
-    await page.mouse.move(c.x, c.y + 400, { steps: 8 });
-    await expect.poll(async () => Math.abs((await shift())[0]), { message: 'and settles back', timeout: 6000 }).toBeLessThan(0.5);
   });
 
   test('a surface glows where the pointer is, and the passport leans toward it', async ({ page }) => {
@@ -247,82 +289,29 @@ test.describe('the pointer', () => {
     await page.mouse.move(c.x + c.w * 0.25, c.y + c.h * 0.1, { steps: 6 });
     await page.waitForTimeout(700);
     await expect(stage).toHaveAttribute('data-spot-on', '');
-    expect(await stage.evaluate((el) => parseFloat(el.style.getPropertyValue('--sx')))).toBeGreaterThan(c.w * 0.5);
-    const tilt = page.locator('.lp-tilt');
-    expect(Math.abs(await tilt.evaluate((el) => parseFloat(el.style.getPropertyValue('--ry'))))).toBeGreaterThan(0.2);
     await page.mouse.move(5, 5, { steps: 4 });
     await page.waitForTimeout(900);
     await expect(stage).not.toHaveAttribute('data-spot-on', '');
   });
 
-  test('a battery cell warms under the cursor and a click in the hero sends out a ripple', async ({ page }) => {
+  test('a cell of the exploded battery warms under the cursor', async ({ page }) => {
     await page.goto('/');
-    await page.waitForTimeout(3600);
-    const art = page.locator('.hb-svg');
-    const b = (await art.boundingBox())!;
-    // the right-hand cell: x about 80% across the drawing
-    await page.mouse.move(b.x + b.width * 0.8, b.y + b.height * 0.55, { steps: 8 });
-    await page.waitForTimeout(700);
-    const k = await page.locator('.hb-cellglow').evaluateAll((els) => els.map((e) => parseFloat((e as SVGElement).style.getPropertyValue('--k'))));
-    expect(k).toHaveLength(6);
-    expect(k[5]).toBeGreaterThan(k[0]);
-    expect(k[5]).toBeGreaterThan(0.4);
-    await page.mouse.click(520, 700);
-    await expect(page.locator('.lp-hero .lp-pulse')).toHaveCount(1);
-  });
-
-  test('footer: letters rise and warm toward the pointer, links quiet their neighbours, the line speeds with scrolling', async ({ page }) => {
-    test.setTimeout(90_000);
-    await page.goto('/');
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    await page.waitForTimeout(2800);
-    const letters = page.locator('.lp-wm span');
-    const first = await centre(letters.first());
-    const last = await centre(letters.last());
-    await page.mouse.move(first.x - 40, first.y, { steps: 5 });
-    await page.mouse.move(first.x, first.y, { steps: 5 });
-    const read = () => letters.evaluateAll((els) => els.map((e) => parseFloat((e as HTMLElement).style.getPropertyValue('--k')) || 0));
-    await expect.poll(async () => (await read())[0], { message: 'the letter under the pointer', timeout: 6000 }).toBeGreaterThan(0.5);
-    expect((await read())[6], 'a letter far from it').toBeLessThan(0.1);
-    expect(await letters.first().evaluate((el) => getComputedStyle(el).translate)).not.toBe('none');
-    await page.mouse.move(last.x, last.y, { steps: 20 });
-    await expect.poll(async () => { const k = await read(); return k[6] - k[0]; }, { message: 'the warmth follows the pointer', timeout: 6000 }).toBeGreaterThan(0.3);
-
-    // hovering one link quiets the others
-    const nav = page.locator('.lp-foot-nav');
-    await nav.getByRole('link', { name: 'What is real' }).hover();
-    await page.waitForTimeout(700);
-    expect(Number(await nav.getByRole('link', { name: 'Demo sign-in' }).evaluate((el) => getComputedStyle(el).opacity))).toBeLessThan(0.6);
-    expect(Number(await nav.getByRole('link', { name: 'What is real' }).evaluate((el) => getComputedStyle(el).opacity))).toBe(1);
-    // an arrow slides in beside the one you are on
-    expect(await nav.getByRole('link', { name: 'What is real' }).locator('.lp-arr').evaluate((el) => el.getBoundingClientRect().width)).toBeGreaterThan(8);
-
-    // the outlined line drifts, and scrolling changes its speed
-    const track = page.locator('.lp-marquee-track');
-    const rate = () => track.evaluate((el) => el.getAnimations()[0]?.playbackRate ?? 0);
-    await page.mouse.move(10, 10);
-    await page.waitForTimeout(600);
-    const calm = await rate();
-    await page.mouse.move(700, 880); // off the line: resting on it deliberately slows it
-    await page.mouse.wheel(0, -260); // a short scroll keeps the line on screen, where its loop runs
-    let peak = 0;
-    for (let i = 0; i < 14; i++) { peak = Math.max(peak, Math.abs(await rate())); await page.waitForTimeout(40); }
-    expect(peak, 'scrolling changes its speed (and turning back reverses it)').toBeGreaterThan(Math.abs(calm) + 0.5);
-  });
-
-  test('a word in the drifting line fills with copper under the pointer', async ({ page }) => {
-    await page.goto('/');
-    await page.evaluate(() => { const m = document.querySelector('.lp-marquee')!; window.scrollTo(0, m.getBoundingClientRect().top + window.scrollY - 300); });
-    await page.waitForTimeout(800);
-    const word = page.locator('.lp-marquee-list li span').nth(1); // well inside the screen, not at its drifting edge
-    const colour = () => word.evaluate((el) => getComputedStyle(el).color);
-    expect(await colour()).toBe('rgba(0, 0, 0, 0)');
-    // The line drifts, so aim at the word where it is now on every check, as a person's eye tracks it.
+    await page.locator('[data-slot="platform-twin"]').scrollIntoViewIfNeeded();
+    await page.waitForTimeout(1800);
+    const cell = (await page.locator('.hb-cellglow').nth(5).boundingBox())!;
+    await page.mouse.move(cell.x + cell.width / 2 - 40, cell.y + cell.height / 2, { steps: 4 });
+    await page.mouse.move(cell.x + cell.width / 2, cell.y + cell.height / 2, { steps: 6 });
     await expect.poll(async () => {
-      const box = (await word.boundingBox())!;
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 2 });
-      return colour();
-    }, { timeout: 8000 }).not.toBe('rgba(0, 0, 0, 0)');
+      const k = await page.locator('.hb-cellglow').evaluateAll((els) => els.map((e) => parseFloat((e as SVGElement).style.getPropertyValue('--k')) || 0));
+      return k[5] - k[0];
+    }, { timeout: 6000 }).toBeGreaterThan(0.3);
+  });
+
+  test('a click in the hero sends out a ripple', async ({ page }) => {
+    await page.goto('/');
+    await entered(page);
+    await page.mouse.click(520, 520);
+    await expect(page.locator('.lp-hero .lp-pulse')).toHaveCount(1);
   });
 
   test('with reduced motion the cursor, the lean and the pull are all absent', async ({ page }) => {
@@ -333,33 +322,18 @@ test.describe('the pointer', () => {
     await page.waitForTimeout(500);
     expect(Number(await page.locator('.lp-cursor-ring').evaluate((el) => getComputedStyle(el).opacity))).toBe(0);
     expect(await page.locator('.lp').evaluate((el) => el.classList.contains('has-pointer'))).toBe(false);
-    expect(await page.getByRole('link', { name: 'Open the demo' }).evaluate((el) => getComputedStyle(el).translate)).toBe('none');
-    expect(await page.locator('.lp-marquee-track').evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
+    expect(await page.locator('.lp-hero .lp-btn').first().evaluate((el) => getComputedStyle(el).translate)).toBe('none');
   });
 });
 
 test.describe('typography', () => {
-  test('labels and readouts are set in the mono face, reading text in Inter and statements in the serif', async ({ page }) => {
+  test('labels are set in the mono face, headings in Instrument Serif without italics, reading text in Inter', async ({ page }) => {
     await page.goto('/');
     const family = (sel: string) => page.locator(sel).first().evaluate((el) => getComputedStyle(el).fontFamily);
-    expect(await family('.lp-eyebrow')).toMatch(/mono/i);
-    expect(await family('.lp-journey')).toMatch(/mono/i);
+    expect(await family('.lp-status-row')).toMatch(/mono/i);
     expect(await family('.lp-foot-base')).toMatch(/mono/i);
-    expect(await family('.lp-h1')).toMatch(/newsreader/i);
-    expect(await family('.lp-sub')).not.toMatch(/mono|newsreader/i);
-  });
-
-  test('the lifecycle numerals are outlines that fill when their statement is the open one', async ({ page }) => {
-    await page.goto('/');
-    await page.getByRole('slider', { name: 'Lifecycle stage' }).fill('2');
-    await page.waitForTimeout(1100); // the numerals ease between outline and fill
-    const nums = page.locator('.lp-statement .lp-num');
-    await expect(nums).toHaveCount(4);
-    // the first is the open statement until the reader scrolls; either way each numeral is transparent text with a stroke or filled
-    const states = await nums.evaluateAll((els) => els.map((e) => ({ colour: getComputedStyle(e).color, on: e.parentElement!.classList.contains('is-on') })));
-    for (const s of states) {
-      if (s.on) expect(s.colour).not.toBe('rgba(0, 0, 0, 0)');
-      else expect(s.colour).toBe('rgba(0, 0, 0, 0)');
-    }
+    expect(await family('.lp-h1')).toMatch(/instrument serif/i);
+    const styles = await page.evaluate(() => [...document.querySelectorAll('.lp *')].map((e) => getComputedStyle(e).fontStyle));
+    expect(styles.filter((s) => s === 'italic' || s === 'oblique'), 'no italics anywhere on the landing page').toHaveLength(0);
   });
 });

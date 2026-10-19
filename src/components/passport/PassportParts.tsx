@@ -535,7 +535,7 @@ export function TelemetryPanel({ p }: { p: BatteryPassport }) {
             points={peers.data.points.map((x) => ({ t: x.t, own: x.own, peer: x.peerMedian }))}
             series={[
               { key: 'own', name: 'This battery', color: '#2C6B66' },
-              { key: 'peer', name: 'String median', color: '#A89E91', dashed: true },
+              { key: 'peer', name: 'String median', color: '#A1A1AA', dashed: true },
             ]}
             height={220}
           />

@@ -9,7 +9,7 @@ export const STATUS_STYLE: Record<BatteryStatus, { tone: Tone; icon: LucideIcon;
   watching: { tone: 'amber', icon: Eye, stroke: '#946718' },
   attention: { tone: 'red', icon: AlertTriangle, stroke: '#B54747' },
   baseline: { tone: 'teal', icon: CircleDashed, stroke: '#8FBDB5' },
-  retired: { tone: 'neutral', icon: CircleSlash, stroke: '#B4AA9D' },
+  retired: { tone: 'neutral', icon: CircleSlash, stroke: '#8E8E93' },
 };
 
 export function StatusBadge({ status, className }: { status: BatteryStatus; className?: string }) {
@@ -58,7 +58,7 @@ export function StatusRing({ parts, size = 196, stroke = 16, children, label }: 
   return (
     <div className="anim-row relative shrink-0" style={{ width: size, height: size }}>
       <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} className="-rotate-90" role="img" aria-label={label}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(120,100,76,0.12)" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(0, 0, 0,0.12)" strokeWidth={stroke} />
         {total > 0 && shown.map((p) => {
           const len = (p.count / total) * c;
           const seg = (

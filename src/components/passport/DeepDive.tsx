@@ -1,7 +1,7 @@
 'use client';
 import * as RadixTabs from '@radix-ui/react-tabs';
 import {
-  Activity, ArrowLeft, ArrowRight, BatteryCharging, CalendarClock, Check, ChevronRight, FileText, Gauge, History, LineChart, Thermometer, Wrench, Zap,
+  Activity, AlertTriangle, ArrowLeft, ArrowRight, BatteryCharging, CalendarClock, Check, ChevronRight, FileText, Gauge, History, LineChart, Thermometer, Wrench, Zap,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -397,7 +397,7 @@ function TemperaturePanel({ p, simulated, series }: { p: BatteryPassport; simula
           {known.length > 0 && (
             <div>
               <p className="mb-2 text-[13px] text-muted">Last 7 days, hourly</p>
-              <Spark label="Temperature, last 7 days" unit="°C" series={[{ values: series, color: '#A34D1F' }]}
+              <Spark label="Temperature, last 7 days" unit="°C" series={[{ values: series, color: '#C2410C' }]}
                 lines={[{ y: TEMPERATURE_RULE.limitC, label: 'limit', color: '#B8401F' }]} />
             </div>
           )}
@@ -465,7 +465,7 @@ function VoltagePanel({ p, simulated, peers }: { p: BatteryPassport; simulated: 
             <span>Last 7 days</span>
           </p>
           <Spark label="Voltage against the string median, last 7 days" unit="V"
-            series={[{ values: peers.map((x) => x.own), color: '#2C6B66' }, { values: peers.map((x) => x.peerMedian), color: '#A89E91', dashed: true }]} />
+            series={[{ values: peers.map((x) => x.own), color: '#2C6B66' }, { values: peers.map((x) => x.peerMedian), color: '#A1A1AA', dashed: true }]} />
         </div>
       )}
       <div className="rounded-xl bg-canvas p-4 text-[15px] leading-6 text-ink">
@@ -904,52 +904,63 @@ export function DeepDive({
           </nav>
           <div className="min-w-0 self-center [grid-area:tabs]"><LensList /></div>
 
-          {/* identity */}
+          {/* identity: the name, its status, then one aligned spec sheet */}
           <div className="min-w-0 [grid-area:id]">
-            <h1 className="mono font-display text-[52px] font-normal leading-[54px] tracking-[-0.025em] text-ink">{p.battery.label}</h1>
+            <h1 className="font-display text-[56px] font-normal leading-[56px] tracking-[-0.01em] text-ink">{p.battery.label}</h1>
             <p className="mt-3"><StatusBadge status={p.status.status} /></p>
-            <p className="mt-3 text-[17px] leading-6 text-ink-2">
-              {here ? <>{here.siteName}<span className="block text-[15px] text-muted">{here.bankName} / {here.stringName}, position {here.position}</span></> : p.battery.physicalLocation}
-            </p>
-            <p className="mt-3 text-[15px] leading-6 text-ink-2">
-              {p.family.chemistry} · {p.family.ratedVoltageV} V · {p.family.ratedCapacityAh} Ah
-              <span className="block text-muted">{p.family.manufacturer.replace(' (fictional)', '')} {p.family.model}</span>
-            </p>
-            <p className="mt-4">
-              <ProvLine prov={{ kind: statusDot as ProvKind, text: p.telemetry.lastReadingAt ? `${status} · ${stamp(p.telemetry.lastReadingAt)}` : status }} />
-            </p>
-            <dl className="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-[13px] leading-5">
-              <dt className="text-muted">Serial</dt>
-              <dd className="min-w-0 break-all text-ink">
-                {p.battery.manufacturerSerial ? <span className="mono">{p.battery.manufacturerSerial}</span> : <span className="text-muted">Not recorded</span>}
-                {serialClash && <span className="ml-1.5 font-medium text-critical-700">also on another record</span>}
-              </dd>
-              <dt className="text-muted">QR reference</dt>
-              <dd className="mono min-w-0 break-all text-ink">{p.battery.publicRef}</dd>
-              <dt className="text-muted">Assignment</dt>
-              <dd className="text-ink">{here ? `In service since ${formatDate(here.startAt)}` : 'Not deployed'}</dd>
+            <dl className="mt-6 divide-y divide-line border-y border-line text-[13px] leading-5">
+              {([
+                ['Location', here ? <>{here.siteName}<span className="block text-muted">{here.bankName} / {here.stringName}, position {here.position}</span></> : p.battery.physicalLocation],
+                ['Type', `${p.family.chemistry} · ${p.family.ratedVoltageV} V · ${p.family.ratedCapacityAh} Ah`],
+                ['Model', `${p.family.manufacturer.replace(' (fictional)', '')} ${p.family.model}`],
+                ['Serial', (
+                  <>
+                    {p.battery.manufacturerSerial ? <span className="mono">{p.battery.manufacturerSerial}</span> : <span className="text-muted">Not recorded</span>}
+                    {serialClash && (
+                      <span className="mt-1 flex items-center gap-1.5 font-medium text-critical-700">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden /> Also on another record
+                      </span>
+                    )}
+                  </>
+                )],
+                ['QR reference', <span key="qr" className="mono">{p.battery.publicRef}</span>],
+                ['Assignment', here ? `In service since ${formatDate(here.startAt)}` : 'Not deployed'],
+                ['Sensor', <ProvLine key="sensor" prov={{ kind: statusDot as ProvKind, text: p.telemetry.lastReadingAt ? `${status} · ${stamp(p.telemetry.lastReadingAt)}` : status }} />],
+              ] as [string, ReactNode][]).map(([label, value]) => (
+                <div key={label} className="py-2.5">
+                  <dt className="font-mono text-[12px] uppercase tracking-[0.1em] text-muted">{label}</dt>
+                  <dd className="mt-0.5 min-w-0 text-[14px] leading-5 text-ink">{value}</dd>
+                </div>
+              ))}
             </dl>
             <div className="mt-5 flex flex-wrap gap-2">{actions}</div>
           </div>
 
-          {/* lifecycle progress */}
-          <div className="min-w-0 [grid-area:stages]">
-            <ol className="space-y-3" aria-label="Lifecycle progress">
-              {stages.map((st) => (
-                <li key={st.key} className="flex items-start gap-2.5 text-sm">
-                  <span className={cn('mt-[3px] flex h-4 w-4 shrink-0 items-center justify-center rounded-full',
-                    st.state === 'done' ? 'bg-teal' : st.state === 'current' ? 'bg-copper' : st.state === 'problem' ? 'bg-critical' : 'border border-field')} aria-hidden>
-                    {st.state === 'done' && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />}
-                  </span>
-                  <span className="min-w-0">
-                    <span className={cn(st.state === 'pending' || st.state === 'skipped' ? 'text-muted' : 'font-medium text-ink')}>{st.label}</span>
-                    {st.detail && <span className="block text-[13px] leading-[18px] text-muted">{st.detail}</span>}
-                  </span>
-                  <span className="sr-only">, {st.state === 'done' ? 'done' : st.state === 'current' ? 'now' : st.state === 'problem' ? 'problem' : 'not yet'}.</span>
-                </li>
-              ))}
+          {/* lifecycle: a stepper on one rail, the current step marked */}
+          <section className="min-w-0 [grid-area:stages]" aria-labelledby="stages-h">
+            <h2 id="stages-h" className="font-mono text-[12px] uppercase tracking-[0.12em] text-muted">Lifecycle</h2>
+            <ol className="mt-3" aria-label="Lifecycle progress">
+              {stages.map((st, i) => {
+                const reached = st.state === 'done' || st.state === 'current' || st.state === 'problem';
+                return (
+                  <li key={st.key} className="relative grid grid-cols-[16px_minmax(0,1fr)] gap-x-3 pb-4 last:pb-0">
+                    {i < stages.length - 1 && (
+                      <span aria-hidden className={cn('absolute left-[7.5px] top-[19px] bottom-[1px] w-px', st.state === 'done' ? 'bg-teal' : 'bg-line')} />
+                    )}
+                    <span className={cn('relative mt-[2px] flex h-4 w-4 items-center justify-center rounded-full',
+                      st.state === 'done' ? 'bg-teal' : st.state === 'current' ? 'bg-copper ring-4 ring-copper/15' : st.state === 'problem' ? 'bg-critical' : 'border border-field bg-canvas')} aria-hidden>
+                      {st.state === 'done' && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className={cn('block text-sm leading-5', reached ? 'font-medium text-ink' : 'text-muted')}>{st.label}</span>
+                      {st.detail && <span className="block text-[13px] leading-[18px] text-muted">{st.detail}</span>}
+                      <span className="sr-only">, {st.state === 'done' ? 'done' : st.state === 'current' ? 'now' : st.state === 'problem' ? 'problem' : 'not yet'}.</span>
+                    </span>
+                  </li>
+                );
+              })}
             </ol>
-          </div>
+          </section>
 
           {/* the figure */}
           <div className="min-w-0 [grid-area:fig]">

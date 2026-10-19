@@ -200,7 +200,7 @@ function BatteriesInner() {
             <button
               key={v} type="button" aria-pressed={view === v}
               onClick={() => { setView(v); remember('view', v, 'simple'); }}
-              className={cn('min-h-[34px] rounded-full px-3.5 text-[13px] font-medium transition-colors duration-150', view === v ? 'bg-white text-ink shadow-[0_1px_2px_rgba(40,28,16,0.12)]' : 'text-ink-2 hover:text-ink')}
+              className={cn('min-h-[34px] rounded-full px-3.5 text-[13px] font-medium transition-colors duration-150', view === v ? 'bg-white text-ink shadow-[0_1px_2px_rgba(0, 0, 0,0.12)]' : 'text-ink-2 hover:text-ink')}
             >
               {v === 'simple' ? 'Simple' : 'Detailed'}
             </button>
