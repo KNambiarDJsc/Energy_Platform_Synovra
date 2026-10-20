@@ -93,6 +93,7 @@ describe('customer demo: what a customer never sees, whoever is looking', () => 
       const approved = p.events.filter((e) => e.type === 'restoration' && e.approvalState === 'approved').length;
       expect(items.filter((i) => i.title === 'Service work completed')).toHaveLength(approved);
       expect(items.some((i) => /rework|reject|route|cost|margin|candidate/i.test(`${i.title} ${i.detail}`))).toBe(false);
+      expect(items.some((i) => /restoration|qualif|qualified store/i.test(`${i.title} ${i.detail}`)), 'staff vocabulary stays out of the customer history').toBe(false);
       expect(customerEvidence(p.evidence).every((f) => f.classification === 'customer_visible')).toBe(true);
     }
   });
