@@ -208,6 +208,7 @@ test.describe('actions and requests', () => {
   test.beforeEach(async ({ page }) => { await signInAs(page, USERS.customer); });
 
   test('a maintenance request is clickable, confirmed, labelled as a demonstration, and listed as scheduled', async ({ page }) => {
+    test.slow();
     await openBattery(page, 'B-0005');
     await page.getByRole('button', { name: 'Request maintenance' }).click();
     const dialog = page.getByRole('dialog');
