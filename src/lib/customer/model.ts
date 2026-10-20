@@ -131,6 +131,8 @@ export interface TimelineItem {
   title: string;
   detail: string;
   approximate: boolean;
+  /** Service work an engineer approved. Only this counts as completed. */
+  completed?: boolean;
   evidence: { id: string; fileName: string }[];
 }
 
@@ -154,7 +156,7 @@ export function buildTimeline(p: BatteryPassport): TimelineItem[] {
     const evidence = customerEvidence(e.evidence ?? []).map((f) => ({ id: f.id, fileName: f.fileName }));
     if (e.type === 'restoration') {
       if (e.approvalState !== 'approved') continue;
-      items.push({ id: e.id, at: e.occurredAt, kind: 'service', title: 'Service work completed', detail: 'Approved by an engineer. The method is confidential and is not part of the customer record.', approximate: e.dateCertainty === 'approximate', evidence });
+      items.push({ id: e.id, at: e.occurredAt, kind: 'service', title: 'Service work completed', detail: 'Approved by an engineer. The method is confidential and is not part of the customer record.', approximate: e.dateCertainty === 'approximate', completed: true, evidence });
       continue;
     }
     const kind = KIND_OF[e.type];

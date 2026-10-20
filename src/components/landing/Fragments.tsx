@@ -85,20 +85,20 @@ export function PassportObject({ stage }: { stage: number }) {
 export function AuditProof() {
   return (
     <div data-ui className="ui ui-w">
-      <p className="ui-title">Audit history, B-0002</p>
+      <p className="ui-title">Access log, Demo Customer A</p>
       <ul className="ui-log">
         <li>
           <span className="ui-time ui-num">14:02 GST</span>
           <span>
-            <span className="ui-chip ui-chip-no">Refused</span> Qualify battery
-            <span className="ui-dim">Lab technician. This role cannot qualify a battery.</span>
+            <span className="ui-chip ui-chip-no">Refused</span> Open battery B-0031
+            <span className="ui-dim">That battery is at a site outside your account.</span>
           </span>
         </li>
         <li>
           <span className="ui-time ui-num">13:47 GST</span>
           <span>
-            Final test recorded
-            <span className="ui-dim">Lab technician. 174 Ah on discharge bench DB-2.</span>
+            Opened battery B-0004
+            <span className="ui-dim">Demo Site A, Rooftop Cabinet. Customer-visible records only.</span>
           </span>
         </li>
       </ul>
@@ -113,7 +113,7 @@ export function EvidenceProof() {
         <span className="ui-file-icon" aria-hidden><FileText size={20} strokeWidth={1.75} /></span>
         <span>
           <span className="ui-strong">final-test-B-0002.pdf</span>
-          <span className="ui-dim">Test report · 212 KB · lab technician</span>
+          <span className="ui-dim">Test report · 212 KB · approved by an engineer</span>
         </span>
       </div>
       <dl className="ui-rows">

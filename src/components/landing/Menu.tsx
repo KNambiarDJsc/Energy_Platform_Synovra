@@ -6,8 +6,8 @@ import { attachFluid } from './FluidHover';
 
 const LINKS: { href: string; label: string; note: string }[] = [
   { href: '#platform', label: 'Platform', note: 'One record per battery' },
-  { href: '#solutions', label: 'Solutions', note: 'Intake to recycling' },
-  { href: '#rules', label: 'Try the rules', note: 'Who sees what, and who decides' },
+  { href: '#solutions', label: 'What you get', note: 'Fleet, record, actions, report' },
+  { href: '#enforces', label: 'How it is kept', note: 'What the record enforces' },
   { href: '#questions', label: 'Questions', note: 'What the record answers' },
   { href: '#honesty', label: 'What is real', note: 'And what is not' },
 ];

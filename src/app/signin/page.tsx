@@ -8,15 +8,12 @@ import { Notice } from '@/components/ui/Layout';
 import { Spinner } from '@/components/ui/States';
 import { buttonClass } from '@/components/ui/buttonClass';
 import { getStore } from '@/data/store';
-import { ROLE_LABELS, ROLE_SUMMARIES, permissionsFor } from '@/domain/permissions';
-import type { Role, User } from '@/domain/types';
+import type { User } from '@/domain/types';
 import { initials } from '@/lib/format';
 import { useHydrated, useRuntime, useSession } from '@/lib/hooks';
 import { API_BASE_URL, DATA_SOURCE } from '@/lib/runtime';
 import { beginSignIn, safeNext } from '@/services/http/oidc';
 import { DEMO_USER_FOR_ROLE, setSessionUserId } from '@/services/session';
-
-const ROLES = Object.keys(ROLE_LABELS) as Role[];
 
 type PickerUser = Pick<User, 'id' | 'name' | 'title' | 'role'> & { siteScope?: User['siteScope'] };
 
@@ -103,49 +100,40 @@ function SignInInner() {
 
   if (DATA_SOURCE === 'http' && runtime.loaded && runtime.authMode === 'oidc') return <CompanySignIn next={next} />;
 
+  const user = users.find((u) => u.id === DEMO_USER_FOR_ROLE.customer_auditor);
+  // Only the customer's own screens exist. A link to anywhere else lands on home.
+  const dest = /^\/app\/(home|batteries|actions|reports)(\/|\?|$)/.test(next) ? next : '/app/home';
+
   return (
-    <SignInColumn
-      title="Choose a demo role"
-      lede="There are no passwords. The role decides what you can see and do, and every call checks it. Switch any time from the top bar."
-    >
+    <SignInColumn title="Sign in to your batteries" lede="See how every battery is doing, why, and what happens next. This demonstration has no passwords.">
       {connectionError && (
         <Notice tone="danger" className="mt-8" title="Cannot sign in">
           {connectionError}
         </Notice>
       )}
 
-      {/* An inset grouped list: white rows on the canvas, parted by a 2px gap rather than a rule. */}
-      <ul className="mt-10 space-y-0.5 overflow-hidden rounded-2xl" aria-label="Demo roles">
-        {ROLES.map((role, i) => {
-          const user = users.find((u) => u.id === DEMO_USER_FOR_ROLE[role]);
-          const scope = user?.siteScope ? (user.siteScope === 'all' ? 'all sites' : `${user.siteScope.length} site${user.siteScope.length === 1 ? '' : 's'}`) : null;
-          return (
-            <li key={role} className="anim-row" style={{ animationDelay: `${140 + i * 45}ms` }}>
-              <button
-                type="button"
-                data-testid={`role-${role}`}
-                onClick={() => {
-                  setSessionUserId(DEMO_USER_FOR_ROLE[role]);
-                  // A customer's first screen is the calm home, unless a link asked for somewhere specific.
-                  router.push(role === 'customer_auditor' && next === '/app/overview' ? '/app/home' : next);
-                }}
-                className="group flex w-full items-center gap-4 bg-white px-4 py-4 text-left transition-colors duration-150 ease-out hover:bg-[#FAFAFA] active:bg-[#F0F0EF] md:px-5"
-              >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-night text-[15px] font-semibold text-white" aria-hidden>
-                  {initials(user?.name ?? ROLE_LABELS[role])}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[17px] font-semibold leading-6 text-ink">{ROLE_LABELS[role]}</span>
-                  <span className="mt-0.5 block text-[15px] leading-[22px] text-ink-2">{ROLE_SUMMARIES[role]}</span>
-                  <span className="mt-1 block text-[13px] leading-[18px] text-muted">
-                    {user ? user.name : 'Synthetic user'} · {permissionsFor(role).length} permissions{scope && ` · ${scope}`}
-                  </span>
-                </span>
-                <ChevronRight className="h-5 w-5 shrink-0 text-muted transition-transform duration-200 ease-out group-hover:translate-x-0.5" aria-hidden />
-              </button>
-            </li>
-          );
-        })}
+      <ul className="mt-10 overflow-hidden rounded-2xl" aria-label="Demo account">
+        <li className="anim-row" style={{ animationDelay: '140ms' }}>
+          <button
+            type="button"
+            data-testid="role-customer_auditor"
+            onClick={() => {
+              setSessionUserId(DEMO_USER_FOR_ROLE.customer_auditor);
+              router.push(dest);
+            }}
+            className="group flex w-full items-center gap-4 bg-white px-4 py-4 text-left transition-colors duration-150 ease-out hover:bg-[#FAFAFA] active:bg-[#F0F0EF] md:px-5"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-night text-[15px] font-semibold text-white" aria-hidden>
+              {initials(user?.name ?? 'Demo Customer')}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[17px] font-semibold leading-6 text-ink">{user?.name ?? 'Demo customer'}</span>
+              <span className="mt-0.5 block text-[15px] leading-[22px] text-ink-2">Demo Customer A. Read-only view of its own batteries; internal costs and process data are never shown.</span>
+              <span className="mt-1 block text-[13px] leading-[18px] text-muted">Synthetic user{user?.siteScope && user.siteScope !== 'all' ? ` · ${user.siteScope.length} sites` : ''}</span>
+            </span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-muted transition-transform duration-200 ease-out group-hover:translate-x-0.5" aria-hidden />
+          </button>
+        </li>
       </ul>
 
       <div className="mx-auto mt-6 flex max-w-[480px] items-start gap-2.5 px-2 text-sm text-muted">
@@ -153,8 +141,8 @@ function SignInInner() {
         <p>
           <span className="font-semibold text-ink">{DATA_SOURCE === 'http' ? 'Development sign-in.' : 'Demonstration sign-in only.'}</span>{' '}
           {DATA_SOURCE === 'http'
-            ? 'Anyone who can reach this API can act as any user. Production uses your identity provider (OIDC) and the same permission model.'
-            : 'This is not authentication. A production deployment uses your identity provider (OIDC) and the same permission model.'}
+            ? 'Anyone who can reach this API can act as this user. Production uses your identity provider (OIDC).'
+            : 'This is not authentication. A production deployment uses your identity provider (OIDC).'}
         </p>
       </div>
     </SignInColumn>

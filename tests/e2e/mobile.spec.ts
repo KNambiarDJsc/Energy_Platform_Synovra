@@ -1,11 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { USERS, expectNoHorizontalScroll, openApp, signInAs } from './helpers';
 
-const ROUTES = [
-  '/app/overview', '/app/batteries', '/app/intake', '/app/tests', '/app/restoration', '/app/inventory',
-  '/app/deployments', '/app/monitoring', '/app/alerts', '/app/reports', '/app/intelligence', '/app/admin',
-  '/app/intelligence?view=sources', '/app/intelligence?view=learning', '/app/intelligence?view=agents', '/app/intelligence?view=connections',
-];
+const ROUTES = ['/app/home', '/app/batteries', '/app/actions', '/app/reports'];
 
 test.describe('390px layout', () => {
   test('landing page does not scroll sideways', async ({ page }) => {
@@ -14,8 +10,8 @@ test.describe('390px layout', () => {
     await expectNoHorizontalScroll(page);
   });
 
-  test('app routes stay within the viewport', async ({ page }) => {
-    await signInAs(page, USERS.engineer);
+  test('every customer screen stays within the viewport', async ({ page }) => {
+    await signInAs(page, USERS.customer);
     for (const route of ROUTES) {
       await openApp(page, route);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
@@ -25,34 +21,34 @@ test.describe('390px layout', () => {
   });
 
   test('tables become cards and the bottom navigation is available', async ({ page }) => {
-    await signInAs(page, USERS.engineer);
+    await signInAs(page, USERS.customer);
     await openApp(page, '/app/batteries');
-    await expect(page.getByRole('navigation', { name: 'Quick navigation' })).toBeVisible();
+    const bottom = page.getByRole('navigation', { name: 'Quick navigation' });
+    await expect(bottom).toBeVisible();
+    for (const name of ['Home', 'Batteries', 'Actions', 'Reports']) await expect(bottom.getByRole('link', { name })).toBeVisible();
     await expect(page.locator('table:visible')).toHaveCount(0);
-    await expect(page.getByRole('list', { name: 'Batteries' })).toBeVisible();
-    await page.getByRole('button', { name: 'More', exact: true }).click();
-    await expect(page.getByRole('dialog').getByRole('link', { name: 'Monitoring' })).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Batteries at your sites' })).toBeVisible();
   });
 
-  test('battery passport is readable and its tabs are reachable', async ({ page }) => {
-    await signInAs(page, USERS.engineer);
-    await openApp(page, '/app/scan?label=B-0002');
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('B-0002');
+  test('a battery record is readable and its lenses are reachable on a phone', async ({ page }) => {
+    await signInAs(page, USERS.customer);
+    await openApp(page, '/app/batteries');
+    await page.getByRole('list', { name: 'Batteries at your sites' }).getByRole('link', { name: /B-0007/ }).first().click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('B-0007');
     await expectNoHorizontalScroll(page);
-    await page.getByRole('tablist', { name: 'Battery lens' }).getByRole('tab', { name: 'Temperature' }).click();
-    await expect(page.getByText('Temperature is unknown, not normal.')).toBeVisible();
+    await page.getByRole('group', { name: 'What to look at' }).getByRole('button', { name: 'Outlook' }).click();
+    await expect(page.getByTestId('outlook')).toContainText('Not yet estimated');
     await expectNoHorizontalScroll(page);
-    await page.getByRole('tab', { name: 'Audit history' }).click();
-    await expect(page.getByRole('tab', { name: 'Audit history' })).toHaveAttribute('aria-selected', 'true');
+    await page.getByTestId('technical').locator('summary').click();
     await expectNoHorizontalScroll(page);
   });
 
-  test('a form can be completed with a phone-sized viewport', async ({ page }) => {
-    await signInAs(page, USERS.lab);
-    await openApp(page, '/app/intake');
-    await page.getByLabel('Battery family').selectOption({ index: 1 });
-    await page.getByLabel('Manufacturer serial').fill('MOBILE-TEST-001');
-    await page.getByRole('button', { name: 'Register battery' }).click();
-    await expect(page.locator('#main').getByRole('status').filter({ hasText: /B-\d{4} registered/ })).toBeVisible();
+  test('a maintenance request can be made with a phone-sized viewport', async ({ page }) => {
+    await signInAs(page, USERS.customer);
+    await openApp(page, '/app/batteries');
+    await page.getByRole('list', { name: 'Batteries at your sites' }).getByRole('link', { name: /B-0007/ }).first().click();
+    await page.getByRole('button', { name: 'Request maintenance' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Submit request (demo)' }).click();
+    await expect(page.getByTestId('request-confirmation')).toContainText('DEMO-001');
   });
 });

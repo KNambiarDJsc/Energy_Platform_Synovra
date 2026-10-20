@@ -7,7 +7,7 @@ The landing page (`src/app/page.tsx`) is laid out after the structure of shift5.
 Put the file at `public/landing/slots/<name>.<ext>` and pass it to the slot:
 
 ```tsx
-<Slot name="solution-identity" kind="illustration" ratio="4 / 3" note="…" src="/landing/slots/solution-identity.svg" alt="A battery being scanned" />
+<Slot name="solution-fleet" kind="illustration" ratio="4 / 3" note="…" src="/landing/slots/solution-fleet.svg" alt="A fleet of batteries" />
 ```
 
 - `kind="video"` renders a muted, looping, autoplaying video (decorative, so give it no alt).
@@ -21,10 +21,10 @@ Put the file at `public/landing/slots/<name>.<ext>` and pass it to the slot:
 | Name | Kind | Ratio | Where | What belongs there |
 |---|---|---|---|---|
 | `hero-media` | video | 16 / 9 | Hero, under the title | **Filled** with `public/landing/slots/hero-media.mp4` (poster `hero-media.jpg`): a battery with record-style callouts, on the page's orange and charcoal. It is a generated clip, not footage of Synovra equipment. The generator's corner logo was removed from the file. |
-| `solution-identity` | illustration | 4 / 3 | Solutions row, card 01 | A battery being scanned, its record opening beside it. |
-| `solution-evidence` | illustration | 4 / 3 | Solutions row, card 02 | A bench test with its curve, instrument and certificate. |
-| `solution-decisions` | illustration | 4 / 3 | Solutions row, card 03 | Two tests either side of an attempt, a reviewer's sign-off. |
-| `solution-recovery` | illustration | 4 / 3 | Solutions row, card 04 | A battery's last journey, from site to recycler. |
+| `solution-fleet` | illustration | 4 / 3 | Solutions row, card 01 | A fleet of batteries across sites as a calm status ring. |
+| `solution-record` | illustration | 4 / 3 | Solutions row, card 02 | One battery opened as a cutaway beside its record. |
+| `solution-actions` | illustration | 4 / 3 | Solutions row, card 03 | Two tests either side of a service visit. |
+| `solution-reports` | illustration | 4 / 3 | Solutions row, card 04 | A report assembling from battery records. |
 | `platform-twin` | component | 17 / 8.5 | Platform section | Filled: the exploded battery drawing (`ExplodedBattery.tsx`). Replace it with a richer interactive view whose state follows the battery's data. |
 
 The four `solution-*` slots are empty today; `hero-media` is filled. A test (`tests/e2e/landing.spec.ts`) lists the empty slots by name, so filling one means updating that list. A video slot plays muted and looping, does not start for people who prefer reduced motion, and always has a pause button.

@@ -28,6 +28,9 @@ export async function openApp(page: Page, path: string) {
 }
 
 export async function expectNoHorizontalScroll(page: Page) {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  // Measured against the viewport the test asked for: a phone that is made to fit overflowing content widens its own
+  // layout viewport, which would hide the overflow from a comparison with window.innerWidth.
+  const width = page.viewportSize()?.width ?? 0;
+  const overflow = await page.evaluate((w) => document.documentElement.scrollWidth - (w || window.innerWidth), width);
   expect(overflow, 'page should not scroll horizontally').toBeLessThanOrEqual(1);
 }

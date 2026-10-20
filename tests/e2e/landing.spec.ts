@@ -13,22 +13,23 @@ test.describe('public landing page', () => {
     await expect(page.getByTestId('demo-banner')).toContainText('Synthetic demonstration data. No live customer, cloud or sensor connection.');
     await expect(page.getByRole('link', { name: 'Open the demo' }).first()).toBeVisible();
     await expect(page.getByText('Synovra Battery Intelligence, demonstration build')).toBeVisible();
-    for (const heading of ['Try the rules', 'Questions it answers', 'What it enforces']) {
+    for (const heading of ['Questions it answers', 'What it enforces']) {
       await expect(page.getByRole('heading', { name: heading })).toBeVisible();
     }
   });
 
-  test('the live fragments enforce the product rules', async ({ page }) => {
+  test('the lifecycle slider walks one battery through its record and ends on a person deciding', async ({ page }) => {
     await page.goto('/');
-    const rules = page.locator('#rules');
-    await rules.getByRole('button', { name: 'Let the rule check approve' }).click();
-    await expect(rules.getByText(/Refused\. A rule check informs the decision/)).toBeVisible();
-    await rules.getByRole('button', { name: 'Customer auditor' }).click();
-    await expect(rules.getByText('Internal costs are not shown to customers')).toBeVisible();
-    await rules.getByRole('button', { name: 'Approve as the current reader' }).click();
-    await expect(rules.getByText(/cannot qualify a battery/)).toBeVisible();
     await page.getByRole('slider', { name: 'Lifecycle stage' }).fill('3');
     await expect(page.getByRole('heading', { name: 'Last, a person decides' })).toBeVisible();
+    await page.getByRole('slider', { name: 'Lifecycle stage' }).fill('2');
+    await expect(page.getByRole('heading', { name: 'Then, the work, with its evidence' })).toBeVisible();
+  });
+
+  test('no screen for staff is offered: no role picker, no qualification demo, no cost talk', async ({ page }) => {
+    await page.goto('/');
+    const text = (await page.locator('main').innerText()).toLowerCase();
+    for (const gone of ['try the rules', 'lab technician', 'battery engineer qualif', 'restoration teams', 'cost entries', 'seven roles']) expect(text, gone).not.toContain(gone);
   });
 
   test('makes no unsupported savings, accuracy or certification claims', async ({ page }) => {
@@ -40,17 +41,13 @@ test.describe('public landing page', () => {
     await expect(page.getByText('What this demonstration does not have')).toBeVisible();
   });
 
-  test('demo sign-in leads to the overview and the role can be switched', async ({ page }) => {
+  test('the demo opens the customer’s home', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('link', { name: 'Open the demo' }).first().click();
-    await expect(page.getByRole('heading', { name: 'Choose a demo role' })).toBeVisible();
-    await page.getByTestId('role-battery_engineer').click();
-    await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
-    await expect(page.getByText('Fleet position in the synthetic snapshot')).toBeVisible();
-
-    await page.getByLabel('Demo role').first().selectOption('customer_auditor');
-    await expect(page.getByText('Now acting as Customer / auditor')).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Intelligence' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Sign in to your batteries' })).toBeVisible();
+    await page.getByTestId('role-customer_auditor').click();
+    await expect(page).toHaveURL(/\/app\/home$/);
+    await expect(page.getByTestId('customer-demo-label')).toContainText('Demonstration records');
   });
 });
 
@@ -85,11 +82,11 @@ test.describe('structure, after shift5: split hero, status panel, solutions row,
   test('every picture or video not yet supplied is a named placeholder; the battery component is real', async ({ page }) => {
     await page.goto('/');
     const names = await page.locator('[data-slot]:has(.slot-empty)').evaluateAll((els) => els.map((e) => e.getAttribute('data-slot')));
-    expect([...names].sort()).toEqual(['solution-decisions', 'solution-evidence', 'solution-identity', 'solution-recovery']);
+    expect([...names].sort()).toEqual(['solution-actions', 'solution-fleet', 'solution-record', 'solution-reports']);
     for (const label of await page.locator('.slot-empty').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))) {
       expect(label).toMatch(/^Placeholder for (video|illustration|image|component): /);
     }
-    await expect(page.locator('[data-slot="solution-identity"] .slot-spec')).toContainText('public/landing/slots/solution-identity');
+    await expect(page.locator('[data-slot="solution-fleet"] .slot-spec')).toContainText('public/landing/slots/solution-fleet');
     await expect(page.locator('[data-slot="platform-twin"]').getByRole('img', { name: /exploded view/i })).toBeVisible();
   });
 
@@ -105,7 +102,7 @@ test.describe('structure, after shift5: split hero, status panel, solutions row,
     await expect(prev).toBeEnabled();
     await prev.click();
     await expect.poll(() => track.evaluate((el) => el.scrollLeft)).toBeLessThan(5);
-    await expect(page.getByRole('link', { name: /Tests and evidence/ })).toHaveAttribute('href', '/signin?next=%2Fapp%2Ftests');
+    await expect(page.getByRole('link', { name: /Every battery, opened up/ })).toHaveAttribute('href', '/signin?next=%2Fapp%2Fbatteries');
     const card = await centre(page.locator('.lp-sol-card').first());
     await page.mouse.move(card.x + 150, card.y);
     await page.mouse.down();
@@ -120,15 +117,15 @@ test.describe('structure, after shift5: split hero, status panel, solutions row,
     await page.getByRole('button', { name: 'Menu' }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
-    for (const name of ['Platform', 'Solutions', 'Try the rules', 'Questions', 'What is real']) await expect(dialog.getByRole('link', { name })).toBeVisible();
+    for (const name of ['Platform', 'What you get', 'How it is kept', 'Questions', 'What is real']) await expect(dialog.getByRole('link', { name })).toBeVisible();
     for (let i = 0; i < 12; i++) await page.keyboard.press('Tab');
     expect(await page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]')), 'focus stays inside the menu').toBe(true);
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
     await page.getByRole('button', { name: 'Menu' }).click();
-    await page.getByRole('dialog').getByRole('link', { name: 'Try the rules' }).click();
+    await page.getByRole('dialog').getByRole('link', { name: 'How it is kept' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(page).toHaveURL(/#rules$/);
+    await expect(page).toHaveURL(/#enforces$/);
   });
 });
 
