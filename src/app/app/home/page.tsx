@@ -2,6 +2,7 @@
 import { ArrowRight, CalendarCheck, CheckCircle2, ChevronRight, Clock } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { LinkButton } from '@/components/ui/Button';
 import { DataKindLegend, StatusBadge, StatusRing, STATUS_STYLE } from '@/components/ui/Status';
 import { LoadingBlock, QueryView } from '@/components/ui/States';
 import { STATUS_LABELS, type BatteryStatus } from '@/domain/status';
@@ -186,6 +187,15 @@ export default function HomePage() {
                     Open alerts and tasks <ChevronRight className="h-4 w-4" aria-hidden />
                   </Link>
                 )}
+              </section>
+
+              <section className="card p-6" aria-labelledby="journey-h">
+                <h2 id="journey-h" className="font-display text-[22px] leading-7 text-ink">Your batteries and reports</h2>
+                <p className="mt-1 text-[13px] text-muted">The fleet by site, each battery’s record, and an evidence-backed data report.</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <LinkButton href="/app/customer">Open the customer demo</LinkButton>
+                  <LinkButton href="/app/customer/report" variant="secondary">Report preview</LinkButton>
+                </div>
               </section>
 
               {session.user && <SinceLastVisit h={h} userId={session.user.id} />}
