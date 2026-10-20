@@ -85,11 +85,11 @@ test.describe('structure, after shift5: split hero, status panel, solutions row,
   test('every picture or video not yet supplied is a named placeholder; the battery component is real', async ({ page }) => {
     await page.goto('/');
     const names = await page.locator('[data-slot]:has(.slot-empty)').evaluateAll((els) => els.map((e) => e.getAttribute('data-slot')));
-    expect([...names].sort()).toEqual(['hero-media', 'solution-decisions', 'solution-evidence', 'solution-identity', 'solution-recovery']);
+    expect([...names].sort()).toEqual(['solution-decisions', 'solution-evidence', 'solution-identity', 'solution-recovery']);
     for (const label of await page.locator('.slot-empty').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))) {
       expect(label).toMatch(/^Placeholder for (video|illustration|image|component): /);
     }
-    await expect(page.locator('[data-slot="hero-media"] .slot-spec')).toContainText('public/landing/slots/hero-media');
+    await expect(page.locator('[data-slot="solution-identity"] .slot-spec')).toContainText('public/landing/slots/solution-identity');
     await expect(page.locator('[data-slot="platform-twin"]').getByRole('img', { name: /exploded view/i })).toBeVisible();
   });
 
@@ -129,6 +129,37 @@ test.describe('structure, after shift5: split hero, status panel, solutions row,
     await page.getByRole('dialog').getByRole('link', { name: 'Try the rules' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(page).toHaveURL(/#rules$/);
+  });
+});
+
+test.describe('hero video', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test('plays muted and looping under the title, with no logo burned in, and can be paused', async ({ page }) => {
+    await page.goto('/');
+    const slot = page.locator('[data-slot="hero-media"]');
+    const video = slot.locator('video');
+    await expect(video).toHaveAttribute('src', '/landing/slots/hero-media.mp4');
+    expect(await video.evaluate((v: HTMLVideoElement) => [v.muted, v.loop, v.getAttribute('aria-hidden')])).toEqual([true, true, 'true']);
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThanOrEqual(2);
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused)).toBe(true);
+    await slot.getByRole('button', { name: 'Pause the background video' }).click();
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
+    await slot.getByRole('button', { name: 'Play the background video' }).click();
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused)).toBe(true);
+    // the source file is 16:9 and the slot keeps that shape, so nothing is cropped away
+    const box = (await slot.boundingBox())!;
+    expect(box.width / box.height).toBeCloseTo(16 / 9, 1);
+  });
+
+  test('with reduced motion it does not start by itself, and the poster stands in', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    const video = page.locator('[data-slot="hero-media"] video');
+    await expect(video).toHaveAttribute('poster', '/landing/slots/hero-media.jpg');
+    await page.waitForTimeout(800);
+    expect(await video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
+    await expect(page.getByRole('button', { name: 'Play the background video' })).toBeVisible();
   });
 });
 

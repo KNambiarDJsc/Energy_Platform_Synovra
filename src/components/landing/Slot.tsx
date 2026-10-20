@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { SlotVideo } from './SlotVideo';
 
 /**
  * A place reserved for a picture, drawing, video or component that has not been supplied yet. Each slot has a name
@@ -9,15 +10,15 @@ import type { CSSProperties, ReactNode } from 'react';
 export type SlotKind = 'video' | 'illustration' | 'image' | 'component';
 
 export function Slot({
-  name, kind, ratio = '16 / 9', note, src, alt, children, className, dark = false,
+  name, kind, ratio = '16 / 9', note, src, poster, alt, children, className, dark = false,
 }: {
-  name: string; kind: SlotKind; ratio?: string; note: string; src?: string; alt?: string; children?: ReactNode; className?: string; dark?: boolean;
+  name: string; kind: SlotKind; ratio?: string; note: string; src?: string; poster?: string; alt?: string; children?: ReactNode; className?: string; dark?: boolean;
 }) {
   const style = { ['--ratio' as string]: ratio } as CSSProperties;
   let body: ReactNode = children;
   if (!body && src) {
     body = kind === 'video'
-      ? <video className="slot-fill" src={src} muted loop playsInline autoPlay aria-hidden />
+      ? <SlotVideo src={src} poster={poster} />
       // eslint-disable-next-line @next/next/no-img-element -- supplied later, any size
       : <img className="slot-fill" src={src} alt={alt ?? ''} />;
   }

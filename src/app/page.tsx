@@ -175,7 +175,7 @@ export default function LandingPage() {
               </div>
             </div>
             <Slot
-              name="hero-media" kind="video" ratio="21 / 9" dark
+              name="hero-media" kind="video" ratio="16 / 9" dark src="/landing/slots/hero-media.mp4" poster="/landing/slots/hero-media.jpg"
               note="Video: a battery passing through intake, test, restoration and a decision, ending on its record."
             />
             <div className="lp-notes" aria-label="What the product holds to" data-rise style={{ ['--i' as string]: 4 }}>
