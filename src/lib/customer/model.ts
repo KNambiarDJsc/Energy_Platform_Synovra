@@ -143,6 +143,23 @@ export const TIMELINE_KIND_LABELS: Record<TimelineKind, string> = {
   intake: 'Intake', test: 'Test', service: 'Service', deployment: 'Deployment', alert: 'Alert', recycling: 'Recycling', replacement: 'Replacement',
 };
 
+/**
+ * Staff words made plain for a customer: the internal store, qualification and restoration vocabulary describes the
+ * lab's workflow, not what happened to their battery. Each rule keeps the fact and drops the jargon.
+ */
+const PLAIN: [RegExp, string][] = [
+  [/Post-restoration/g, 'Follow-up'],
+  [/post-restoration/g, 'follow-up'],
+  [/Qualified by engineer/g, 'Approved by an engineer'],
+  [/Qualification approved against the demonstration threshold\./g, 'An engineer approved the test result against the placeholder threshold.'],
+  [/Left qualified store for site/g, 'Left the store for site'],
+  [/from the qualified store to site/g, 'to site'],
+  [/\bqualified store\b/gi, 'store'],
+  [/\brestoration\b/gi, 'service work'],
+  [/\bqualif(y|ied|ication)\b/gi, 'approved'],
+];
+export const plain = (text: string): string => PLAIN.reduce((t, [re, to]) => t.replace(re, to), text);
+
 /** Files a customer may open. Internal and controlled files never appear in the customer view, whoever is looking. */
 export const customerEvidence = (files: EvidenceFile[]) => files.filter((f) => f.classification === 'customer_visible');
 
@@ -163,7 +180,7 @@ export function buildTimeline(p: BatteryPassport): TimelineItem[] {
     if (!kind) continue;
     // Choosing a battery for restoration is an internal workflow step. The customer sees completed, approved work only.
     if (/restoration candidate/i.test(e.title)) continue;
-    items.push({ id: e.id, at: e.occurredAt, kind, title: e.title, detail: e.reason, approximate: e.dateCertainty === 'approximate', evidence });
+    items.push({ id: e.id, at: e.occurredAt, kind, title: plain(e.title), detail: plain(e.reason), approximate: e.dateCertainty === 'approximate', evidence });
   }
   if (p.recycling && p.recycling.consignedOn && !items.some((i) => i.kind === 'recycling')) {
     items.push({ id: `rec_${p.recycling.id}`, at: `${p.recycling.consignedOn}T00:00:00.000Z`, kind: 'recycling', title: 'Consigned for recycling', detail: p.recycling.certificateState === 'received' ? 'Recycler certificate received.' : 'Recycler certificate not yet received.', approximate: false, evidence: [] });
