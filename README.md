@@ -87,6 +87,7 @@ Battery (identity, `publicRef`, aliases, retired refs) → family (rated values,
 | --- | --- |
 | `docs/architecture.md` | Components, workflow, data boundaries, deployment, ML and agent operations, threat model, known unknowns |
 | `docs/ML_PLAN.md` | Which models, on which labels, by version; learning versus unlearning; compute |
+| `docs/customer-ux-data-map.md` | Every item the customer demo shows, mapped to its field, unit, source, scope, timing, checks and whether it is real, synthetic or a future dependency |
 | `docs/customer-ux-alignment.md` | The customer-experience vision and the data strategy mapped onto the prototype: built, partial, deliberately not built, and what data unlocks the rest |
 | `docs/pilot-readiness.md` | The pilot plan's acceptance criteria checked against the code: built, partial, gap |
 | `docs/research/papers.md` | What the battery and agent research supports here, and what it does not; unverified citations listed separately |

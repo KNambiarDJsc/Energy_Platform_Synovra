@@ -24,6 +24,7 @@ async function audit(page: Page, label: string) {
 const APP_ROUTES = [
   '/app/overview', '/app/batteries', '/app/intake', '/app/tests', '/app/restoration', '/app/inventory',
   '/app/deployments', '/app/monitoring', '/app/alerts', '/app/reports', '/app/intelligence',
+  '/app/customer', '/app/customer/report',
   '/app/intelligence?view=sources', '/app/intelligence?view=learning', '/app/intelligence?view=agents', '/app/intelligence?view=connections',
 ];
 
