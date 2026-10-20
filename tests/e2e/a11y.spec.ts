@@ -10,8 +10,8 @@ async function audit(page: Page, label: string) {
   await page.evaluate(() => Promise.all(document.getAnimations()
     .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
     .map((a) => a.finished.catch(() => undefined))));
-  // Tab content fades in with script-driven opacity that getAnimations() cannot see, so a scan right after a tab
-  // switch can measure half-faded text. Scan again a few times: a real violation is still there on the last scan.
+  // Some content fades in with script-driven opacity that getAnimations() cannot see, so a scan right after a switch
+  // can measure half-faded text. Scan again a few times: a real violation is still there on the last scan.
   let violations = (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()).violations;
   for (let retry = 0; retry < 4 && violations.length > 0; retry++) {
     await page.waitForTimeout(500);
@@ -21,12 +21,7 @@ async function audit(page: Page, label: string) {
   expect(summary, `${label} accessibility violations`).toEqual([]);
 }
 
-const APP_ROUTES = [
-  '/app/overview', '/app/batteries', '/app/intake', '/app/tests', '/app/restoration', '/app/inventory',
-  '/app/deployments', '/app/monitoring', '/app/alerts', '/app/reports', '/app/intelligence',
-  '/app/customer', '/app/customer/report',
-  '/app/intelligence?view=sources', '/app/intelligence?view=learning', '/app/intelligence?view=agents', '/app/intelligence?view=connections',
-];
+const APP_ROUTES = ['/app/home', '/app/batteries', '/app/actions', '/app/reports'];
 
 test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
   test('public pages', async ({ page }) => {
@@ -37,58 +32,33 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
   });
 
   for (const route of APP_ROUTES) {
-    test(`engineer ${route}`, async ({ page }) => {
-      await signInAs(page, USERS.engineer);
+    test(`customer ${route}`, async ({ page }) => {
+      await signInAs(page, USERS.customer);
       await openApp(page, route);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
       await audit(page, route);
     });
   }
 
-  test('administrator /app/admin', async ({ page }) => {
-    await signInAs(page, USERS.admin);
-    await openApp(page, '/app/admin');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await audit(page, '/app/admin');
-  });
-
-  test('passport tabs', async ({ page }) => {
-    test.slow(); // several full-page scans of the largest page
-    await signInAs(page, USERS.engineer);
-    await openApp(page, '/app/scan?label=B-0002');
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('B-0002');
-    await audit(page, 'passport summary');
-    for (const tab of ['Lifecycle timeline', 'Tests', 'Monitoring', 'Costs', 'Evidence', 'Audit history']) {
-      const t = page.getByRole('tab', { name: tab, exact: false }).first();
-      if ((await t.count()) === 0) continue;
-      await t.click();
-      await audit(page, `passport ${tab}`);
+  test('a battery record: every lens, the technical detail, the dialog and Ask', async ({ page }) => {
+    test.slow();
+    await signInAs(page, USERS.customer);
+    await openApp(page, '/app/batteries');
+    await page.getByRole('table').first().getByRole('link', { name: /B-0007/ }).first().click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('B-0007');
+    await audit(page, 'battery overview');
+    for (const lens of ['Temperature', 'Capacity', 'Voltage', 'Outlook']) {
+      await page.getByRole('group', { name: 'What to look at' }).getByRole('button', { name: lens }).click();
+      await audit(page, `battery ${lens}`);
     }
-  });
-
-  test('battery deep dive lenses', async ({ page }) => {
-    test.slow(); // several full-page scans of the largest page
-    await signInAs(page, USERS.engineer);
-    await openApp(page, '/app/scan?label=B-0017');
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('B-0017');
-    const panel = page.getByRole('complementary', { name: 'Lens details' });
-    for (const [lens, heading] of [['Overview', 'Where it stands'], ['Temperature', 'Temperature'], ['Capacity', 'Capacity'], ['Charge & discharge', 'Charge & discharge'], ['Outlook', 'Outlook']]) {
-      await page.getByRole('tablist', { name: 'Battery lens' }).getByRole('tab', { name: lens }).click();
-      // Scan only once this lens's panel is mounted, so its fade-in is among the animations the audit waits for.
-      await expect(panel.getByRole('heading', { level: 2, name: heading })).toBeVisible();
-      await audit(page, `lens ${lens}`);
-    }
-  });
-
-  test('dialogs and drawers', async ({ page }) => {
-    await signInAs(page, USERS.noc);
-    await openApp(page, '/app/alerts');
-    await page.getByRole('button', { name: /Cell temperature above limit/ }).click();
+    await page.getByTestId('technical').locator('summary').click();
+    await audit(page, 'battery technical detail');
+    await page.getByRole('button', { name: 'Request maintenance' }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
-    await audit(page, 'alert drawer');
+    await audit(page, 'request dialog');
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Assistant' }).click();
-    await expect(page.getByLabel('Ask the assistant')).toBeVisible();
-    await audit(page, 'assistant');
+    await page.getByRole('button', { name: 'Ask', exact: true }).first().click();
+    await expect(page.getByRole('dialog', { name: 'Ask' })).toBeVisible();
+    await audit(page, 'ask drawer');
   });
 });

@@ -2,7 +2,7 @@
 
 Working backward from what the customer sees to the data it needs. Everything below is **synthetic** in this build. The "Status" column says whether Synovra could fill the field today from its own records, what the demo stands in for, and what is a future dependency.
 
-The customer journey lives at `/app/customer` (fleet), `/app/customer/batteries/[id]` (a battery's record) and `/app/customer/report` (the report). The code is in `src/lib/customer/` (model, report, framework config, demo requests) and `src/components/customer/`. It reads only existing services (`batteries`, `deployments`, `overview`), so there is no new backend, cloud service or ML.
+The customer product lives at `/app/home`, `/app/batteries`, `/app/batteries/[id]`, `/app/actions` and `/app/reports`. The code is in `src/lib/customer/` (model, report, framework config, demo requests) and `src/components/customer/`. It reads only existing services (`batteries`, `deployments`, `overview`), so there is no new backend, cloud service or ML.
 
 Status key: **Have** = Synovra records it in its own workflow. **Synthetic** = the demo supplies a stand-in. **Future** = needs a source that does not exist yet. **Gap** = the model has no field.
 
@@ -48,6 +48,16 @@ Status key: **Have** = Synovra records it in its own workflow. **Synthetic** = t
 | Warranty | state, end date | Warranty record | Battery | On change | Shown only if the role may read it | Have |
 | Replacement relation | linked battery | Replacement link | Battery | On replace | Separate identity kept | Have |
 | Recycling | state, recycler, consigned kg, certificate | Recycler document | Battery | On consignment | Consigned mass is not recovered weight | Have (partial) |
+
+## Battery page additions
+
+| Shown | Field | Source | Status |
+|---|---|---|---|
+| Modelled illustration | Unit type, chemistry, the one block temperature | Battery family, sensor | Illustration only. Cell-level temperature and plate condition are **not measured**, so no internal condition is drawn |
+| What changed | Capacity, resistance, battery and room temperature at the last two approved tests | Test results and conditions (`ambientTempC`) | Have, where two approved tests exist. Room temperature at the sensor is **not captured** |
+| Replacement window | None | No validated model | **Future.** Shown as "Not yet estimated", confidence none |
+| Since your last visit | Condition, capacity, temperature, event count | Remembered in this browser | Convenience only: a first visit shows nothing |
+| Ask | Answers from records on screen | Fixed rules, no model | Have. Refuses control, approval and other customers |
 
 ## Request and replacement interaction
 

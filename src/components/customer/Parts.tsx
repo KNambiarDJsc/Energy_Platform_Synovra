@@ -14,7 +14,7 @@ export function BasisTag({ basis, className }: { basis: Basis; className?: strin
 
 export function BasisLegend({ className }: { className?: string }) {
   return (
-    <dl className={cn('grid gap-x-8 gap-y-3 sm:grid-cols-2', className)}>
+    <dl className={cn('grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2', className)}>
       {(Object.keys(BASIS_LABELS) as Basis[]).map((b) => (
         <div key={b}>
           <dt><BasisTag basis={b} /></dt>

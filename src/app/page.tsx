@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { DemoBanner } from '@/components/app/DemoBanner';
 import { AuditProof, EvidenceProof, ReadingProof, RecyclingProof } from '@/components/landing/Fragments';
 import { HeroBattery } from '@/components/landing/HeroBattery';
-import { Lifecycle, OpenPassport, QuestionList, Reveals, RulesDemo, type Picture, type Question } from '@/components/landing/Interactive';
+import { Lifecycle, QuestionList, Reveals, type Picture, type Question } from '@/components/landing/Interactive';
 import { Marquee } from '@/components/landing/Marquee';
 import { Motion } from '@/components/landing/Motion';
 import { Pointer } from '@/components/landing/Pointer';
@@ -45,22 +45,22 @@ const PICTURES: Picture[] = [
 
 /** `pic` is the picture the question turns the panel to. */
 const QUESTIONS: Question[] = [
-  { q: 'Which batteries are safe to allocate?', where: 'Qualified status', pic: 0, more: 'Only batteries an engineer qualified, each with the test behind the decision. Units still waiting for review are listed apart.' },
-  { q: 'Where has it been installed, and when?', where: 'Movement history', pic: 0, more: 'Every site and position it has served in, with dates, so a returned battery comes back with its history.' },
-  { q: 'Is this a handling or a warranty issue?', where: 'Tests and readings', pic: 0, more: 'A claim links to the battery’s tests and telemetry, so the finding rests on what was measured.' },
-  { q: 'On what evidence was it qualified?', where: 'Test and reviewer', pic: 1, more: 'The final test with its instrument, calibration and protocol revision, and the engineer’s written reason.' },
-  { q: 'What did restoring it cost?', where: 'Cost entries', pic: 1, more: 'Each attempt’s costs, marked direct, allocated or estimated. A total with a missing entry says it is incomplete.' },
-  { q: 'What happened before it reached the site?', where: 'Passport timeline', pic: 2, more: 'Intake, tests, restoration and decisions in order, on one identity that never changes.' },
-  { q: 'Who changed this record, and why?', where: 'Audit log', pic: 2, more: 'Every change and every refusal, with the person, the time and the reason they gave.' },
-  { q: 'Where did it go when it left service?', where: 'Consignment record', pic: 3, more: 'The recycler, the consignment reference and the mass handed over.' },
-  { q: 'Has the recycler confirmed it?', where: 'Certificate state', pic: 3, more: 'Received or not received. The record never assumes a certificate it has not seen.' },
+  { q: 'How are my batteries doing?', where: 'Status', pic: 0, more: 'Good, watching, needs attention, or baseline being established, from fixed rules over what is on record. Never a health score.' },
+  { q: 'Which one needs attention, and why?', where: 'Reasons', pic: 0, more: 'Each battery lists the checks behind its status, with the next step from the same record.' },
+  { q: 'Where is it, and where has it been?', where: 'Site, bank, string, position', pic: 0, more: 'Customer, site, system, bank or string, and position, with every move and the date it happened.' },
+  { q: 'What did the last test measure?', where: 'Test and evidence', pic: 1, more: 'Capacity, resistance and voltage with the instrument, its calibration, the room temperature and the engineer who approved it.' },
+  { q: 'What changed after the work?', where: 'Before and after', pic: 1, more: 'The last two approved tests side by side, each against the room it was taken in. A change is a measurement, not a promise.' },
+  { q: 'When will it need replacing?', where: 'Outlook', pic: 2, more: 'Not estimated until a forecast is validated. The record says so, with the confidence, instead of inventing a window.' },
+  { q: 'Can I plan maintenance or a replacement?', where: 'Actions', pic: 2, more: 'Request maintenance or plan a replacement from the battery. In this demonstration the request stays in your browser.' },
+  { q: 'What do I give my ESG team?', where: 'Report', pic: 3, more: 'An evidence-backed data report: inventory, performance, lifecycle, and the energy and emissions inputs still missing.' },
+  { q: 'Where did it go when it left service?', where: 'Recycling record', pic: 3, more: 'The recycler, the consignment and the mass handed over. The certificate is received or not received, never assumed.' },
 ];
 
 const RULES: { title: string; text: string; aside: string; proof: ReactNode }[] = [
   {
-    title: 'Refusals are recorded',
-    text: 'Every read and write is checked against the reader’s role, where the data is held. A refused action is logged with who tried, what and why.',
-    aside: 'An administrator manages people and roles, and cannot qualify a battery either.',
+    title: 'You see your own batteries',
+    text: 'Every read is checked against the signed-in customer and their sites, where the data is held. A refusal is logged with who tried, what and why.',
+    aside: 'Internal costs, process notes and confidential methods are never part of what a customer sees.',
     proof: <AuditProof />,
   },
   {
@@ -87,12 +87,13 @@ const ABSENT: [string, string][] = [
   ['Cloud platform and database', 'Browser only'],
   ['Battery sensors and gateways', 'Generated'],
   ['Trained machine-learning models', 'None'],
-  ['Identity provider', 'Demo roles'],
+  ['Identity provider', 'Demo customer'],
   ['Certifications', 'None claimed'],
   ['Customers', 'None; names invented'],
+  ['Replacement forecasts', 'None; not validated'],
 ];
 
-const JOURNEY = ['Intake', 'Test', 'Restoration', 'Qualification', 'Deployment', 'Recycling'];
+const JOURNEY = ['Intake', 'Test', 'Service', 'Approval', 'Deployment', 'Recycling'];
 
 function Mark({ size }: { size: number }) {
   return (
@@ -116,7 +117,7 @@ function Nav() {
         </Link>
         <ul className="lp-nav-links">
           <li><a className="lp-link" href="#lifecycle">How it works</a></li>
-          <li><a className="lp-link" href="#rules">Try the rules</a></li>
+          <li><a className="lp-link" href="#enforces">How it is kept</a></li>
           <li><a className="lp-link" href="#questions">Questions</a></li>
           <li><a className="lp-link" href="#honesty">What is real</a></li>
         </ul>
@@ -146,7 +147,7 @@ export default function LandingPage() {
               <span className="lp-line"><span data-line style={{ ['--i' as string]: 1 }}><em>on the record.</em></span></span>
             </h1>
             <p className="lp-sub" data-rise style={{ ['--i' as string]: 3 }}>
-              One passport for each lead-acid battery, from intake to recycling. Every claim on it points to the record behind it.
+              See how every lead-acid battery is doing, why, and what happens next. Each battery keeps one record from its first test to recycling.
             </p>
             <div className="lp-cta-row" data-rise style={{ ['--i' as string]: 4 }}>
               <Link className="lp-btn" href="/signin" data-magnet>Open the demo</Link>
@@ -169,7 +170,7 @@ export default function LandingPage() {
           <div className="lp-fill-in">
             <p className="lp-fill-big"><Words text="A used battery is only as good as the record behind it." /></p>
             <p className="lp-fill-small" data-reveal>
-              Synovra keeps that record for lead-acid batteries: what was measured and on which instrument, what was done to the battery, who decided, and what it cost.
+              Synovra keeps that record for lead-acid batteries: what was measured and on which instrument, what service was done and approved, and where the battery sits and has been.
             </p>
           </div>
         </section>
@@ -195,14 +196,12 @@ export default function LandingPage() {
         </section>
 
         <div className="lp-sheet-paper">
-          <RulesDemo />
-
-          <section className="lp-enf" aria-labelledby="enf-h">
+          <section className="lp-enf" id="enforces" aria-labelledby="enf-h">
             <div className="lp-enf-head">
-              <p className="lp-eyebrow" data-reveal>Beyond the first four</p>
+              <p className="lp-eyebrow" data-reveal>How the record is kept</p>
               <h2 id="enf-h" className="lp-h2" data-reveal style={{ ['--i' as string]: 1 }}>What it <em>enforces</em></h2>
               <p className="lp-lead" data-reveal style={{ ['--i' as string]: 2 }}>
-                Beyond the rules you just tried, the record keeps four more. Each is shown here the way the product shows it.
+                Four rules the record keeps. Each is shown here the way the product shows it.
               </p>
             </div>
             {RULES.map((r, n) => (
@@ -229,13 +228,13 @@ export default function LandingPage() {
                 This is a demonstration build, and it says so on every screen. The batteries, sites, people and figures in it are invented, and nothing connects to a live customer, cloud or sensor.
               </p>
               <p data-reveal>
-                What is real is the record model and its rules: who may see what, what counts as evidence, and that qualifying a battery is always a person&apos;s decision.
+                What is real is the record model and its rules: who may see what, what counts as evidence, and that approving a test is always a person&apos;s decision.
               </p>
               <p data-reveal>
-                We built it for the people who handle used lead-acid batteries: restoration teams, battery engineers and lab technicians, the operators who install them, and the customers who need to know what they are getting.
+                We built it for the people who run lead-acid batteries: the managers of depots, telecom rooms and battery banks who need to know how every battery is doing, and why.
               </p>
               <p data-reveal>
-                Open it as any of seven roles. Each sees the same battery differently, because the rules are checked on every read and write. The same screens also run against the Synovra API, with PostgreSQL, company sign-in and stored evidence files.
+                Open it as a demonstration customer. The rules are checked on every read, so you see only your own sites. The same screens also run against the Synovra API, with PostgreSQL, company sign-in and stored evidence files.
               </p>
               <p className="lp-sign" data-reveal>
                 <span>The Synovra team</span>
@@ -257,13 +256,15 @@ export default function LandingPage() {
           <div className="lp-cta-glow" aria-hidden />
           <div className="lp-cta-text">
             <h2 id="cta-h" data-reveal>
-              <span>Open a</span> <span><em>passport.</em></span>
+              <span>Open your</span> <span><em>batteries.</em></span>
             </h2>
             <p data-reveal style={{ ['--i' as string]: 1 }}>
-              Choose a label and a reader. The button signs you in to the demonstration as that role and opens the battery&apos;s passport. Everything in it is synthetic.
+              Sign in to the demonstration as a customer. The button opens the home screen: how every battery is doing, what changed and what needs attention. Everything in it is synthetic.
+            </p>
+            <p data-reveal style={{ ['--i' as string]: 2 }}>
+              <Link className="lp-btn" href="/signin?next=%2Fapp%2Fhome" data-magnet>Open the demo</Link>
             </p>
           </div>
-          <OpenPassport />
         </section>
       </main>
 
@@ -274,7 +275,7 @@ export default function LandingPage() {
           <div className="lp-foot-top">
             <div className="lp-foot-lead" data-f style={{ ['--i' as string]: 0 }}>
               <p className="lp-foot-tag">Every battery,<br /> <em>on the record.</em></p>
-              <p className="lp-foot-note">One passport per lead-acid battery, from intake to recycling. Every value says where it came from.</p>
+              <p className="lp-foot-note">One record per lead-acid battery, from its first test to recycling. Every value says where it came from.</p>
             </div>
             <nav className="lp-foot-nav" aria-label="Footer" data-f style={{ ['--i' as string]: 1 }}>
               <div>

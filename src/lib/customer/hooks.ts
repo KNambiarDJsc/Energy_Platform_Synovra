@@ -56,3 +56,19 @@ export function useSiteData(siteIds: string[]) {
     return { passports, siteViews: siteViews.filter((v) => siteIds.includes(v.site.id)), snapshotAt: home.snapshotAt };
   }, { enabled: siteIds.length > 0 });
 }
+
+/** Every battery at every site this person may see, with the snapshot time. Off until `enabled`. */
+export function useFleet(enabled = true) {
+  const facets = useSvcQuery(['customer', 'facets'], (s) => s.batteries.facets(), { enabled });
+  const siteIds = (facets.data?.sites ?? []).map((s) => s.id);
+  const data = useSvcQuery<SiteData>(['customer', 'site-data', ...siteIds], async (s) => {
+    const [lists, siteViews, home] = await Promise.all([
+      Promise.all(siteIds.map((id) => s.batteries.list({ siteId: id }))),
+      s.deployments.sites(),
+      s.overview.home(),
+    ]);
+    const passports = await Promise.all(lists.flat().map((b) => s.batteries.get(b.id)));
+    return { passports, siteViews: siteViews.filter((v) => siteIds.includes(v.site.id)), snapshotAt: home.snapshotAt };
+  }, { enabled: enabled && siteIds.length > 0 });
+  return { facets, data };
+}

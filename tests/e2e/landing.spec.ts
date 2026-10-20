@@ -5,24 +5,25 @@ test.describe('public landing page', () => {
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Every battery, on the record.');
     await expect(page.getByTestId('demo-banner')).toContainText('Synthetic demonstration data. No live customer, cloud or sensor connection.');
-    await expect(page.getByRole('link', { name: 'Open the demo' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Open the demo' }).first()).toBeVisible();
     await expect(page.getByText('Synovra Battery Intelligence, demonstration build')).toBeVisible();
-    for (const heading of ['Try the rules', 'Questions it answers', 'What it enforces']) {
+    for (const heading of ['Questions it answers', 'What it enforces']) {
       await expect(page.getByRole('heading', { name: heading })).toBeVisible();
     }
   });
 
-  test('the live fragments enforce the product rules', async ({ page }) => {
+  test('the lifecycle slider walks one battery through its record and ends on a person deciding', async ({ page }) => {
     await page.goto('/');
-    const rules = page.locator('#rules');
-    await rules.getByRole('button', { name: 'Let the rule check approve' }).click();
-    await expect(rules.getByText(/Refused\. A rule check informs the decision/)).toBeVisible();
-    await rules.getByRole('button', { name: 'Customer auditor' }).click();
-    await expect(rules.getByText('Internal costs are not shown to customers')).toBeVisible();
-    await rules.getByRole('button', { name: 'Approve as the current reader' }).click();
-    await expect(rules.getByText(/cannot qualify a battery/)).toBeVisible();
     await page.getByRole('slider', { name: 'Lifecycle stage' }).fill('3');
     await expect(page.getByRole('heading', { name: 'Last, a person decides' })).toBeVisible();
+    await page.getByRole('slider', { name: 'Lifecycle stage' }).fill('2');
+    await expect(page.getByRole('heading', { name: 'Then, the work, with its evidence' })).toBeVisible();
+  });
+
+  test('no screen for staff is offered: no role picker, no qualification demo, no cost talk', async ({ page }) => {
+    await page.goto('/');
+    const text = (await page.locator('main').innerText()).toLowerCase();
+    for (const gone of ['try the rules', 'lab technician', 'battery engineer qualif', 'restoration teams', 'cost entries', 'seven roles']) expect(text, gone).not.toContain(gone);
   });
 
   test('makes no unsupported savings, accuracy or certification claims', async ({ page }) => {
@@ -34,18 +35,13 @@ test.describe('public landing page', () => {
     await expect(page.getByText('What this demonstration does not have')).toBeVisible();
   });
 
-  test('demo sign-in leads to the overview and the role can be switched', async ({ page }) => {
+  test('the demo opens the customer’s home', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('link', { name: 'Open the demo' }).click();
-    await expect(page.getByRole('heading', { name: 'Choose a demo role' })).toBeVisible();
-    await page.getByTestId('role-battery_engineer').click();
-    await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
-    await expect(page.getByText('Fleet position in the synthetic snapshot')).toBeVisible();
-
-    await page.getByLabel('Demo role').first().selectOption('customer_auditor');
-    await expect(page.getByText('Now acting as Customer / auditor')).toBeVisible();
-    // Customers do not get the lab or intelligence areas in navigation.
-    await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Intelligence' })).toHaveCount(0);
+    await page.getByRole('link', { name: 'Open the demo' }).first().click();
+    await expect(page.getByRole('heading', { name: 'Sign in to your batteries' })).toBeVisible();
+    await page.getByTestId('role-customer_auditor').click();
+    await expect(page).toHaveURL(/\/app\/home$/);
+    await expect(page.getByTestId('customer-demo-label')).toContainText('Demonstration records');
   });
 });
 
@@ -214,21 +210,21 @@ test.describe('the pointer', () => {
     expect(Math.abs(d.y + d.height / 2 - 320)).toBeLessThan(4);
     expect(Number(await ring.evaluate((el) => getComputedStyle(el).opacity))).toBeGreaterThan(0.9);
     const idle = (await ring.boundingBox())!.width;
-    const cta = await centre(page.getByRole('link', { name: 'Open the demo' }));
+    const cta = await centre(page.getByRole('link', { name: 'Open the demo' }).first());
     await page.mouse.move(cta.x, cta.y, { steps: 6 });
     await page.waitForTimeout(700);
     expect((await ring.boundingBox())!.width, 'the ring swells over a button').toBeGreaterThan(idle + 20);
     // The cursor layers sit above everything and still let the click through.
     expect(await ring.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
     expect(await dot.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
-    await page.getByRole('link', { name: 'Open the demo' }).click();
-    await expect(page.getByRole('heading', { name: 'Choose a demo role' })).toBeVisible();
+    await page.getByRole('link', { name: 'Open the demo' }).first().click();
+    await expect(page.getByRole('heading', { name: 'Sign in to your batteries' })).toBeVisible();
   });
 
   test('a button leans toward the pointer as it nears, then settles back', async ({ page }) => {
     await page.goto('/');
     await page.waitForTimeout(3600);
-    const link = page.getByRole('link', { name: 'Open the demo' });
+    const link = page.getByRole('link', { name: 'Open the demo' }).first();
     const c = await centre(link);
     const shift = () => link.evaluate((el) => { const t = getComputedStyle(el).translate; return t === 'none' ? [0, 0] : t.split(' ').map(parseFloat); });
     await page.mouse.move(c.x + c.w / 2 + 14, c.y - 6, { steps: 8 });
@@ -333,7 +329,7 @@ test.describe('the pointer', () => {
     await page.waitForTimeout(500);
     expect(Number(await page.locator('.lp-cursor-ring').evaluate((el) => getComputedStyle(el).opacity))).toBe(0);
     expect(await page.locator('.lp').evaluate((el) => el.classList.contains('has-pointer'))).toBe(false);
-    expect(await page.getByRole('link', { name: 'Open the demo' }).evaluate((el) => getComputedStyle(el).translate)).toBe('none');
+    expect(await page.getByRole('link', { name: 'Open the demo' }).first().evaluate((el) => getComputedStyle(el).translate)).toBe('none');
     expect(await page.locator('.lp-marquee-track').evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
   });
 });

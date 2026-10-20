@@ -1,6 +1,8 @@
-# Synovra Battery Intelligence Platform — demonstration
+# Synovra Battery Intelligence: the customer product
 
-A front-end demonstration of a lead-acid battery lifecycle platform: intake → testing → restoration → qualification → inventory → deployment → monitoring → warranty → recycling, with a **battery passport** as the central record.
+A front-end demonstration of what a battery customer sees: how every lead-acid battery is doing, why, what changed, what needs attention, what happens next, and the paperwork for ESG and internal use. Each battery keeps one record from its first test to recycling.
+
+**This branch is the customer product only.** The internal operations screens (intake, tests, restoration, inventory, deployments, monitoring, alerts, intelligence, administration) and every staff role were removed from the app. The domain model, service layer, API server and database stay as the data layer they read from, so the staff product can return on `main`'s history without rebuilding the backend.
 
 > **Synthetic demonstration data. No live customer, cloud or sensor connection.**
 > Every record, name, reading and prediction in this build is generated locally. Nothing here is a real customer, a real saving, a certification or a validated model result.
@@ -33,25 +35,19 @@ The demo database lives in the browser (in memory, mirrored to `localStorage` ke
 
 ## Route map
 
-| Route | Purpose | Who sees it |
-| --- | --- | --- |
-| `/` | Public landing page | everyone |
-| `/signin` | Choose a demo role (no real authentication) | everyone |
-| `/app/overview` | Fleet position, attention list | all roles |
-| `/app/batteries`, `/app/batteries/[id]` | Register; each battery opens on a deep dive (illustration, five lenses, vitals with provenance, what changed since your last visit) above the full passport (10 tabs). `?lens=` and `?tab=` are kept in the address | all roles, redacted for customers |
-| `/app/scan?ref=` / `?label=` | QR/label lookup, then passport | all roles |
-| `/app/intake` | Single registration, CSV import (preview → commit) | lab, engineer |
-| `/app/tests` | Test sessions, evidence, engineering review | lab, engineer, others read-only |
-| `/app/restoration` | Candidates, batches, attempts, review, batch economics | lab, engineer, finance |
-| `/app/inventory` | Inventory groups and family summary | most roles |
-| `/app/deployments` | Compatibility checks, assignment, overlap prevention, removal | field, engineer, NOC |
-| `/app/monitoring` | Synthetic telemetry with measured / rule / model / unknown / stale labels | field, engineer, NOC, admin |
-| `/app/alerts` | Alerts and service tasks (`?alert=`, `?tab=tasks`) | field, engineer, NOC, customer (read) |
-| `/app/reports` | Six report templates, scope, period, watermark, approval | most roles |
-| `/app/intelligence` | Data collection pipeline (default), data sources, the learning loop, model outputs, read-only agents and machine connections (`?view=`) | engineer, NOC, finance, admin |
-| `/app/admin` | Users, mappings, templates, audit | administrator |
+| Route | Purpose |
+| --- | --- |
+| `/` | Public landing page |
+| `/signin` | Sign in as the demo customer (no real authentication) |
+| `/app/home` | How everything is doing: one status ring, one sentence, what needs attention, actions (now, scheduled, completed), since your last visit, data freshness |
+| `/app/batteries` | The portfolio: a clean list with condition filters, site and type, search. `?status=` and `?q=` are kept in the address |
+| `/app/batteries/[id]` | One battery: the cutaway first (a modelled illustration, five lenses), a glance, why it has its status, what changed between the last two approved tests, history, evidence, recycling; technical detail one click down |
+| `/app/actions` | Now, scheduled, completed. Requests and replacement plans are a demonstration kept in this browser |
+| `/app/reports` | An evidence-backed operational and ESG data report (preview, CSV, JSON, print), with configurable framework pointers and a labelled replacement scenario |
 
-Roles: Lab operator, Battery engineer, Field technician, NOC/service manager, Finance/business owner, Customer/auditor, Platform administrator. Permissions are enforced in the **service layer** (`src/services/core.ts`, `authorize()`), not only by hiding navigation. Denied attempts are written to the audit log.
+The customer is one role (`customer_auditor`, "Layla Mansour, Demo Customer A"). Permissions are still enforced in the **service layer** (`src/services/core.ts`, `authorize()`), so a customer sees only their own sites, and internal costs, process notes and confidential methods are never returned. Denied attempts are written to the audit log.
+
+The product rules it follows are in `docs/customer-ux-alignment.md` and `docs/customer-ux-data-map.md`: a status and never a health score, every value says whether it is measured, calculated, estimated, modelled, predicted or demo-only, no replacement window until a forecast is validated, and the internal image is a model, not a camera.
 
 ## Architecture
 
@@ -74,7 +70,7 @@ UI code only calls the interfaces in `src/services/types.ts`. Swapping `createSe
 - **Typography**: a serif (Newsreader) for titles and the figure a person reads first, with its unit set smaller; Inter for data, tables and controls; tabular numerals for measurements; slashed zeros for identifiers.
 - **Tables** (`DataTable`): sortable columns, right-aligned numerics, columns hide by breakpoint, and below `md` the table renders as a card list.
 - **Overlays**: modal becomes a bottom sheet on phones; drawers for record detail; Radix focus management.
-- **Navigation**: sidebar on `lg+`, drawer menu below, and a bottom bar (Overview, Batteries, Alerts, More) on phones.
+- **Navigation**: Home, Batteries, Actions, Reports: a sidebar on `lg+`, a drawer menu below, and the same four in a bottom bar on phones.
 - **States**: loading skeletons, empty states with the next action, error and access-restricted states with plain-language messages.
 
 ### Data-model summary
