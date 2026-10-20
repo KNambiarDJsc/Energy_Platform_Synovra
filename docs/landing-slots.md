@@ -18,16 +18,18 @@ Put the file at `public/landing/slots/<name>.<ext>` and pass it to the slot:
 
 ## The slots
 
-| Name | Kind | Ratio | Where | What belongs there |
-|---|---|---|---|---|
-| `hero-media` | video | 16 / 9 | Hero, under the title | **Filled** with `public/landing/slots/hero-media.mp4` (poster `hero-media.jpg`): a battery with record-style callouts, on the page's orange and charcoal. It is a generated clip, not footage of Synovra equipment. The generator's corner logo was removed from the file. |
-| `solution-fleet` | illustration | 4 / 3 | Solutions row, card 01 | A fleet of batteries across sites as a calm status ring. |
-| `solution-record` | illustration | 4 / 3 | Solutions row, card 02 | One battery opened as a cutaway beside its record. |
-| `solution-actions` | illustration | 4 / 3 | Solutions row, card 03 | Two tests either side of a service visit. |
-| `solution-reports` | illustration | 4 / 3 | Solutions row, card 04 | A report assembling from battery records. |
-| `platform-twin` | component | 17 / 8.5 | Platform section | Filled: the exploded battery drawing (`ExplodedBattery.tsx`). Replace it with a richer interactive view whose state follows the battery's data. |
+Every slot is filled. The four solution drawings are SVG components in `src/components/landing/SolutionArt.tsx`, drawn for this page: flat and hard-edged, charcoal on paper with signal orange for the one thing to look at, mono capitals for labels, hatching (never colour alone) for "watching" and "not recorded". Each says "ILLUSTRATION · SYNTHETIC" and its numbers are invented. A supplied picture can replace any of them: pass it as `src` on the `Slot` and drop the `art` entry in `src/app/page.tsx`.
 
-The four `solution-*` slots are empty today; `hero-media` is filled. A test (`tests/e2e/landing.spec.ts`) lists the empty slots by name, so filling one means updating that list. A video slot plays muted and looping, does not start for people who prefer reduced motion, and always has a pause button.
+| Name | Kind | Ratio | Where | What it is |
+|---|---|---|---|---|
+| `hero-media` | video | 16 / 9 | Hero, under the title | `public/landing/slots/hero-media.mp4` (poster `hero-media.jpg`): a battery with record-style callouts, on the page's orange and charcoal. A generated clip, not footage of Synovra equipment. The generator's corner logo was removed from the file. |
+| `solution-fleet` | illustration | 4 / 3 | Solutions row, card 01 | `FleetArt`: a status ring of eleven batteries (four good, three watching, four needing attention) and the same batteries by site. |
+| `solution-record` | illustration | 4 / 3 | Solutions row, card 02 | `RecordArt`: a modelled cutaway of one battery, one cell tinted, joined to its record card. |
+| `solution-actions` | illustration | 4 / 3 | Solutions row, card 03 | `ActionsArt`: capacity at two approved tests either side of an engineer-approved service visit, with a demo request button. |
+| `solution-reports` | illustration | 4 / 3 | Solutions row, card 04 | `ReportsArt`: a stack of report sheets with a section table, gaps marked "not recorded", a "not a certificate" stamp and export chips. |
+| `platform-twin` | component | 17 / 8.5 | Platform section | The exploded battery drawing (`ExplodedBattery.tsx`). Replace it with a richer interactive view whose state follows the battery's data. |
+
+`tests/e2e/landing.spec.ts` checks that no blank placeholder is left, that each drawing is labelled for assistive technology and keeps its shape, and that the honest captions are present. A video slot plays muted and looping, does not start for people who prefer reduced motion, and always has a pause button.
 
 ## Not placeholders
 

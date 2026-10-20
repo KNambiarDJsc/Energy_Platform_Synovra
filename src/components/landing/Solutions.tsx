@@ -1,10 +1,10 @@
 'use client';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Slot } from './Slot';
 
-export interface Solution { key: string; n: string; title: string; text: string; href: string; slot: string; note: string }
+export interface Solution { key: string; n: string; title: string; text: string; href: string; slot: string; note: string; art?: ReactNode }
 
 /**
  * The solutions row, after shift5's pull-up slider: cards in a row you can drag, scroll, or step with the arrows.
@@ -68,7 +68,7 @@ export function Solutions({ items }: { items: Solution[] }) {
           <li key={s.key} data-card className="lp-sol-card">
             <Link href={s.href} data-fluid-item draggable={false} className="lp-sol-link">
               <span className="lp-sol-n">{s.n}</span>
-              <Slot name={s.slot} kind="illustration" ratio="4 / 3" note={s.note} />
+              <Slot name={s.slot} kind="illustration" ratio="4 / 3" note={s.note}>{s.art}</Slot>
               <span className="lp-sol-t">{s.title}</span>
               <span className="lp-sol-p">{s.text}</span>
               <span className="lp-sol-go">Explore <ArrowRight className="h-4 w-4" aria-hidden /></span>

@@ -79,14 +79,25 @@ test.describe('structure, after shift5: split hero, status panel, solutions row,
     await expect(page.getByText('Evidence checksums · synthetic')).toBeVisible();
   });
 
-  test('every picture or video not yet supplied is a named placeholder; the battery component is real', async ({ page }) => {
+  test('every slot is filled: a drawing for each solution, the video, and the working battery; each drawing says it is synthetic', async ({ page }) => {
     await page.goto('/');
-    const names = await page.locator('[data-slot]:has(.slot-empty)').evaluateAll((els) => els.map((e) => e.getAttribute('data-slot')));
-    expect([...names].sort()).toEqual(['solution-actions', 'solution-fleet', 'solution-record', 'solution-reports']);
-    for (const label of await page.locator('.slot-empty').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))) {
-      expect(label).toMatch(/^Placeholder for (video|illustration|image|component): /);
+    await expect(page.locator('.slot-empty'), 'no blank placeholder is left').toHaveCount(0);
+    const drawings: [string, RegExp][] = [
+      ['solution-fleet', /status ring of eleven batteries/],
+      ['solution-record', /modelled cutaway/],
+      ['solution-actions', /two bars for capacity/],
+      ['solution-reports', /stack of report sheets/],
+    ];
+    for (const [name, label] of drawings) {
+      const art = page.locator(`[data-slot="${name}"] svg[role="img"]`);
+      await expect(art).toHaveAttribute('aria-label', label);
+      await expect(art).toContainText('ILLUSTRATION · SYNTHETIC');
+      const box = (await art.boundingBox())!;
+      expect(box.width / box.height, `${name} keeps its 4:3 shape`).toBeCloseTo(4 / 3, 1);
     }
-    await expect(page.locator('[data-slot="solution-fleet"] .slot-spec')).toContainText('public/landing/slots/solution-fleet');
+    await expect(page.locator('[data-slot="solution-actions"]')).toContainText('NOT A FORECAST');
+    await expect(page.locator('[data-slot="solution-reports"]')).toContainText('NOT A CERTIFICATE');
+    await expect(page.locator('[data-slot="hero-media"] video')).toHaveAttribute('src', '/landing/slots/hero-media.mp4');
     await expect(page.locator('[data-slot="platform-twin"]').getByRole('img', { name: /exploded view/i })).toBeVisible();
   });
 

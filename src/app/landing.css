@@ -576,6 +576,22 @@ section[id], #main { scroll-margin-top: calc(var(--head-h) + 8px); }
 @keyframes lp-drift { from { transform: scale(1.1); } to { transform: scale(1); } }
 @keyframes lp-in { from { opacity: 0; transform: translateY(4px); } }
 
+/* ---------- Solution drawings: flat, hard-edged, charcoal and signal on paper ---------- */
+.sa { display: block; width: 100%; height: 100%; }
+.sa * { vector-effect: non-scaling-stroke; }
+.sa-t { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: 0.08em; fill: var(--ink-2); }
+.sa-tb { fill: var(--ink); font-weight: 600; }
+.sa-v { font-family: var(--f-sans); font-size: 12.5px; fill: var(--ink); }
+.sa-num { font-family: var(--f-display); font-weight: 400; fill: var(--ink); }
+.sa-lift, .sa-rise, .sa-spin { transition: transform 520ms var(--ease-spring); transform-box: fill-box; }
+.sa-rise { transform-origin: 50% 100%; }
+.sa-spin { transform-origin: 50% 50%; }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .lp-sol-link:hover .sa-lift, .lp-sol-link:focus-visible .sa-lift { transform: translateY(-5px); }
+  .lp-sol-link:hover .sa-rise, .lp-sol-link:focus-visible .sa-rise { transform: scaleY(1.04); }
+  .lp-sol-link:hover .sa-spin, .lp-sol-link:focus-visible .sa-spin { transform: scale(1.12); }
+}
+
 /* ---------- Pointer layer, restated for this palette ---------- */
 .lp [data-spot] { --spot: 255, 88, 65; }
 .lp-platform [data-spot], .lp-foot [data-spot] { --spot: 236, 236, 234; }

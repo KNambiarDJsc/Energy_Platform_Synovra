@@ -10,6 +10,7 @@ import { Motion } from '@/components/landing/Motion';
 import { PlateField } from '@/components/landing/PlateField';
 import { Pointer } from '@/components/landing/Pointer';
 import { Slot } from '@/components/landing/Slot';
+import { ActionsArt, FleetArt, RecordArt, ReportsArt } from '@/components/landing/SolutionArt';
 import { Solutions, type Solution } from '@/components/landing/Solutions';
 import './landing.css';
 
@@ -108,10 +109,10 @@ const NOTES: [string, string][] = [
 const HASHES = ['9f2c41ab', 'e07d85c3', '3b19f6a0', 'a4c2e911', '5d80b7f2', 'c61e03d8', '7a9b44e5', '12f0c8ad', 'b3d7621e'];
 
 const SOLUTIONS: Solution[] = [
-  { key: 'fleet', n: '01', title: 'Your fleet at a glance', text: 'One calm screen: how many batteries, how many are good, watching or need attention, and what to do next.', href: '/signin?next=%2Fapp%2Fhome', slot: 'solution-fleet', note: 'Illustration: a fleet of batteries across sites as a calm status ring.' },
-  { key: 'record', n: '02', title: 'Every battery, opened up', text: 'Its identity, where it sits, its condition and why, a modelled view of the inside, and every test behind it.', href: '/signin?next=%2Fapp%2Fbatteries', slot: 'solution-record', note: 'Illustration: one battery opened as a cutaway beside its record.' },
-  { key: 'actions', n: '03', title: 'Maintenance and replacement', text: 'Ask for maintenance or plan a replacement from the battery itself. Work done shows as before and after measurements.', href: '/signin?next=%2Fapp%2Factions', slot: 'solution-actions', note: 'Illustration: two tests either side of a service visit.' },
-  { key: 'reports', n: '04', title: 'Reports for your paperwork', text: 'An evidence-backed data report for internal and ESG use, with measured results kept apart from estimates and gaps listed.', href: '/signin?next=%2Fapp%2Freports', slot: 'solution-reports', note: 'Illustration: a report assembling from battery records.' },
+  { key: 'fleet', n: '01', title: 'Your fleet at a glance', text: 'One calm screen: how many batteries, how many are good, watching or need attention, and what to do next.', href: '/signin?next=%2Fapp%2Fhome', slot: 'solution-fleet', note: 'Illustration: a fleet of batteries across sites as a calm status ring.', art: <FleetArt /> },
+  { key: 'record', n: '02', title: 'Every battery, opened up', text: 'Its identity, where it sits, its condition and why, a modelled view of the inside, and every test behind it.', href: '/signin?next=%2Fapp%2Fbatteries', slot: 'solution-record', note: 'Illustration: one battery opened as a cutaway beside its record.', art: <RecordArt /> },
+  { key: 'actions', n: '03', title: 'Maintenance and replacement', text: 'Ask for maintenance or plan a replacement from the battery itself. Work done shows as before and after measurements.', href: '/signin?next=%2Fapp%2Factions', slot: 'solution-actions', note: 'Illustration: two tests either side of a service visit.', art: <ActionsArt /> },
+  { key: 'reports', n: '04', title: 'Reports for your paperwork', text: 'An evidence-backed data report for internal and ESG use, with measured results kept apart from estimates and gaps listed.', href: '/signin?next=%2Fapp%2Freports', slot: 'solution-reports', note: 'Illustration: a report assembling from battery records.', art: <ReportsArt /> },
 ];
 
 const PLATFORM: [string, string, string, string][] = [
